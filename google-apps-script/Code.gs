@@ -336,7 +336,7 @@ function doPost(e) {
   if (update.update_id != null) {
     var cache = CacheService.getScriptCache();
     if (cache.get('u_' + update.update_id)) return ok_();
-    cache.put('u_' + update.update_id, '1', 600);
+    cache.put('u_' + update.update_id, '1', 3600);
   }
 
   var msg = update.message || update.edited_message;
@@ -383,7 +383,7 @@ function setWebhook() {
   var cfg = getConfig_();
   var url = ScriptApp.getService().getUrl();
   var res = UrlFetchApp.fetch(
-    'https://api.telegram.org/bot' + cfg.TELEGRAM_TOKEN + '/setWebhook?url=' + encodeURIComponent(url),
+    'https://api.telegram.org/bot' + cfg.TELEGRAM_TOKEN + '/setWebhook?drop_pending_updates=true&url=' + encodeURIComponent(url),
     { muteHttpExceptions: true }
   );
   Logger.log(res.getContentText());
