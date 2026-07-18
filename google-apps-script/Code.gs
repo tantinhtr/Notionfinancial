@@ -293,6 +293,14 @@ function doPost(e) {
   var cfg = getConfig_();
   var update;
   try { update = JSON.parse(e.postData.contents); } catch (err) { return ok_(); }
+
+  // Chống gửi lặp: mỗi update chỉ xử lý 1 lần (Telegram hay gửi lại khi thấy chậm)
+  if (update.update_id != null) {
+    var cache = CacheService.getScriptCache();
+    if (cache.get('u_' + update.update_id)) return ok_();
+    cache.put('u_' + update.update_id, '1', 600);
+  }
+
   var msg = update.message || update.edited_message;
   if (!msg || !msg.text) return ok_();
   if (!msg.from || msg.from.id !== cfg.ALLOWED_USER_ID) return ok_();
