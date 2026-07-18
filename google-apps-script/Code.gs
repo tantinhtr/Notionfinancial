@@ -237,17 +237,55 @@ function loggedText_(amount) {
 }
 
 function cashflowText_() {
+  var cfg = getConfig_();
   var t = today_();
   var firstISO = iso_(t.y, t.m, 1);
   var todayISO = iso_(t.y, t.m, t.d);
-  var budgets = getBudgetCategories_();
-  var exp = sumExpensesByCategory_(firstISO, todayISO);
-  var income = getTotalIncome_(firstISO, todayISO);
+  var monthFilter = { and: [
+    { property: 'Ngày', date: { on_or_after: firstISO } },
+    { property: 'Ngày', date: { on_or_before: todayISO } }
+  ]};
+  function req(dbId, filter) {
+    var payload = { page_size: 100 };
+    if (filter) payload.filter = filter;
+    return {
+      url: 'https://api.notion.com/v1/databases/' + dbId + '/query',
+      method: 'post', contentType: 'application/json',
+      headers: { 'Authorization': 'Bearer ' + cfg.NOTION_TOKEN, 'Notion-Version': NOTION_VERSION },
+      payload: JSON.stringify(payload), muteHttpExceptions: true
+    };
+  }
+  // 3 truy vấn chạy SONG SONG cho nhanh (tránh Telegram cắt ngang)
+  var r = UrlFetchApp.fetchAll([
+    req(cfg.BUDGET_DB, null),
+    req(cfg.EXPENSE_DB, monthFilter),
+    req(cfg.INCOME_DB, monthFilter)
+  ]);
+  var budgetRows = (JSON.parse(r[0].getContentText()).results) || [];
+  var expenseRows = (JSON.parse(r[1].getContentText()).results) || [];
+  var incomeRows = (JSON.parse(r[2].getContentText()).results) || [];
+
+  var budgets = {};
+  for (var bi = 0; bi < budgetRows.length; bi++) {
+    var bp = budgetRows[bi].properties;
+    var ta = (bp['Loại Chi Phí'] && bp['Loại Chi Phí'].title) || [];
+    budgets[budgetRows[bi].id] = { name: ta.length ? ta[0].plain_text : '(không tên)', budget: num_(bp['Ngân Sách Tháng']) };
+  }
+  var byCategory = {}, totalExpense = 0;
+  for (var ei = 0; ei < expenseRows.length; ei++) {
+    var ep = expenseRows[ei].properties;
+    var amt = num_(ep['Số Tiền']); totalExpense += amt;
+    var rel = (ep['Loại Chi Phí'] && ep['Loại Chi Phí'].relation) || [];
+    var cid = rel.length ? rel[0].id : '(chưa phân loại)';
+    byCategory[cid] = (byCategory[cid] || 0) + amt;
+  }
+  var income = 0;
+  for (var ii = 0; ii < incomeRows.length; ii++) income += num_(incomeRows[ii].properties['Số Tiền']);
 
   var lines = [];
-  for (var catId in exp.byCategory) {
+  for (var catId in byCategory) {
     var meta = budgets[catId] || { name: '(chưa phân loại)', budget: 0 };
-    var spent = exp.byCategory[catId];
+    var spent = byCategory[catId];
     var over = meta.budget > 0 ? Math.max(spent - meta.budget, 0) : 0;
     lines.push({ name: meta.name, spent: spent, budget: meta.budget, over: over });
   }
@@ -259,8 +297,8 @@ function cashflowText_() {
   var out = [
     '📊 Dòng tiền tháng ' + t.m + '/' + t.y,
     'Thu: ' + money_(income),
-    'Chi: ' + money_(exp.total),
-    'Còn lại: ' + money_(income - exp.total)
+    'Chi: ' + money_(totalExpense),
+    'Còn lại: ' + money_(income - totalExpense)
   ];
   if (totalOver > 0) out.push('\n⚠️ Vượt ngân sách tổng: ' + money_(totalOver));
   out.push('\n💸 Tiền đi đâu (chi theo loại):');
