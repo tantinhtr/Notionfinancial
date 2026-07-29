@@ -1,0 +1,14 @@
+{
+  "name": "notion-finance-bot",
+  "main": "src/index.js",
+  "compatibility_date": "2026-07-29",
+  "observability": {
+    "enabled": true
+  },
+  "triggers": {
+    "crons": ["0 14 * * *"]
+  },
+  "vars": {
+    "ALLOWED_USER_ID": "0"
+  }
+}
