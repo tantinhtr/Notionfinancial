@@ -333,6 +333,8 @@ Expected: all configuration, adapter, finance, and repository tests PASS.
 - Create: `cloudflare-worker/test/coordinator.test.js`
 - Modify: `cloudflare-worker/src/telegram.js`
 - Modify: `cloudflare-worker/test/adapters.test.js`
+- Modify: `cloudflare-worker/src/repository.js`
+- Modify: `cloudflare-worker/test/repository.test.js`
 - Modify: `cloudflare-worker/wrangler.jsonc`
 
 **Interfaces:**
