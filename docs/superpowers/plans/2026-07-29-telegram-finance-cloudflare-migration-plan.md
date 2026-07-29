@@ -4,7 +4,12 @@
 
 **Goal:** Replace the Google Apps Script runtime completely with a Cloudflare Worker while preserving the approved Telegram finance bot behavior.
 
-**Architecture:** A module Worker receives Telegram webhooks, queries Notion through asynchronous REST clients, stores deduplication and short-lived report cache state in Workers KV, and sends the daily reminder from a Cron Trigger. The production webhook is switched only after local tests, deployment health checks, and direct Worker checks pass.
+**Architecture:** A module Worker receives Telegram webhooks, serializes each
+Telegram update through a SQLite-backed Durable Object, queries Notion through
+asynchronous REST clients, stores short-lived report cache state in Workers KV,
+and sends the daily reminder from a Cron Trigger. The production webhook is
+switched only after local tests, deployment health checks, and direct Worker
+checks pass.
 
 **Tech Stack:** JavaScript ES modules, Cloudflare Workers, Wrangler, Workers KV, Node.js built-in test runner, Telegram Bot API, Notion REST API.
 
@@ -16,6 +21,8 @@
 - Configure `ALLOWED_USER_ID` as a non-secret Worker variable.
 - Use the existing Notion database IDs, Notion API version `2022-06-28`, timezone `Asia/Ho_Chi_Minh`, and `MONTHLY_EXPENSE_LIMIT=5500000`.
 - Add the approved rich-text property `Telegram Update ID` to the Notion income database.
+- Coordinate duplicate delivery through a SQLite-backed Durable Object;
+  ambiguous Notion writes are reconciled or surfaced without blind recreation.
 - Keep Google Apps Script active until the Cloudflare Worker passes production verification; then remove every Apps Script trigger.
 - Do not enable a paid Cloudflare plan without a separate user decision.
 - The working directory is not a Git repository, so commit steps are omitted and file-level verification replaces commit checkpoints.
@@ -320,12 +327,19 @@ Expected: all configuration, adapter, finance, and repository tests PASS.
 **Files:**
 - Create: `cloudflare-worker/src/bot.js`
 - Create: `cloudflare-worker/src/index.js`
+- Create: `cloudflare-worker/src/coordinator.js`
 - Create: `cloudflare-worker/test/bot.test.js`
 - Create: `cloudflare-worker/test/worker.test.js`
+- Create: `cloudflare-worker/test/coordinator.test.js`
+- Modify: `cloudflare-worker/src/telegram.js`
+- Modify: `cloudflare-worker/test/adapters.test.js`
+- Modify: `cloudflare-worker/wrangler.jsonc`
 
 **Interfaces:**
 - Produces: `createBot({ telegram, repository, state, config, now })`.
 - Produces: `processUpdate(update)` and `sendDailyReminder()`.
+- Produces: SQLite-backed `UpdateCoordinator` Durable Object behavior keyed by
+  Telegram `update_id`.
 - Worker default export provides `fetch(request, env, ctx)` and
   `scheduled(controller, env, ctx)`.
 
@@ -336,6 +350,16 @@ acknowledgment, account/direction/category callbacks, unknown text, and
 duplicate updates. Assert that `/thang` and `/chi` are not command routes.
 Port the legacy command, callback, Telegram error, update deduplication, and
 polling-equivalent behavior cases assigned to Task 5 by the Task 3 mapping.
+
+Add coordinator tests for:
+
+- Two concurrent deliveries of the same numeric update create at most one
+  Notion page.
+- A committed update acknowledges without another bot call.
+- A retryable pre-write failure can run again.
+- An ambiguous Notion create is reconciled by `Telegram Update ID`.
+- A still-ambiguous result becomes `needs_reconciliation`, warns the authorized
+  user, and never invokes create again automatically.
 
 - [ ] **Step 2: Implement async command and callback dispatch**
 
@@ -359,10 +383,14 @@ test("scheduled event sends the daily reminder", async () => {});
 - [ ] **Step 4: Implement Worker entry points**
 
 Validate `X-Telegram-Bot-Api-Secret-Token` with a timing-safe comparison where
-available. Build dependencies per invocation from `env`, await update
-processing, and return JSON responses with no financial payload.
+available. Route each accepted update to `UPDATE_COORDINATOR` using a Durable
+Object ID derived from `String(update.update_id)`. The coordinator owns awaited
+processing and persistent transitions through `in_progress`, `committed`,
+`retryable`, and `needs_reconciliation`. Return JSON responses with no
+financial payload.
 
 The `scheduled()` handler must call `ctx.waitUntil(bot.sendDailyReminder())`.
+Telegram `setWebhook` must send `max_connections: 1` as defense-in-depth.
 
 - [ ] **Step 5: Run the full local suite**
 
@@ -385,7 +413,8 @@ run bundle.
 - Create locally but do not commit: `cloudflare-worker/.dev.vars.example`
 
 **Interfaces:**
-- Produces the deployed Worker URL and a bound `BOT_STATE` namespace.
+- Produces the deployed Worker URL, a bound `BOT_STATE` namespace, and the
+  SQLite-backed `UPDATE_COORDINATOR` Durable Object namespace.
 - Does not change the Telegram webhook.
 
 - [ ] **Step 1: Authenticate Wrangler to the approved Cloudflare account**
@@ -405,6 +434,9 @@ npx wrangler kv namespace create BOT_STATE
 
 Copy the returned namespace ID exactly into the `kv_namespaces` entry in
 `wrangler.jsonc`.
+
+Confirm `wrangler.jsonc` declares the exported coordinator class and binds it as
+`UPDATE_COORDINATOR` with the SQLite storage backend.
 
 - [ ] **Step 3: Add production secrets without exposing them**
 
@@ -472,7 +504,8 @@ await telegram.setWebhook(
 
 The client sends `allowed_updates` as
 `["message", "edited_message", "callback_query"]` and
-`drop_pending_updates: false`. Expected: Telegram returns `ok: true`.
+`drop_pending_updates: false`, plus `max_connections: 1`. Expected: Telegram
+returns `ok: true`.
 
 - [ ] **Step 3: Run live read-only Telegram checks**
 
@@ -496,8 +529,8 @@ the Worker to verify no second page is created.
 
 Call `getWebhookInfo`.
 
-Expected: the Cloudflare URL is active, `pending_update_count` is stable or
-falling, and `last_error_message` is empty.
+Expected: the Cloudflare URL is active, `max_connections` is `1`,
+`pending_update_count` is stable or falling, and `last_error_message` is empty.
 
 - [ ] **Step 6: Remove every Apps Script trigger**
 
@@ -520,8 +553,9 @@ update.
 
 Run: `npx wrangler deployments list` and inspect the Worker settings.
 
-Expected: production contains Cron `0 14 * * *`, KV `BOT_STATE`, all required
-bindings, and no Apps Script trigger remains active.
+Expected: production contains Cron `0 14 * * *`, KV `BOT_STATE`, Durable Object
+`UPDATE_COORDINATOR`, all required bindings, and no Apps Script trigger remains
+active.
 
 ## Rollback Procedure
 

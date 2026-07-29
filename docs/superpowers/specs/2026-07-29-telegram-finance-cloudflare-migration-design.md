@@ -61,23 +61,33 @@ The Telegram client:
 - Supports `sendMessage`, `answerCallbackQuery`, `setWebhook`,
   `getWebhookInfo`, and `deleteWebhook`.
 
-### State and cache
+### State, coordination, and cache
 
-A Workers KV namespace named `BOT_STATE` stores:
+A Workers KV namespace named `BOT_STATE` stores the 60-second monthly cashflow
+report cache. KV is not the correctness boundary for duplicate Telegram
+updates because it is eventually consistent.
 
-- Processed Telegram update IDs with a bounded expiration to suppress retries.
-- Monthly cashflow report cache entries with a 60-second expiration.
+A SQLite-backed Durable Object namespace named `UPDATE_COORDINATOR` provides
+strong coordination. Every Telegram `update_id` maps to one Durable Object
+instance. Its persistent state is one of `in_progress`, `committed`,
+`retryable`, or `needs_reconciliation`.
 
-The update key is written only after successful processing. If processing
-fails, the webhook returns a non-2xx response so Telegram can retry.
+Concurrent deliveries of the same update are serialized through that object.
+Committed updates acknowledge without processing again. Retryable updates may
+run again.
 
 Numeric Grab-income updates also use a rich-text property named
 `Telegram Update ID` in the Notion income database. Before creating a page, the
 Worker queries this property for the Telegram `update_id`; after creation, the
-same ID is stored on the page. This closes the failure window where Notion
-successfully writes a page but Telegram retries before KV records completion.
-The property is technical metadata and may be hidden from the normal Notion
-views.
+same ID is stored on the page.
+
+If a Notion create request has an ambiguous outcome, the coordinator never
+blindly creates the page again. It queries by `Telegram Update ID`. A confirmed
+row becomes `committed`; a still-ambiguous outcome becomes
+`needs_reconciliation`, sends a concise warning to the authorized user, and
+requires checking Notion before another write. This favors no duplicate
+financial entry over automatic retry in the rare unknowable external-failure
+window.
 
 ### Scheduled reminder
 
@@ -99,7 +109,9 @@ The migration creates a focused Worker project:
   identifiers.
 - `cloudflare-worker/src/notion.js`: Notion HTTP client and pagination.
 - `cloudflare-worker/src/telegram.js`: Telegram HTTP client.
-- `cloudflare-worker/src/state.js`: KV deduplication and report caching.
+- `cloudflare-worker/src/state.js`: KV report caching.
+- `cloudflare-worker/src/coordinator.js`: Durable Object update serialization,
+  persistent status, and ambiguous-write reconciliation.
 - `cloudflare-worker/src/finance.js`: existing finance parsing, aggregation,
   classification, and formatting adapted to normal JavaScript.
 - `cloudflare-worker/src/bot.js`: commands, callbacks, keyboards, and update
@@ -166,7 +178,8 @@ Notion response bodies containing user finance data.
    and navigation remain unchanged.
 2. Add Worker-specific tests for route handling, webhook-secret validation,
    unauthorized users, duplicate updates, KV expiration, Notion pagination,
-   idempotent Grab-income writes, Telegram failures, and scheduled reminders.
+   idempotent Grab-income writes, concurrent duplicate delivery, ambiguous
+   Notion-create reconciliation, Telegram failures, and scheduled reminders.
 3. Deploy with no Telegram webhook and verify `/health`.
 4. Send fixture Telegram updates directly to the Worker using a test secret and
    mocked or non-mutating paths.
@@ -182,11 +195,11 @@ Migration order:
 
 1. Build and test the Worker locally.
 2. Add the `Telegram Update ID` property to the Notion income database.
-3. Create and bind `BOT_STATE`.
+3. Create and bind `BOT_STATE` and the SQLite-backed `UPDATE_COORDINATOR`.
 4. Add Worker secrets and variables.
 5. Deploy and verify `/health`.
-6. Set the Telegram webhook with the secret token.
-7. Verify live Telegram behavior and Cloudflare logs.
+6. Set the Telegram webhook with the secret token and `max_connections=1`.
+7. Verify live Telegram behavior, coordinator state, and Cloudflare logs.
 8. Delete every Apps Script trigger and confirm Apps Script no longer receives
    or polls Telegram updates.
 
@@ -212,7 +225,10 @@ for a paid plan requires a separate decision.
 - Telegram normally begins processing commands and callbacks within seconds,
   without minute polling latency.
 - Approved report totals and navigation match the existing bot.
-- Numeric Grab income writes exactly once.
+- Concurrent/retried numeric Grab updates create at most one confirmed Notion
+  page during normal processing.
+- An ambiguous Notion create outcome is never blindly recreated; it is either
+  reconciled by `Telegram Update ID` or surfaced as `needs_reconciliation`.
 - The daily reminder runs from Cloudflare Cron.
 - `getWebhookInfo` reports the Cloudflare webhook with no pending error.
 - Apps Script has no active Telegram polling, webhook, or reminder trigger.
