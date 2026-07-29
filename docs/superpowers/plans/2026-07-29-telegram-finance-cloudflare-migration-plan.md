@@ -193,7 +193,7 @@ Run: `cd cloudflare-worker; npm test`
 
 Expected: all Task 1 and Task 2 tests PASS.
 
-### Task 3: Port the Finance Domain and Preserve 61 Regressions
+### Task 3: Port the Pure Finance Domain Regressions
 
 **Files:**
 - Create: `cloudflare-worker/src/finance.js`
@@ -209,11 +209,13 @@ Expected: all Task 1 and Task 2 tests PASS.
 
 - [ ] **Step 1: Copy the existing pure regression fixtures**
 
-Move the 61 approved behavior cases from
-`outputs/telegram-finance-bot.test.js` into ES-module tests. Replace the
-Apps Script VM loader with direct imports from `src/finance.js`. Preserve every
+Move the pure finance, formatting, keyboard, and callback-token cases from
+`outputs/telegram-finance-bot.test.js` into ES-module tests. Replace the Apps
+Script VM loader with direct imports from `src/finance.js`. Preserve every
 existing expected total, label, callback value, keyboard row, and transaction
-line.
+line. Record a mapping of all 61 legacy tests: pure cases belong to this task;
+Notion/cache/repository cases belong to Task 4; command, callback, webhook, and
+update-deduplication cases belong to Task 5.
 
 - [ ] **Step 2: Run the regression tests and verify missing exports**
 
@@ -240,7 +242,8 @@ standard JavaScript helpers that accept the clock/date as an argument.
 
 Run: `cd cloudflare-worker; node --test test/finance-regression.test.js`
 
-Expected: 61 tests PASS with no expected-value changes.
+Expected: every selected pure regression passes with no expected-value changes,
+and the 61-test mapping has no unassigned legacy case.
 
 - [ ] **Step 5: Check module purity**
 
@@ -285,6 +288,9 @@ Also assert a new page includes:
 }
 ```
 
+Port the legacy Notion query, pagination, cache, refresh, and monthly
+aggregation cases assigned to Task 4 by the Task 3 mapping.
+
 - [ ] **Step 2: Run tests and verify missing repository**
 
 Run: `cd cloudflare-worker; node --test test/repository.test.js`
@@ -328,6 +334,8 @@ Expected: all configuration, adapter, finance, and repository tests PASS.
 Cover `/start`, `/muctieu`, numeric Grab income, unauthorized users, callback
 acknowledgment, account/direction/category callbacks, unknown text, and
 duplicate updates. Assert that `/thang` and `/chi` are not command routes.
+Port the legacy command, callback, Telegram error, update deduplication, and
+polling-equivalent behavior cases assigned to Task 5 by the Task 3 mapping.
 
 - [ ] **Step 2: Implement async command and callback dispatch**
 
