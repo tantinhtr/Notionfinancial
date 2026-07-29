@@ -19,10 +19,16 @@
       "storage": "sqlite"
     }
   },
+  "kv_namespaces": [
+    {
+      "binding": "BOT_STATE",
+      "id": "760671f08e634e8eafd981e6dfe9ffdb"
+    }
+  ],
   "triggers": {
     "crons": ["0 14 * * *"]
   },
   "vars": {
-    "ALLOWED_USER_ID": "0"
+    "ALLOWED_USER_ID": "7429683600"
   }
 }
