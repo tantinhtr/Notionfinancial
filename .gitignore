@@ -3,7 +3,7 @@ node_modules/
 .dev.vars
 .env
 .superpowers/
+.worktrees/
 cloudflare-worker/node_modules/
 cloudflare-worker/.wrangler/
 cloudflare-worker/.dev.vars
-
