@@ -185,6 +185,25 @@ export function createBot({
     await telegram.sendMessage(chatId, progressText_(status), goalKeyboard());
   }
 
+  async function completeIncomeConfirmation(chatId, amount) {
+    const status = await repository.getGoalStatus();
+    await telegram.sendMessage(chatId, loggedText(amount, status));
+  }
+
+  async function completeReconciledIncome(update) {
+    const message = messageFrom(update);
+    const amount = parseAmount(message?.text);
+    if (
+      message?.from?.id !== config.allowedUserId ||
+      message?.chat?.id === undefined ||
+      message?.chat?.id === null ||
+      amount === null
+    ) {
+      throw new TypeError("reconciled income update is missing authorized numeric message data");
+    }
+    await completeIncomeConfirmation(message.chat.id, amount);
+  }
+
   async function sendFundBudget(chatId) {
     const data = await repository.getFundBudgetReport();
     await telegram.sendMessage(chatId, fundBudgetText_(data), fundBudgetKeyboard_());
@@ -323,8 +342,7 @@ export function createBot({
       iso_(today.y, today.m, today.d),
       amount
     );
-    const status = await repository.getGoalStatus();
-    await telegram.sendMessage(chatId, loggedText(amount, status));
+    await completeIncomeConfirmation(chatId, amount);
   }
 
   async function processUpdate(update) {
@@ -356,5 +374,5 @@ export function createBot({
     );
   }
 
-  return { processUpdate, sendDailyReminder };
+  return { processUpdate, completeReconciledIncome, sendDailyReminder };
 }

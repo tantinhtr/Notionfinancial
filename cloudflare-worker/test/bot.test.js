@@ -577,6 +577,28 @@ test("numeric Grab income writes exact update ID, local date, and amount before 
   assert.match(harness.sent[0].text, /^Đã ghi 650\.000đ cho hôm nay ✅/);
 });
 
+test("reconciled Grab income completes confirmation without creating again", async () => {
+  let createCalls = 0;
+  const harness = createHarness({
+    repository: {
+      async addGrabIncome() {
+        createCalls += 1;
+        throw new Error("reconciled completion must not create");
+      }
+    }
+  });
+  const telegramUpdate = messageUpdate(2501, "650.000");
+
+  await harness.bot.completeReconciledIncome(telegramUpdate);
+
+  assert.equal(createCalls, 0);
+  assert.deepEqual(harness.events, [
+    ["goal"],
+    ["send", 9001]
+  ]);
+  assert.match(harness.sent[0].text, /^Đã ghi 650\.000đ cho hôm nay ✅/);
+});
+
 test("unknown text receives only the concise numeric-income fallback", async () => {
   const harness = createHarness();
 

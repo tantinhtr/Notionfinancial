@@ -112,6 +112,16 @@ function createDoContext(initialRecord = null) {
   };
 }
 
+function createDeferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
 function update(updateId, text = "650000", userId = 42) {
   return {
     update_id: updateId,
@@ -353,20 +363,119 @@ test("webhook returns a redacted 500 when Durable Object processing fails", asyn
     }
   });
 
-  const response = await worker.fetch(
-    webhookRequest(JSON.stringify(update(303))),
-    env,
-    {}
-  );
+  const logs = [];
+  const originalConsoleError = console.error;
+  console.error = (...args) => logs.push(structuredClone(args));
+  let response;
+  try {
+    response = await worker.fetch(
+      webhookRequest(JSON.stringify(update(303))),
+      env,
+      {}
+    );
+  } finally {
+    console.error = originalConsoleError;
+  }
   const body = await responseJson(response);
 
   assert.equal(response.status, 500);
   assert.deepEqual(body, { status: "processing_failed" });
+  assert.deepEqual(logs, [[{
+    event: "telegram_update_processing_failed",
+    updateId: 303,
+    stage: "coordinator_response",
+    httpStatus: 500
+  }]]);
   assert.equal(JSON.stringify(body).includes("650000"), false);
   assert.equal(JSON.stringify(body).includes(TELEGRAM_TOKEN), false);
 });
 
-test("UpdateCoordinator committed replay uses the exclusive gate and never calls the bot", async () => {
+test("Worker logs only structured bounded metadata for each processing failure stage", async () => {
+  const scenarios = [{
+    stage: "coordinator_response",
+    expectedLog: {
+      event: "telegram_update_processing_failed",
+      updateId: 304,
+      stage: "coordinator_response",
+      httpStatus: 503
+    },
+    stub: {
+      async fetch() {
+        return new Response(JSON.stringify({
+          body: "private finance 650000",
+          token: TELEGRAM_TOKEN
+        }), { status: 503 });
+      }
+    }
+  }, {
+    stage: "coordinator_response_json",
+    expectedLog: {
+      event: "telegram_update_processing_failed",
+      updateId: 304,
+      stage: "coordinator_response_json",
+      httpStatus: 200
+    },
+    stub: {
+      async fetch() {
+        return new Response(`not-json ${NOTION_TOKEN}`, { status: 200 });
+      }
+    }
+  }, {
+    stage: "coordinator_forward",
+    expectedLog: {
+      event: "telegram_update_processing_failed",
+      updateId: 304,
+      stage: "coordinator_forward",
+      status: "exception"
+    },
+    stub: {
+      async fetch() {
+        throw new Error(`upstream private finance 650000 ${NOTION_TOKEN}`);
+      }
+    }
+  }];
+
+  for (const scenario of scenarios) {
+    const logs = [];
+    const originalConsoleError = console.error;
+    console.error = (...args) => logs.push(structuredClone(args));
+    try {
+      const env = createEnv({
+        UPDATE_COORDINATOR: {
+          idFromName() {
+            return "do-id";
+          },
+          get() {
+            return scenario.stub;
+          }
+        }
+      });
+
+      const response = await worker.fetch(
+        webhookRequest(JSON.stringify(update(304))),
+        env,
+        {}
+      );
+
+      assert.equal(response.status, 500, scenario.stage);
+      assert.deepEqual(logs, [[scenario.expectedLog]], scenario.stage);
+      const serialized = JSON.stringify(logs);
+      for (const forbidden of [
+        "650000",
+        TELEGRAM_TOKEN,
+        NOTION_TOKEN,
+        "private finance",
+        "upstream"
+      ]) {
+        assert.equal(serialized.includes(forbidden), false, scenario.stage);
+      }
+    } finally {
+      console.error = originalConsoleError;
+    }
+  }
+});
+
+test("UpdateCoordinator committed replay avoids blockConcurrencyWhile and external work", async () => {
   const context = createDoContext({
     updateId: 310,
     kind: "income",
@@ -389,8 +498,78 @@ test("UpdateCoordinator committed replay uses the exclusive gate and never calls
     });
   });
 
-  assert.equal(context.gateCalls(), 1);
+  assert.equal(context.gateCalls(), 0);
   assert.equal(externalCalls, 0);
+});
+
+test("UpdateCoordinator serializes same-ID I/O and persisted replay survives a new instance", async () => {
+  const context = createDoContext();
+  const firstCreateStarted = createDeferred();
+  const releaseFirstCreate = createDeferred();
+  let createCalls = 0;
+  let confirmationCalls = 0;
+  const externalFetch = async (url, options) => {
+    if (isTelegramUrl(url)) {
+      confirmationCalls += 1;
+      return telegramResponse({ message_id: confirmationCalls });
+    }
+    if (isNotionCreate(url)) {
+      createCalls += 1;
+      if (createCalls === 1) {
+        firstCreateStarted.resolve();
+        await releaseFirstCreate.promise;
+      }
+      return new Response(JSON.stringify({ id: `created-${createCalls}` }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    if (isNotionQuery(url)) {
+      const payload = requestPayload(options);
+      if (payload.filter?.property === "Telegram Update ID") {
+        return notionResponse([]);
+      }
+      if (payload.filter?.title) {
+        return notionResponse([{
+          id: "goal",
+          properties: { "Mục Tiêu Hàng Tháng": { number: 12000000 } }
+        }]);
+      }
+      return notionResponse([]);
+    }
+    throw new Error(`Unexpected URL: ${url}`);
+  };
+
+  await withGlobalFetch(externalFetch, async () => {
+    const env = createEnv();
+    const coordinator = new UpdateCoordinator(context.ctx, env);
+    const first = callCoordinator(coordinator, update(3101));
+    await firstCreateStarted.promise;
+
+    const second = callCoordinator(coordinator, update(3101));
+    await new Promise((resolve) => setImmediate(resolve));
+    releaseFirstCreate.resolve();
+
+    const responses = await Promise.all([first, second]);
+    assert.deepEqual(await Promise.all(responses.map(responseJson)), [
+      { status: "committed" },
+      { status: "committed", duplicate: true }
+    ]);
+    assert.equal(createCalls, 1);
+    assert.equal(confirmationCalls, 1);
+
+    const restartedCoordinator = new UpdateCoordinator(context.ctx, env);
+    const replay = await callCoordinator(restartedCoordinator, update(3101));
+    assert.deepEqual(await responseJson(replay), {
+      status: "committed",
+      duplicate: true
+    });
+  });
+
+  assert.equal(createCalls, 1);
+  assert.equal(confirmationCalls, 1);
+  assert.equal(context.gateCalls(), 0);
+  assert.equal(context.record().status, "committed");
 });
 
 test("UpdateCoordinator retries an ordinary pre-write error and later commits", async () => {
@@ -439,16 +618,21 @@ test("UpdateCoordinator retries an ordinary pre-write error and later commits", 
     assert.deepEqual(await responseJson(response), { status: "committed" });
   });
 
-  assert.equal(context.gateCalls(), 2);
+  assert.equal(context.gateCalls(), 0);
   assert.equal(createCalls, 1);
   assert.equal(context.record().status, "committed");
 });
 
 test("UpdateCoordinator reconciles an ambiguous income create without recreating it", async () => {
   const context = createDoContext();
+  const telegramPayloads = [];
   let updateLookupCalls = 0;
   let createCalls = 0;
   const externalFetch = async (url, options) => {
+    if (isTelegramUrl(url)) {
+      telegramPayloads.push(requestPayload(options));
+      return telegramResponse({ message_id: 1 });
+    }
     if (isNotionCreate(url)) {
       createCalls += 1;
       return notionResponse([], 503, {
@@ -463,6 +647,13 @@ test("UpdateCoordinator reconciles an ambiguous income create without recreating
           ? notionResponse([])
           : notionResponse([{ id: "existing-income" }]);
       }
+      if (payload.filter?.title) {
+        return notionResponse([{
+          id: "goal",
+          properties: { "Mục Tiêu Hàng Tháng": { number: 12000000 } }
+        }]);
+      }
+      return notionResponse([]);
     }
     throw new Error(`Unexpected external call: ${url}`);
   };
@@ -479,6 +670,64 @@ test("UpdateCoordinator reconciles an ambiguous income create without recreating
 
   assert.equal(createCalls, 1);
   assert.equal(updateLookupCalls, 2);
+  assert.equal(telegramPayloads.length, 1);
+  assert.match(telegramPayloads[0].text, /^Đã ghi 650\.000đ cho hôm nay ✅/);
+  assert.equal(context.record().status, "committed");
+});
+
+test("reconciled persisted income confirms once without create and committed replay is silent", async () => {
+  const context = createDoContext({
+    updateId: 3121,
+    kind: "income",
+    status: "needs_reconciliation",
+    updatedAt: "2026-07-29T00:00:00.000Z"
+  });
+  const telegramPayloads = [];
+  let createCalls = 0;
+  const externalFetch = async (url, options) => {
+    if (isTelegramUrl(url)) {
+      telegramPayloads.push(requestPayload(options));
+      return telegramResponse({ message_id: 1 });
+    }
+    if (isNotionCreate(url)) {
+      createCalls += 1;
+      throw new Error("reconciled completion must not create");
+    }
+    if (isNotionQuery(url)) {
+      const payload = requestPayload(options);
+      if (payload.filter?.property === "Telegram Update ID") {
+        return notionResponse([{ id: "existing-income" }]);
+      }
+      if (payload.filter?.title) {
+        return notionResponse([{
+          id: "goal",
+          properties: { "Mục Tiêu Hàng Tháng": { number: 12000000 } }
+        }]);
+      }
+      return notionResponse([]);
+    }
+    throw new Error(`Unexpected URL: ${url}`);
+  };
+
+  await withGlobalFetch(externalFetch, async () => {
+    const coordinator = new UpdateCoordinator(context.ctx, createEnv());
+    const first = await callCoordinator(coordinator, update(3121));
+    const replay = await callCoordinator(coordinator, update(3121));
+
+    assert.deepEqual(await responseJson(first), {
+      status: "committed",
+      reconciled: true
+    });
+    assert.deepEqual(await responseJson(replay), {
+      status: "committed",
+      duplicate: true
+    });
+  });
+
+  assert.equal(createCalls, 0);
+  assert.equal(telegramPayloads.length, 1);
+  assert.equal(telegramPayloads[0].chat_id, 9001);
+  assert.match(telegramPayloads[0].text, /^Đã ghi 650\.000đ cho hôm nay ✅/);
   assert.equal(context.record().status, "committed");
 });
 

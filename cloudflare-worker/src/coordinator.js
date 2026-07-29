@@ -4,6 +4,7 @@ function validateDependencies({
   classifyUpdate,
   executeUpdate,
   reconcileIncome,
+  completeReconciledIncome,
   warnNeedsReconciliation,
   now
 }) {
@@ -17,6 +18,7 @@ function validateDependencies({
     classifyUpdate,
     executeUpdate,
     reconcileIncome,
+    completeReconciledIncome,
     warnNeedsReconciliation,
     now
   })) {
@@ -34,6 +36,7 @@ export function createCoordinatorHandler(dependencies) {
     classifyUpdate,
     executeUpdate,
     reconcileIncome,
+    completeReconciledIncome,
     warnNeedsReconciliation,
     now
   } = dependencies;
@@ -56,6 +59,17 @@ export function createCoordinatorHandler(dependencies) {
     }
 
     if (row !== null) {
+      try {
+        await completeReconciledIncome(update);
+      } catch (error) {
+        await persist(update.update_id, kind, "needs_reconciliation");
+        try {
+          await warnNeedsReconciliation(update, error);
+        } catch {
+          // Completion failures remain retryable even if warning delivery fails.
+        }
+        throw error;
+      }
       await persist(update.update_id, kind, "committed");
       return { status: "committed", reconciled: true };
     }

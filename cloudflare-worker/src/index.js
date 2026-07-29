@@ -60,6 +60,19 @@ function constantTimeEqual(receivedValue, expectedValue) {
   return mismatch === 0;
 }
 
+function createPromiseTailMutex() {
+  // External I/O must not run inside blockConcurrencyWhile's 30-second reset window.
+  let tail = Promise.resolve();
+  return (callback) => {
+    const result = tail.then(callback, callback);
+    tail = result.then(
+      () => undefined,
+      () => undefined
+    );
+    return result;
+  };
+}
+
 function createRuntime(env, now = () => new Date()) {
   const config = getConfig(env);
   const telegram = createTelegramClient(config);
@@ -81,6 +94,21 @@ function coordinatorMetadata(body) {
   return metadata;
 }
 
+function logProcessingFailure(updateId, stage, httpStatus) {
+  const event = {
+    event: "telegram_update_processing_failed",
+    updateId,
+    stage
+  };
+  if (Number.isInteger(httpStatus)) event.httpStatus = httpStatus;
+  else event.status = "exception";
+  try {
+    console.error(event);
+  } catch {
+    // Diagnostics must not change webhook retry behavior.
+  }
+}
+
 async function forwardWebhook(update, env) {
   try {
     const id = env.UPDATE_COORDINATOR.idFromName(String(update.update_id));
@@ -91,12 +119,22 @@ async function forwardWebhook(update, env) {
       body: JSON.stringify(update)
     }));
     if (!response.ok) {
+      logProcessingFailure(
+        update.update_id,
+        "coordinator_response",
+        response.status
+      );
       return jsonResponse({ status: "processing_failed" }, 500);
     }
     let result = null;
     try {
       result = await response.json();
     } catch {
+      logProcessingFailure(
+        update.update_id,
+        "coordinator_response_json",
+        response.status
+      );
       return jsonResponse({ status: "processing_failed" }, 500);
     }
     return jsonResponse({
@@ -104,6 +142,7 @@ async function forwardWebhook(update, env) {
       coordinator: coordinatorMetadata(result)
     }, 200);
   } catch {
+    logProcessingFailure(update.update_id, "coordinator_forward");
     return jsonResponse({ status: "processing_failed" }, 500);
   }
 }
@@ -140,13 +179,15 @@ export class UpdateCoordinator extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
     const now = () => new Date();
+    const runExclusive = createPromiseTailMutex();
     const { bot, config, repository, telegram } = createRuntime(env, now);
     this.handler = createCoordinatorHandler({
       storage: ctx.storage,
-      runExclusive: (callback) => ctx.blockConcurrencyWhile(callback),
+      runExclusive,
       classifyUpdate: (update) => classifyUpdate(update, config.allowedUserId),
       executeUpdate: (update) => bot.processUpdate(update),
       reconcileIncome: (updateId) => repository.findGrabIncomeByUpdateId(updateId),
+      completeReconciledIncome: (update) => bot.completeReconciledIncome(update),
       warnNeedsReconciliation: (update) => telegram.sendMessage(
         config.allowedUserId,
         `⚠️ Cần đối soát thu nhập Telegram update ${update.update_id}. ` +

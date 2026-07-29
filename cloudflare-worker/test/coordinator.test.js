@@ -32,6 +32,7 @@ function createDependencies(overrides = {}) {
     classifyUpdate: () => "other",
     executeUpdate: async () => {},
     reconcileIncome: async () => null,
+    completeReconciledIncome: async () => {},
     warnNeedsReconciliation: async () => {},
     now: () => "2026-07-29T00:00:00.000Z",
     ...overrides
@@ -72,6 +73,7 @@ test("coordinator validates every dependency when the factory is created", () =>
     "classifyUpdate",
     "executeUpdate",
     "reconcileIncome",
+    "completeReconciledIncome",
     "warnNeedsReconciliation",
     "now"
   ]) {
@@ -168,6 +170,9 @@ test("a committed update never classifies, executes, reconciles, or warns again"
     async reconcileIncome() {
       calls.push("reconcile");
       return { id: "existing" };
+    },
+    async completeReconciledIncome() {
+      calls.push("complete");
     },
     async warnNeedsReconciliation() {
       calls.push("warn");
@@ -270,6 +275,7 @@ test("an ambiguous income create reconciles to committed when the row exists", a
   const error = ambiguousIncomeError();
   const reconciledRow = { id: "notion-page" };
   const reconciledUpdateIds = [];
+  const completionUpdates = [];
   const coordinator = createCoordinatorHandler(createDependencies({
     storage,
     classifyUpdate: () => "income",
@@ -279,13 +285,18 @@ test("an ambiguous income create reconciles to committed when the row exists", a
     async reconcileIncome(updateId) {
       reconciledUpdateIds.push(updateId);
       return reconciledRow;
+    },
+    async completeReconciledIncome(update) {
+      completionUpdates.push(update);
     }
   }));
 
-  const result = await coordinator.handle({ update_id: 106 });
+  const update = { update_id: 106, message: { text: "650000" } };
+  const result = await coordinator.handle(update);
 
   assert.deepEqual(result, { status: "committed", reconciled: true });
   assert.deepEqual(reconciledUpdateIds, [106]);
+  assert.deepEqual(completionUpdates, [update]);
   assert.deepEqual(storage.puts.map(([, record]) => record.status), [
     "in_progress",
     "committed"
@@ -326,6 +337,7 @@ test("a later needs_reconciliation call reconciles only and never executes", asy
   let classifyCalls = 0;
   let executeCalls = 0;
   let warnCalls = 0;
+  let completionCalls = 0;
   const coordinator = createCoordinatorHandler(createDependencies({
     storage,
     classifyUpdate() {
@@ -336,6 +348,9 @@ test("a later needs_reconciliation call reconciles only and never executes", asy
       executeCalls += 1;
     },
     reconcileIncome: async () => ({ id: "existing-page" }),
+    async completeReconciledIncome() {
+      completionCalls += 1;
+    },
     async warnNeedsReconciliation() {
       warnCalls += 1;
     }
@@ -346,8 +361,54 @@ test("a later needs_reconciliation call reconciles only and never executes", asy
   assert.deepEqual(result, { status: "committed", reconciled: true });
   assert.equal(classifyCalls, 0);
   assert.equal(executeCalls, 0);
+  assert.equal(completionCalls, 1);
   assert.equal(warnCalls, 0);
   assert.deepEqual(storage.puts.map(([, record]) => record.status), ["committed"]);
+});
+
+test("a reconciled row remains uncommitted when post-write completion fails", async () => {
+  const storage = createStorage({
+    updateId: 112,
+    kind: "income",
+    status: "needs_reconciliation",
+    updatedAt: "2026-07-28T00:00:00.000Z"
+  });
+  const completionError = new Error("Telegram confirmation unavailable");
+  const warnings = [];
+  let executeCalls = 0;
+  let completionCalls = 0;
+  const coordinator = createCoordinatorHandler(createDependencies({
+    storage,
+    async executeUpdate() {
+      executeCalls += 1;
+    },
+    reconcileIncome: async () => ({ id: "existing-page" }),
+    async completeReconciledIncome() {
+      completionCalls += 1;
+      if (completionCalls === 1) throw completionError;
+    },
+    async warnNeedsReconciliation(update, error) {
+      warnings.push([update, error]);
+    }
+  }));
+  const update = { update_id: 112, message: { text: "650000" } };
+
+  await assert.rejects(
+    () => coordinator.handle(update),
+    (error) => error === completionError
+  );
+
+  assert.equal(storage.record().status, "needs_reconciliation");
+  assert.equal(executeCalls, 0);
+  assert.equal(completionCalls, 1);
+  assert.deepEqual(warnings, [[update, completionError]]);
+
+  assert.deepEqual(
+    await coordinator.handle(update),
+    { status: "committed", reconciled: true }
+  );
+  assert.equal(executeCalls, 0);
+  assert.equal(completionCalls, 2);
 });
 
 test("a reconciliation error remains needs_reconciliation and warns with that error", async () => {
@@ -424,6 +485,7 @@ test("an interrupted in_progress income reconciles without execution", async () 
   });
   let executeCalls = 0;
   let reconcileCalls = 0;
+  let completionCalls = 0;
   const coordinator = createCoordinatorHandler(createDependencies({
     storage,
     async executeUpdate() {
@@ -433,6 +495,9 @@ test("an interrupted in_progress income reconciles without execution", async () 
       reconcileCalls += 1;
       assert.equal(updateId, 111);
       return { id: "existing-page" };
+    },
+    async completeReconciledIncome() {
+      completionCalls += 1;
     }
   }));
 
@@ -441,5 +506,6 @@ test("an interrupted in_progress income reconciles without execution", async () 
   assert.deepEqual(result, { status: "committed", reconciled: true });
   assert.equal(executeCalls, 0);
   assert.equal(reconcileCalls, 1);
+  assert.equal(completionCalls, 1);
   assert.deepEqual(storage.puts.map(([, record]) => record.status), ["committed"]);
 });
