@@ -74,7 +74,8 @@ export function createTelegramClient(config, fetchImpl = fetch) {
         url,
         secret_token: secretToken,
         allowed_updates: ["message", "edited_message", "callback_query"],
-        drop_pending_updates: false
+        drop_pending_updates: false,
+        max_connections: 1
       });
     },
     getWebhookInfo() {

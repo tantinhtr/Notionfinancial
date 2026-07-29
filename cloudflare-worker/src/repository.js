@@ -12,6 +12,18 @@ const GOAL_AMOUNT_PROPERTY = "Mục Tiêu Hàng Tháng";
 const GOAL_CATEGORY = "Thu Nhập Ròng Grab (App)";
 const TELEGRAM_UPDATE_ID_PROPERTY = "Telegram Update ID";
 
+export class AmbiguousIncomeWriteError extends Error {
+  constructor(updateId, { cause } = {}) {
+    super(
+      "Income write outcome is ambiguous and requires reconciliation",
+      cause === undefined ? undefined : { cause }
+    );
+    this.name = "AmbiguousIncomeWriteError";
+    this.code = "AMBIGUOUS_INCOME_WRITE";
+    this.updateId = updateId;
+  }
+}
+
 function validateFactoryDependencies({ notion, state, config, now }) {
   for (const method of ["queryDatabase", "createPage"]) {
     if (typeof notion?.[method] !== "function") {
@@ -82,6 +94,13 @@ function dateProperty(row, property) {
 
 function daysInMonth(year, month) {
   return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+function updateIdText(updateId) {
+  if (updateId === null || updateId === undefined || String(updateId) === "") {
+    throw new TypeError("updateId must stringify to a non-empty value");
+  }
+  return String(updateId);
 }
 
 export function createFinanceRepository({ notion, state, config, now = () => new Date() }) {
@@ -228,10 +247,16 @@ export function createFinanceRepository({ notion, state, config, now = () => new
     };
   }
 
+  async function findGrabIncomeByUpdateId(updateId) {
+    const rows = await notion.queryDatabase(config.incomeDb, {
+      property: TELEGRAM_UPDATE_ID_PROPERTY,
+      rich_text: { equals: updateIdText(updateId) }
+    });
+    return rows[0] ?? null;
+  }
+
   async function addGrabIncome(updateId, dateISO, amount) {
-    if (updateId === null || updateId === undefined || String(updateId) === "") {
-      throw new TypeError("updateId must stringify to a non-empty value");
-    }
+    const normalizedUpdateId = updateIdText(updateId);
     if (typeof dateISO !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(dateISO)) {
       throw new TypeError("dateISO must match YYYY-MM-DD");
     }
@@ -239,21 +264,23 @@ export function createFinanceRepository({ notion, state, config, now = () => new
       throw new TypeError("amount must be a finite number greater than zero");
     }
 
-    const updateIdText = String(updateId);
-    const existingRows = await notion.queryDatabase(config.incomeDb, {
-      property: TELEGRAM_UPDATE_ID_PROPERTY,
-      rich_text: { equals: updateIdText }
-    });
-    if (existingRows.length > 0) {
-      return { created: false, page: existingRows[0] };
+    const existingPage = await findGrabIncomeByUpdateId(normalizedUpdateId);
+    if (existingPage !== null) {
+      return { created: false, page: existingPage };
     }
-    const page = await notion.createPage(config.incomeDb, {
+    const properties = {
       "Tên Khoản Thu": { title: [{ text: { content: "Thu nhập Grab" } }] },
       "Số Tiền": { number: amount },
       "Ngày": { date: { start: dateISO } },
       "Loại Khoản Thu": { relation: [{ id: config.goalRelationPageId }] },
-      "Telegram Update ID": { rich_text: [{ text: { content: updateIdText } }] }
-    });
+      "Telegram Update ID": { rich_text: [{ text: { content: normalizedUpdateId } }] }
+    };
+    let page;
+    try {
+      page = await notion.createPage(config.incomeDb, properties);
+    } catch (cause) {
+      throw new AmbiguousIncomeWriteError(updateId, { cause });
+    }
     try {
       await state.deleteReportCache(`monthly-cashflow:${dateISO}`);
     } catch {
@@ -262,5 +289,11 @@ export function createFinanceRepository({ notion, state, config, now = () => new
     return { created: true, page };
   }
 
-  return { getGoalStatus, getMonthlyCashflow, getFundBudgetReport, addGrabIncome };
+  return {
+    getGoalStatus,
+    getMonthlyCashflow,
+    getFundBudgetReport,
+    findGrabIncomeByUpdateId,
+    addGrabIncome
+  };
 }

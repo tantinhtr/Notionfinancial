@@ -5,6 +5,20 @@
   "observability": {
     "enabled": true
   },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "UPDATE_COORDINATOR",
+        "class_name": "UpdateCoordinator"
+      }
+    ]
+  },
+  "exports": {
+    "UpdateCoordinator": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    }
+  },
   "triggers": {
     "crons": ["0 14 * * *"]
   },

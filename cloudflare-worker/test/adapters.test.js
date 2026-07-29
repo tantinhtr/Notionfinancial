@@ -207,7 +207,8 @@ test("Telegram setWebhook sends the required updates without dropping pending up
     url: "https://example.invalid/webhook",
     secret_token: "webhook-sensitive-value",
     allowed_updates: ["message", "edited_message", "callback_query"],
-    drop_pending_updates: false
+    drop_pending_updates: false,
+    max_connections: 1
   });
 });
 

@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createNotionClient } from "../src/notion.js";
-import { createFinanceRepository } from "../src/repository.js";
+import {
+  AmbiguousIncomeWriteError,
+  createFinanceRepository
+} from "../src/repository.js";
 
 const FIXED_NOW = () => new Date("2026-07-29T12:00:00.000Z");
 
@@ -319,6 +322,24 @@ test("an existing Telegram Update ID prevents an income page creation", async ()
   assert.deepEqual(notion.created, []);
 });
 
+test("income reconciliation finder uses the exact rich-text filter and returns first or null", async () => {
+  const first = row("first-page", {});
+  const second = row("second-page", {});
+  const found = createRepository({ rows: { income: [first, second] } });
+  const missing = createRepository();
+
+  assert.equal(await found.repository.findGrabIncomeByUpdateId(321), first);
+  assert.equal(await missing.repository.findGrabIncomeByUpdateId(654), null);
+  assert.deepEqual(found.notion.calls, [["income", {
+    property: "Telegram Update ID",
+    rich_text: { equals: "321" }
+  }]]);
+  assert.deepEqual(missing.notion.calls, [["income", {
+    property: "Telegram Update ID",
+    rich_text: { equals: "654" }
+  }]]);
+});
+
 test("new Grab income writes the approved properties and clears its daily cache", async () => {
   const { notion, state, repository } = createRepository();
 
@@ -333,6 +354,51 @@ test("new Grab income writes the approved properties and clears its daily cache"
     "Telegram Update ID": { rich_text: [{ text: { content: "update-42" } }] }
   }]]);
   assert.deepEqual(state.calls, [["delete", "monthly-cashflow:2026-07-29"]]);
+});
+
+test("Notion create errors become redacted ambiguous income write errors", async () => {
+  const cause = new Error(
+    "Notion body contains notion-sensitive-token and amount 500000"
+  );
+  const notion = createNotion();
+  notion.createPage = async () => {
+    throw cause;
+  };
+  const { repository } = createRepository({ notion });
+
+  await assert.rejects(
+    () => repository.addGrabIncome(777, "2026-07-29", 500000),
+    (error) => {
+      assert.equal(error instanceof AmbiguousIncomeWriteError, true);
+      assert.equal(error.name, "AmbiguousIncomeWriteError");
+      assert.equal(error.code, "AMBIGUOUS_INCOME_WRITE");
+      assert.equal(error.updateId, 777);
+      assert.equal(error.cause, cause);
+      assert.doesNotMatch(error.message, /notion-sensitive-token|500000|Notion body/);
+      return true;
+    }
+  );
+});
+
+test("income lookup errors remain ordinary and never attempt creation", async () => {
+  const lookupError = new Error("lookup failed");
+  const notion = createNotion();
+  notion.queryDatabase = async () => {
+    throw lookupError;
+  };
+  const originalCreatePage = notion.createPage;
+  let createCalls = 0;
+  notion.createPage = async (...args) => {
+    createCalls += 1;
+    return originalCreatePage(...args);
+  };
+  const { repository } = createRepository({ notion });
+
+  await assert.rejects(
+    () => repository.addGrabIncome(778, "2026-07-29", 500000),
+    (error) => error === lookupError
+  );
+  assert.equal(createCalls, 0);
 });
 
 test("cache deletion failure does not fail a successful income write", async () => {

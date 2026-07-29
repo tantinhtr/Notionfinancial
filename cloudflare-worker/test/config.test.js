@@ -6,17 +6,33 @@ test("getConfig validates required bindings", () => {
   assert.throws(() => getConfig({}), /TELEGRAM_TOKEN/);
 });
 
+test("getConfig requires UPDATE_COORDINATOR after BOT_STATE", () => {
+  assert.throws(
+    () => getConfig({
+      TELEGRAM_TOKEN: "telegram",
+      NOTION_TOKEN: "notion",
+      WEBHOOK_SECRET: "secret",
+      ALLOWED_USER_ID: "42",
+      BOT_STATE: {}
+    }),
+    /UPDATE_COORDINATOR/
+  );
+});
+
 test("getConfig parses the allowed user and stable defaults", () => {
+  const updateCoordinator = {};
   const config = getConfig({
     TELEGRAM_TOKEN: "telegram",
     NOTION_TOKEN: "notion",
     WEBHOOK_SECRET: "secret",
     ALLOWED_USER_ID: "42",
-    BOT_STATE: {}
+    BOT_STATE: {},
+    UPDATE_COORDINATOR: updateCoordinator
   });
   assert.equal(config.allowedUserId, 42);
   assert.equal(config.monthlyExpenseLimit, 5500000);
   assert.equal(config.timezone, "Asia/Ho_Chi_Minh");
+  assert.equal(config.updateCoordinator, updateCoordinator);
 });
 
 test("getConfig rejects a non-finite allowed user ID", () => {
@@ -25,7 +41,8 @@ test("getConfig rejects a non-finite allowed user ID", () => {
     NOTION_TOKEN: "notion",
     WEBHOOK_SECRET: "secret",
     ALLOWED_USER_ID: "not-a-number",
-    BOT_STATE: {}
+    BOT_STATE: {},
+    UPDATE_COORDINATOR: {}
   };
   assert.throws(() => getConfig(env), /ALLOWED_USER_ID/);
 });
@@ -36,7 +53,8 @@ test("getConfig returns stable Notion identifiers", () => {
     NOTION_TOKEN: "notion",
     WEBHOOK_SECRET: "secret",
     ALLOWED_USER_ID: "42",
-    BOT_STATE: {}
+    BOT_STATE: {},
+    UPDATE_COORDINATOR: {}
   });
   assert.equal(config.incomeDb, "1178ffb5-256b-81a1-8052-c91e72fb0eb6");
   assert.equal(config.goalDb, "1178ffb5-256b-815e-9f66-e18a90b48950");

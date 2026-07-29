@@ -36,6 +36,9 @@ export function getConfig(env) {
   if (env?.BOT_STATE === undefined || env.BOT_STATE === null) {
     throw new Error("Missing required binding: BOT_STATE");
   }
+  if (env?.UPDATE_COORDINATOR === undefined || env.UPDATE_COORDINATOR === null) {
+    throw new Error("Missing required binding: UPDATE_COORDINATOR");
+  }
 
   return {
     telegramToken: env.TELEGRAM_TOKEN,
@@ -43,6 +46,7 @@ export function getConfig(env) {
     webhookSecret: env.WEBHOOK_SECRET,
     allowedUserId,
     botState: env.BOT_STATE,
+    updateCoordinator: env.UPDATE_COORDINATOR,
     notionVersion: "2022-06-28",
     monthlyExpenseLimit: 5500000,
     timezone: "Asia/Ho_Chi_Minh",
