@@ -102,6 +102,26 @@ test("Notion errors include status and message without configured sensitive valu
   );
 });
 
+test("Notion redacts a configured token echoed by an upstream message", async () => {
+  const notion = createNotionClient(config, async () =>
+    jsonResponse(
+      { message: `invalid request for ${config.notionToken}` },
+      { ok: false, status: 400 }
+    )
+  );
+
+  await assert.rejects(
+    notion.createPage("database-id", {}),
+    (error) => {
+      assert.match(error.message, /createPage/);
+      assert.match(error.message, /400/);
+      assert.match(error.message, /invalid request/);
+      assert.doesNotMatch(error.message, new RegExp(config.notionToken));
+      return true;
+    }
+  );
+});
+
 test("Telegram sends POST JSON and rejects failed Telegram responses", async () => {
   const calls = [];
   const telegram = createTelegramClient(config, async (url, options) => {
@@ -134,6 +154,26 @@ test("Telegram errors never expose the configured sensitive value", async () => 
       assert.match(error.message, /403/);
       assert.match(error.message, /forbidden/);
       assert.doesNotMatch(error.message, /telegram-sensitive-value/);
+      return true;
+    }
+  );
+});
+
+test("Telegram redacts a configured token echoed by an upstream description", async () => {
+  const telegram = createTelegramClient(config, async () =>
+    jsonResponse(
+      { ok: false, description: `forbidden for ${config.telegramToken}` },
+      { ok: false, status: 403 }
+    )
+  );
+
+  await assert.rejects(
+    telegram.deleteWebhook(),
+    (error) => {
+      assert.match(error.message, /deleteWebhook/);
+      assert.match(error.message, /403/);
+      assert.match(error.message, /forbidden/);
+      assert.doesNotMatch(error.message, new RegExp(config.telegramToken));
       return true;
     }
   );

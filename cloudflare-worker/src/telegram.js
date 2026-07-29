@@ -17,11 +17,20 @@ async function parseJson(response) {
   }
 }
 
-function telegramError(method, status, description) {
+function redactToken(text, token) {
+  if (typeof text !== "string" || typeof token !== "string" || token === "") {
+    return text;
+  }
+  return text.split(token).join("[REDACTED]");
+}
+
+function telegramError(method, status, description, telegramToken) {
   const details = [
     `Telegram ${method} failed`,
     status ? `HTTP ${status}` : null,
-    typeof description === "string" && description !== "" ? description : null
+    typeof description === "string" && description !== ""
+      ? redactToken(description, telegramToken)
+      : null
   ].filter(Boolean);
   return new Error(details.join(": "));
 }
@@ -38,12 +47,12 @@ export function createTelegramClient(config, fetchImpl = fetch) {
         body: JSON.stringify(payload)
       });
     } catch {
-      throw telegramError(method);
+      throw telegramError(method, undefined, undefined, config.telegramToken);
     }
 
     const body = await parseJson(response);
     if (!response.ok || body?.ok !== true) {
-      throw telegramError(method, response.status, body?.description);
+      throw telegramError(method, response.status, body?.description, config.telegramToken);
     }
     return body.result;
   }

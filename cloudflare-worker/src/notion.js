@@ -6,11 +6,18 @@ async function parseJson(response) {
   }
 }
 
-function notionError(operation, status, message) {
+function redactToken(text, token) {
+  if (typeof text !== "string" || typeof token !== "string" || token === "") {
+    return text;
+  }
+  return text.split(token).join("[REDACTED]");
+}
+
+function notionError(operation, status, message, notionToken) {
   const details = [
     `Notion ${operation} failed`,
     status ? `HTTP ${status}` : null,
-    typeof message === "string" && message !== "" ? message : null
+    typeof message === "string" && message !== "" ? redactToken(message, notionToken) : null
   ].filter(Boolean);
   return new Error(details.join(": "));
 }
@@ -31,12 +38,12 @@ export function createNotionClient(config, fetchImpl = fetch) {
         body: JSON.stringify(payload)
       });
     } catch {
-      throw notionError(operation);
+      throw notionError(operation, undefined, undefined, config.notionToken);
     }
 
     const body = await parseJson(response);
     if (!response.ok) {
-      throw notionError(operation, response.status, body?.message);
+      throw notionError(operation, response.status, body?.message, config.notionToken);
     }
     if (body === null || typeof body !== "object" || Array.isArray(body)) {
       throw notionError(operation, response.status, "malformed success response");
