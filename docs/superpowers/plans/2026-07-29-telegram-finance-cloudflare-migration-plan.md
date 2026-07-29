@@ -335,6 +335,8 @@ Expected: all configuration, adapter, finance, and repository tests PASS.
 - Modify: `cloudflare-worker/test/adapters.test.js`
 - Modify: `cloudflare-worker/src/repository.js`
 - Modify: `cloudflare-worker/test/repository.test.js`
+- Modify: `cloudflare-worker/src/config.js`
+- Modify: `cloudflare-worker/test/config.test.js`
 - Modify: `cloudflare-worker/wrangler.jsonc`
 
 **Interfaces:**
