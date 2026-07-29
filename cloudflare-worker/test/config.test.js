@@ -39,6 +39,7 @@ test("getConfig returns stable Notion identifiers", () => {
     BOT_STATE: {}
   });
   assert.equal(config.incomeDb, "1178ffb5-256b-81a1-8052-c91e72fb0eb6");
+  assert.equal(config.goalDb, "1178ffb5-256b-815e-9f66-e18a90b48950");
   assert.equal(config.goalRelationPageId, "39c8ffb5-256b-806f-a710-e022aabf703d");
   assert.equal(config.walletIncomeRelationPageId, "3a08ffb5-256b-80a7-a68a-dc37d6dff53f");
 });
