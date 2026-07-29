@@ -734,6 +734,46 @@ export function unusualSpendingKeyboard_() {
   };
 }
 
+export function fundBudgetText_(data) {
+  data = data || {};
+  const t = data.t || {};
+  const groups = data.fundGroups || [];
+  const lines = ["📦 Quỹ & ngân sách — tháng " + t.m + "/" + t.y];
+  if (!groups.length) {
+    lines.push("", "Chưa có nhóm quỹ nào trong tháng này.");
+    return lines.join("\n");
+  }
+  for (const group of groups) {
+    let row;
+    if ((group.over || 0) > 0) {
+      row = "⛔ " + group.name + ": " + money_(group.spent) + " / " + money_(group.budget) +
+        " | vượt, cần hoàn " + money_(group.over);
+    } else {
+      row = "✅ " + group.name + ": " + money_(group.spent) + " / " + money_(group.budget) +
+        " | còn " + money_(Math.max((group.budget || 0) - (group.spent || 0), 0));
+    }
+    if ((group.transferNeeded || 0) > 0) {
+      row += " | cần cấp " + money_(group.transferNeeded);
+    } else if (group.requiresAllocation && (group.allocated || 0) > 0) {
+      row += " | đã cấp " + money_(group.allocated);
+    }
+    if (group.unmatchedCategories && group.unmatchedCategories.length) {
+      row += " | ⚠️ thiếu loại chi";
+    }
+    lines.push(row);
+  }
+  return lines.join("\n");
+}
+
+export function fundBudgetKeyboard_() {
+  return {
+    inline_keyboard: [
+      [{ text: "🔄 Cập nhật", callback_data: "show_funds" }],
+      [{ text: "⬅️ Dòng tiền", callback_data: "cash_home" }]
+    ]
+  };
+}
+
 export function monthlyCashflowText_(data) {
   data = data || {};
   const t = data.t || {};

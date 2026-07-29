@@ -14,6 +14,8 @@ import {
   cashflowCategoryToken_,
   cashflowDirectionKeyboard_,
   cashflowDirectionText_,
+  fundBudgetKeyboard_,
+  fundBudgetText_,
   iso_,
   money_,
   monthlyCashflowKeyboard_,
@@ -1005,6 +1007,90 @@ test("unusual spending keyboard preserves approved navigation", () => {
     inline_keyboard: [
       [{ text: "⬅️ Dòng tiền", callback_data: "show_accounts" }],
       [{ text: "🏠 Trang chính", callback_data: "show_home" }]
+    ]
+  });
+});
+
+test("fund budget text preserves approved fund statuses and heading", () => {
+  const text = fundBudgetText_({
+    t: { y: 2026, m: 7, d: 28 },
+    fundGroups: [
+      {
+        name: "Thiết Yếu",
+        budget: 2400000,
+        spent: 2277400,
+        over: 0,
+        allocated: 2400000,
+        transferNeeded: 0,
+        requiresAllocation: true,
+        unmatchedCategories: []
+      },
+      {
+        name: "Đi Chợ",
+        budget: 1300000,
+        spent: 801000,
+        over: 0,
+        allocated: 0,
+        transferNeeded: 0,
+        requiresAllocation: false,
+        unmatchedCategories: []
+      },
+      {
+        name: "Phát Sinh",
+        budget: 600000,
+        spent: 0,
+        over: 0,
+        allocated: 0,
+        transferNeeded: 600000,
+        requiresAllocation: true,
+        unmatchedCategories: []
+      },
+      {
+        name: "Làm YouTube",
+        budget: 500000,
+        spent: 554444,
+        over: 54444,
+        allocated: 555000,
+        transferNeeded: 0,
+        requiresAllocation: true,
+        unmatchedCategories: []
+      },
+      {
+        name: "Chưa Ghép",
+        budget: 100000,
+        spent: 25000,
+        over: 0,
+        allocated: 0,
+        transferNeeded: 0,
+        requiresAllocation: false,
+        unmatchedCategories: ["missing-category"]
+      }
+    ]
+  });
+
+  assert.equal(
+    text,
+    "📦 Quỹ & ngân sách — tháng 7/2026\n" +
+      "✅ Thiết Yếu: 2.277.400đ / 2.400.000đ | còn 122.600đ | đã cấp 2.400.000đ\n" +
+      "✅ Đi Chợ: 801.000đ / 1.300.000đ | còn 499.000đ\n" +
+      "✅ Phát Sinh: 0đ / 600.000đ | còn 600.000đ | cần cấp 600.000đ\n" +
+      "⛔ Làm YouTube: 554.444đ / 500.000đ | vượt, cần hoàn 54.444đ | đã cấp 555.000đ\n" +
+      "✅ Chưa Ghép: 25.000đ / 100.000đ | còn 75.000đ | ⚠️ thiếu loại chi"
+  );
+});
+
+test("fund budget text preserves the approved empty state", () => {
+  assert.equal(
+    fundBudgetText_({ t: { y: 2026, m: 7, d: 28 }, fundGroups: [] }),
+    "📦 Quỹ & ngân sách — tháng 7/2026\n\nChưa có nhóm quỹ nào trong tháng này."
+  );
+});
+
+test("fund budget keyboard preserves exact refresh and back callbacks", () => {
+  assert.deepEqual(fundBudgetKeyboard_(), {
+    inline_keyboard: [
+      [{ text: "🔄 Cập nhật", callback_data: "show_funds" }],
+      [{ text: "⬅️ Dòng tiền", callback_data: "cash_home" }]
     ]
   });
 });
