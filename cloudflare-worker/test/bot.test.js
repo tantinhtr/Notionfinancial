@@ -224,7 +224,7 @@ test("keeps fund report separate from Level 1 monthly cashflow", async () => {
   assert.match(harness.sent[0].text, /Thiết Yếu: 2\.277\.400đ \/ 2\.400\.000đ/);
   assert.deepEqual(
     harness.sent[0].replyMarkup.inline_keyboard.flat().map((button) => button.callback_data),
-    ["show_funds", "cash_home"]
+    ["cash_home"]
   );
 });
 

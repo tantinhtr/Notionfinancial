@@ -700,10 +700,7 @@ export function accountSpendingKeyboard_(data) {
       callback_data: "spend_account:" + notionIdToken_(account.id, "noneacct")
     }]);
   }
-  rows.push([
-    { text: "🔄 Cập nhật", callback_data: "refresh_accounts" },
-    { text: "📊 Báo cáo tháng", callback_data: "show_month" }
-  ]);
+  rows.push([{ text: "📊 Báo cáo tháng", callback_data: "show_month" }]);
   rows.push([{ text: "🏠 Trang chính", callback_data: "show_home" }]);
   return { inline_keyboard: rows };
 }
@@ -772,7 +769,6 @@ export function fundBudgetText_(data) {
 export function fundBudgetKeyboard_() {
   return {
     inline_keyboard: [
-      [{ text: "🔄 Cập nhật", callback_data: "show_funds" }],
       [{ text: "⬅️ Dòng tiền", callback_data: "cash_home" }]
     ]
   };

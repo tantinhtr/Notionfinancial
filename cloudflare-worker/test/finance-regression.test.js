@@ -814,7 +814,10 @@ test("cash-flow analysis separates personal spending, loans, Grab capital and un
   assert.match(text, /Chạy Grab: 236\.000đ .*nạp ví 186\.000đ.*xăng\/phí 50\.000đ/);
   assert.doesNotMatch(text, /Vượt hạn mức tổng/);
   assert.match(unusualSpendingText_(data), /Mua bộ dao: 155\.200đ/);
-  assert.equal(accountSpendingKeyboard_(data).inline_keyboard[0][0].callback_data, "show_unusual");
+  const spendingButtons = accountSpendingKeyboard_(data).inline_keyboard.flat();
+  assert.equal(spendingButtons[0].callback_data, "show_unusual");
+  assert.ok(spendingButtons.every((button) => button.callback_data !== "refresh_accounts"));
+  assert.ok(spendingButtons.every((button) => !button.text.includes("Cập nhật")));
 });
 
 test("Phát Sinh is a virtual budget and shows where the overspend was paid from", () => {
@@ -1089,10 +1092,9 @@ test("fund budget text preserves the approved empty state", () => {
   );
 });
 
-test("fund budget keyboard preserves exact refresh and back callbacks", () => {
+test("fund budget keyboard keeps only the cashflow navigation", () => {
   assert.deepEqual(fundBudgetKeyboard_(), {
     inline_keyboard: [
-      [{ text: "🔄 Cập nhật", callback_data: "show_funds" }],
       [{ text: "⬅️ Dòng tiền", callback_data: "cash_home" }]
     ]
   });
