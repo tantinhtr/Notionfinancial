@@ -115,10 +115,7 @@ function dateParts(date, timezone) {
 function goalKeyboard() {
   return {
     inline_keyboard: [
-      [
-        { text: "🔄 Cập nhật", callback_data: "refresh_goal" },
-        { text: "📊 Dòng tiền", callback_data: "cash_home" }
-      ],
+      [{ text: "📊 Dòng tiền", callback_data: "cash_home" }],
       [{ text: "📦 Quỹ & ngân sách", callback_data: "show_funds" }],
       [{ text: "🏠 Trang chính", callback_data: "show_home" }]
     ]

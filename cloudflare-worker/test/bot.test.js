@@ -619,7 +619,7 @@ test("/muctieu opens the exact Grab income target report", async () => {
   );
   assert.deepEqual(
     harness.sent[0].replyMarkup.inline_keyboard.flat().map((button) => button.callback_data),
-    ["refresh_goal", "cash_home", "show_funds", "show_home"]
+    ["cash_home", "show_funds", "show_home"]
   );
 });
 
