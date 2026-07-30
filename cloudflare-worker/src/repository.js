@@ -230,6 +230,7 @@ export function createFinanceRepository({ notion, state, config, now = () => new
     const todayTarget = daysLeftInclToday > 0 ? remainingBefore / daysLeftInclToday : 0;
     const todayMet = earnedToday >= todayTarget;
     const remaining = Math.max(goal - earnedMonth, 0);
+    const requiredPerDay = daysLeftInclToday > 0 ? remaining / daysLeftInclToday : 0;
     const daysAfter = dim - t.d;
     const tomorrowTarget = daysAfter > 0 ? remaining / daysAfter : 0;
 
@@ -242,6 +243,8 @@ export function createFinanceRepository({ notion, state, config, now = () => new
       todayTarget,
       todayMet,
       remaining,
+      daysLeftIncludingToday: daysLeftInclToday,
+      requiredPerDay,
       daysAfter,
       tomorrowTarget
     };

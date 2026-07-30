@@ -40,8 +40,12 @@ export function progressText_(status) {
     "",
     "🎯 Mục tiêu mỗi ngày (đều): " + money_(status.baseDaily)
   ];
-  if (status.daysAfter > 0) {
-    lines.push("🔥 Còn " + status.daysAfter + " ngày → mỗi ngày cần: " + money_(status.tomorrowTarget));
+  if (status.daysLeftIncludingToday > 0) {
+    lines.push(
+      "🔥 Còn " + status.daysLeftIncludingToday +
+      " ngày (tính cả hôm nay) → mỗi ngày cần: " +
+      money_(status.requiredPerDay)
+    );
   } else {
     lines.push("🏁 Hôm nay là ngày cuối tháng!");
   }

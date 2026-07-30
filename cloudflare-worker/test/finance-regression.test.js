@@ -972,9 +972,12 @@ test("/muctieu names the exact income target being tracked", () => {
     earnedMonth: 1000000,
     remaining: 9000000,
     baseDaily: 322581,
+    daysLeftIncludingToday: 13,
+    requiredPerDay: 692307.69,
     daysAfter: 12,
     tomorrowTarget: 750000
   });
+  assert.match(text, /13 .*692\.308/);
   assert.match(text, /Mục tiêu Thu Nhập Ròng Grab \(App\)/);
   assert.match(text, /Tiến độ: 10,0%/);
   assert.doesNotMatch(text, /[█░]/);

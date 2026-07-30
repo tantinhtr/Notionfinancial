@@ -277,6 +277,8 @@ test("goal status calculates the month and today targets using configured timezo
   assert.equal(status.todayTarget, 5500);
   assert.equal(status.todayMet, false);
   assert.equal(status.remaining, 10000);
+  assert.equal(status.daysLeftIncludingToday, 2);
+  assert.equal(status.requiredPerDay, 5000);
   assert.equal(status.daysAfter, 1);
   assert.equal(status.tomorrowTarget, 10000);
   assert.deepEqual(notion.calls, [
@@ -289,6 +291,22 @@ test("goal status calculates the month and today targets using configured timezo
       ]
     }]
   ]);
+});
+
+test("goal status counts February 29 in a leap year", async () => {
+  const { repository } = createRepository({
+    now: () => new Date("2028-02-27T18:00:00.000Z"),
+    rows: {
+      goals: [row("goal", { "Mục Tiêu Hàng Tháng": { number: 29000 } })],
+      income: []
+    }
+  });
+
+  const status = await repository.getGoalStatus();
+
+  assert.deepEqual(status.t, { y: 2028, m: 2, d: 28 });
+  assert.equal(status.daysLeftIncludingToday, 2);
+  assert.equal(status.requiredPerDay, 14500);
 });
 
 test("fund report wires five concurrent Notion queries into the finance builder", async () => {
