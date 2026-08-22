@@ -916,6 +916,7 @@ test("fund groups reconcile Notion transfers with spending paid outside the virt
     paidOutsideFund: 0,
     fundBalance: 122600,
     fundDebt: 0,
+    borrowedFunds: [],
     advances: [],
     transferNeeded: 0,
     requiresAllocation: true,
@@ -994,6 +995,70 @@ test("a fund that spent from its holding account without any transfer reports th
       "• Làm YouTube → Grap Tiền Mặt: 20.000đ\n" +
       "Tổng: 574.444đ"
   );
+});
+
+test("spending notes name the fund that was borrowed from", () => {
+  const noted = (id, name, categoryId, accountId, amount, note = "") => ({
+    id,
+    properties: {
+      "Nội Dung Khoản Chi": { title: [{ plain_text: name }] },
+      "Ghi Chú": { rich_text: note ? [{ plain_text: note }] : [] },
+      "Số Tiền": { number: amount },
+      "Ngày": { date: { start: "2026-08-02" } },
+      "Loại Chi Phí": { relation: [{ id: categoryId }] },
+      "Phương Thức Thanh Toán": { relation: [{ id: accountId }] }
+    }
+  });
+
+  const data = buildAccountSpendingData_(
+    { y: 2026, m: 8, d: 22 },
+    [
+      trackedCategoryRow("affiliate", "Affiilate", 500000, "youtube-fund"),
+      trackedCategoryRow("rent", "Nhà Trọ", 2150000, "essential-fund"),
+      trackedCategoryRow("incidental", "Phát Sinh", 600000, "incidental-fund")
+    ],
+    [
+      noted("claude", "Claude pro ( lấy từ quỹ tích lũy)", "affiliate", "fund", 554444),
+      noted("tyre", "Thay nhớt ( lấy từ quxy sửa xe )", "affiliate", "fund", 150000),
+      noted("wifi", "Wifi ( lấy từ quỹ thiết yếu )", "rent", "fund", 176400),
+      noted("coffee", "Mua bạc xỉu ( tính vào quỹ phát sinh )", "incidental", "cash", 15000)
+    ],
+    [cashflowAccountRow("fund", "Quỹ Momo"), cashflowAccountRow("cash", "Grap Tiền Mặt")],
+    5500000,
+    [transferRow("essential", "Cấp quỹ thiết yếu", 2150000, "cash", "fund", "essential-fund")],
+    [
+      fundGroupRow("youtube-fund", "Làm YouTube", "fund", true),
+      fundGroupRow("essential-fund", "Thiết Yếu", "fund", true),
+      fundGroupRow("incidental-fund", "Phát Sinh", "fund", true)
+    ]
+  );
+
+  const youtube = data.fundGroups.find((group) => group.name === "Làm YouTube");
+  const essential = data.fundGroups.find((group) => group.name === "Thiết Yếu");
+  const incidental = data.fundGroups.find((group) => group.name === "Phát Sinh");
+
+  // "lấy từ quỹ X" là mượn, và lỗi gõ "quxy" vẫn về đúng tên quỹ.
+  assert.deepEqual(youtube.borrowedFunds, [
+    { fund: "quỹ tích lũy", amount: 554444 },
+    { fund: "quỹ sửa xe", amount: 150000 }
+  ]);
+  // Đã ghi rõ mượn quỹ khác thì không tính là tiêu tiền của quỹ giữ.
+  assert.equal(youtube.paidFromFund, 0);
+  assert.equal(youtube.fundDebt, 0);
+
+  // Ghi chú trỏ về chính nhóm đó thì không phải mượn.
+  assert.deepEqual(essential.borrowedFunds, []);
+  assert.equal(essential.paidFromFund, 176400);
+
+  // "tính vào" chỉ là phân loại ngân sách, không phải mượn.
+  assert.deepEqual(incidental.borrowedFunds, []);
+  assert.deepEqual(incidental.advances, [{ account: "Grap Tiền Mặt", amount: 15000 }]);
+
+  const text = fundBudgetText_(data);
+  assert.match(text, /• Làm YouTube → quỹ tích lũy: 554\.444đ/);
+  assert.match(text, /• Làm YouTube → quỹ sửa xe: 150\.000đ/);
+  assert.doesNotMatch(text, /quxy/);
+  assert.doesNotMatch(text, /quỹ phát sinh/);
 });
 
 test("a fund that does not require allocation never asks for a transfer", () => {

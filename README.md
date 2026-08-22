@@ -48,6 +48,23 @@ Ví dụ nhóm Làm YouTube ở trên: ngân sách 500.000đ nhưng chưa cấp 
 
 Nhóm nào không bật `Bắt Buộc Cấp Quỹ` trong Notion thì không bao giờ bị tính nợ, vì nó vốn được chi thẳng từ tài khoản của nó.
 
+### Quy ước ghi chú: mượn quỹ nào
+
+Quỹ Momo là tài khoản chung, bên trong chứa nhiều túi (quỹ tích lũy, quỹ sửa xe, quỹ đi chơi...) mà Notion chưa mô hình hoá thành dữ liệu. Bot đọc tiêu đề và ô Ghi Chú của khoản chi để biết tiền được mượn từ túi nào.
+
+| Cách viết | Bot hiểu là |
+|---|---|
+| `( lấy từ quỹ X )` | **mượn** của quỹ X → sinh ra dòng nợ trả về quỹ X |
+| `( mượn quỹ X )` | **mượn** của quỹ X |
+| `( tính vào quỹ X )` | chỉ là phân loại ngân sách, **không** phải mượn |
+| `( quỹ X )` | không phải mượn |
+
+Chỉ `lấy từ` và `mượn` mới tạo ra nợ, và phải theo sau bằng một chữ bắt đầu bằng `qu`. Nhờ vậy lỗi gõ như `( lấy từ quxy sửa xe )` vẫn về đúng `quỹ sửa xe`.
+
+Nếu tên quỹ trong ghi chú trùng với chính nhóm đang xét — ví dụ khoản của nhóm Thiết Yếu ghi `( lấy từ quỹ thiết yếu )` — thì đó là tiêu tiền của chính nó, không tính là mượn.
+
+Quy ước này dựa vào chữ viết tay nên phụ thuộc vào việc ghi đều. Muốn chắc chắn hơn thì tạo các túi đó thành nhóm quỹ thật trong bảng **Nhóm Quỹ Ngân Sách** và gắn nhãn `Nhóm Quỹ` cho giao dịch, khi đó bot biết được cả số dư từng túi.
+
 ## Kiến trúc
 
 ```

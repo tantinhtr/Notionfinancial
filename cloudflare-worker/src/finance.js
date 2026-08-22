@@ -383,6 +383,40 @@ function analyzeExpenseRows_(expenseRows, categoryNames, fixedIdMap, accountName
   return summary;
 }
 
+function plainText_(property) {
+  const parts = (property && (property.title || property.rich_text)) || [];
+  return parts.map((part) => part.plain_text || "").join("");
+}
+
+function stripFundPrefix_(name) {
+  return String(name || "").toLowerCase().replace(/\s+/g, " ").replace(/^qu\S*\s+/, "").trim();
+}
+
+// Anh ghi chu bang tay theo quy uoc "( lay tu quy X )" / "( muon quy X )".
+// Chi coi la muon khi co dung dong tu do va theo sau la mot chu bat dau bang "qu",
+// nen "( tinh vao quy phat sinh )" (chi la phan loai ngan sach) khong bi tinh nham,
+// con loi go nhu "quxy sua xe" van ve dung "quy sua xe".
+function borrowedFrom_(expenseRow) {
+  const props = expenseRow.properties || {};
+  const title = plainText_(props["Nội Dung Khoản Chi"]);
+  const note = plainText_(props["Ghi Chú"]);
+  const text = title + " | " + note;
+  const candidates = [];
+  const paren = /\(([^)]*)\)/g;
+  let found;
+  while ((found = paren.exec(text)) !== null) candidates.push(found[1]);
+  candidates.push(text);
+  for (const candidate of candidates) {
+    const match = candidate.match(/(?:lấy\s+từ|mượn(?:\s+từ)?)\s+(.+)$/i);
+    if (!match) continue;
+    const cleaned = match[1].replace(/[()]/g, " ").replace(/\s+/g, " ").trim();
+    if (!/^qu\S*\s+/i.test(cleaned)) continue;
+    const name = cleaned.replace(/^qu\S*\s+/i, "").trim().slice(0, 40);
+    if (name !== "") return "quỹ " + name;
+  }
+  return "";
+}
+
 export function buildAccountSpendingData_(
   t,
   categoryRows,
@@ -424,7 +458,8 @@ export function buildAccountSpendingData_(
       over: 0,
       missingCategory: false,
       paidByAccount: {},
-      accountBreakdown: []
+      accountBreakdown: [],
+      spendRows: []
     };
     fixedBudgets.push(fixed);
     fixedIdMap[fixed.id] = fixed;
@@ -446,6 +481,11 @@ export function buildAccountSpendingData_(
     if (fixedIdMap[categoryId]) {
       const fixed = fixedIdMap[categoryId];
       fixed.paidByAccount[accountName] = (fixed.paidByAccount[accountName] || 0) + amount;
+      fixed.spendRows.push({
+        account: accountName,
+        amount,
+        lender: borrowedFrom_(expenseRow)
+      });
     }
 
     if (!accountMap[accountId]) {
@@ -543,23 +583,33 @@ export function buildAccountSpendingData_(
       paidOutsideFund: 0,
       fundBalance: 0,
       fundDebt: 0,
+      borrowedFunds: [],
       advances: [],
       transferNeeded: 0,
       requiresAllocation,
       unmatchedCategories: []
     };
     const advanceByAccount = {};
+    const borrowByFund = {};
+    const groupKey = stripFundPrefix_(group.name);
     for (const fixed of fixedBudgets) {
       if (fixed.groupId !== fundGroupRow.id) continue;
       group.budget += fixed.budget;
       group.spent += fixed.spent;
-      for (const accountBreakdown of fixed.accountBreakdown) {
-        if (accountBreakdown.account === accountNames[destinationAccountId]) {
-          group.paidFromFund += accountBreakdown.amount;
+      for (const spendRow of fixed.spendRows) {
+        // Ghi chu chi ro muon quy nao thi no la mon no cua quy do, khong phai
+        // cua tai khoan giu quy. Ghi chu tro ve chinh no thi khong phai muon.
+        const lender = spendRow.lender !== "" && stripFundPrefix_(spendRow.lender) !== groupKey
+          ? spendRow.lender
+          : "";
+        if (lender !== "") {
+          borrowByFund[lender] = (borrowByFund[lender] || 0) + spendRow.amount;
+        } else if (spendRow.account === accountNames[destinationAccountId]) {
+          group.paidFromFund += spendRow.amount;
         } else {
-          group.paidOutsideFund += accountBreakdown.amount;
-          advanceByAccount[accountBreakdown.account] =
-            (advanceByAccount[accountBreakdown.account] || 0) + accountBreakdown.amount;
+          group.paidOutsideFund += spendRow.amount;
+          advanceByAccount[spendRow.account] =
+            (advanceByAccount[spendRow.account] || 0) + spendRow.amount;
         }
       }
     }
@@ -592,6 +642,10 @@ export function buildAccountSpendingData_(
     // trên số dư dương của quỹ.
     if (requiresAllocation) {
       group.fundDebt = Math.max(-group.fundBalance, 0);
+      group.borrowedFunds = Object.keys(borrowByFund)
+        .map((fund) => ({ fund, amount: borrowByFund[fund] }))
+        .filter((entry) => entry.amount > 0)
+        .sort((a, b) => b.amount - a.amount);
       group.advances = Object.keys(advanceByAccount)
         .map((account) => ({ account, amount: advanceByAccount[account] }))
         .filter((entry) => entry.amount > 0)
@@ -609,6 +663,7 @@ export function buildAccountSpendingData_(
     if (fixed.groupId && !knownGroupIds[fixed.groupId]) fixed.missingCategory = true;
     delete fixed.id;
     delete fixed.groupId;
+    delete fixed.spendRows;
   }
 
   return {
@@ -776,6 +831,9 @@ function collectDebts_(groups) {
   const debts = [];
   for (const group of groups) {
     const account = group.destinationAccount || "Tài khoản giữ quỹ";
+    for (const borrowed of group.borrowedFunds || []) {
+      debts.push({ group: group.name, account: borrowed.fund, amount: borrowed.amount });
+    }
     if ((group.fundDebt || 0) > 0) {
       debts.push({ group: group.name, account, amount: group.fundDebt });
     }
