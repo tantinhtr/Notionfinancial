@@ -534,11 +534,14 @@ export function buildAccountSpendingData_(
     );
     const group = {
       name: title.length ? title[0].plain_text : "(nhóm quỹ chưa đặt tên)",
+      destinationAccount: accountNames[destinationAccountId] || "",
       budget: 0,
       spent: 0,
       over: 0,
       allocated: 0,
+      paidFromFund: 0,
       paidOutsideFund: 0,
+      fundBalance: 0,
       transferNeeded: 0,
       requiresAllocation,
       unmatchedCategories: []
@@ -548,7 +551,9 @@ export function buildAccountSpendingData_(
       group.budget += fixed.budget;
       group.spent += fixed.spent;
       for (const accountBreakdown of fixed.accountBreakdown) {
-        if (accountBreakdown.account !== accountNames[destinationAccountId]) {
+        if (accountBreakdown.account === accountNames[destinationAccountId]) {
+          group.paidFromFund += accountBreakdown.amount;
+        } else {
           group.paidOutsideFund += accountBreakdown.amount;
         }
       }
@@ -572,11 +577,12 @@ export function buildAccountSpendingData_(
     }
     group.allocated = Math.max(netAllocated, 0);
     group.over = Math.max(group.spent - group.budget, 0);
+    // Tiền của nhóm còn nằm thật trong tài khoản giữ quỹ: đã cấp trừ phần đã chi từ
+    // chính tài khoản đó. Âm nghĩa là quỹ đã ứng tiền của nhóm khác để chi hộ.
+    group.fundBalance = netAllocated - group.paidFromFund;
     if (requiresAllocation) {
-      group.transferNeeded = Math.max(
-        group.budget - group.allocated - group.paidOutsideFund,
-        0
-      );
+      const remainingBudget = Math.max(group.budget - group.spent, 0);
+      group.transferNeeded = Math.max(remainingBudget - group.fundBalance, 0);
     }
     fundGroups.push(group);
   }
@@ -735,6 +741,25 @@ export function unusualSpendingKeyboard_() {
   };
 }
 
+function fundCashLine_(group) {
+  const parts = [];
+  const allocated = group.allocated || 0;
+  parts.push(allocated > 0 ? "đã cấp " + money_(allocated) : "chưa cấp đồng nào");
+  const balance = group.fundBalance || 0;
+  if (balance > 0) {
+    parts.push("còn " + money_(balance) + " trong quỹ");
+  } else if (balance < 0) {
+    parts.push("quỹ đang âm " + money_(-balance));
+  }
+  parts.push(
+    (group.transferNeeded || 0) > 0
+      ? "cần chuyển " + money_(group.transferNeeded)
+      : "không cần chuyển thêm"
+  );
+  return "   💰 " + (group.destinationAccount || "Tài khoản giữ quỹ") + ": " +
+    parts.join(" · ");
+}
+
 export function fundBudgetText_(data) {
   data = data || {};
   const t = data.t || {};
@@ -744,6 +769,7 @@ export function fundBudgetText_(data) {
     lines.push("", "Chưa có nhóm quỹ nào trong tháng này.");
     return lines.join("\n");
   }
+  let hasCashLine = false;
   for (const group of groups) {
     let row;
     if ((group.over || 0) > 0) {
@@ -753,15 +779,21 @@ export function fundBudgetText_(data) {
       row = "✅ " + group.name + ": " + money_(group.spent) + " / " + money_(group.budget) +
         " | còn " + money_(Math.max((group.budget || 0) - (group.spent || 0), 0));
     }
-    if ((group.transferNeeded || 0) > 0) {
-      row += " | cần cấp " + money_(group.transferNeeded);
-    } else if (group.requiresAllocation && (group.allocated || 0) > 0) {
-      row += " | đã cấp " + money_(group.allocated);
-    }
     if (group.unmatchedCategories && group.unmatchedCategories.length) {
       row += " | ⚠️ thiếu loại chi";
     }
     lines.push(row);
+    if (group.requiresAllocation) {
+      lines.push(fundCashLine_(group));
+      hasCashLine = true;
+    }
+  }
+  if (hasCashLine) {
+    lines.push(
+      "",
+      "ℹ️ \"còn\" = ngân sách chưa tiêu. \"cần chuyển\" = tiền thật cần bơm vào " +
+      "tài khoản giữ quỹ."
+    );
   }
   return lines.join("\n");
 }

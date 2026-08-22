@@ -907,11 +907,14 @@ test("fund groups reconcile Notion transfers with spending paid outside the virt
   const incidental = data.fundGroups.find((group) => group.name === "Phát Sinh");
   assert.deepEqual(essential, {
     name: "Thiết Yếu",
+    destinationAccount: "Quỹ Momo",
     budget: 2400000,
     spent: 2277400,
     over: 0,
     allocated: 2400000,
+    paidFromFund: 2277400,
     paidOutsideFund: 0,
+    fundBalance: 122600,
     transferNeeded: 0,
     requiresAllocation: true,
     unmatchedCategories: []
@@ -949,6 +952,42 @@ test("a managed fund with no transfer or outside spending warns the amount to tr
   );
   assert.equal(data.fundGroups[0].transferNeeded, 600000);
   assert.match(accountSpendingText_(data), /⚠️ Phát Sinh: 0đ \/ 600\.000đ \| cần cấp 600\.000đ/);
+});
+
+test("a fund that spent from its holding account without any transfer reports the debt", () => {
+  const data = buildAccountSpendingData_(
+    { y: 2026, m: 8, d: 17 },
+    [trackedCategoryRow("affiliate", "Affiilate", 500000, "youtube-fund")],
+    [
+      expenseRow("claude-pro", "affiliate", "fund", 554444),
+      expenseRow("telegram-wallet", "affiliate", "cash", 20000)
+    ],
+    [cashflowAccountRow("fund", "Quỹ Momo"), cashflowAccountRow("cash", "Grap Tiền Mặt")],
+    5500000,
+    [],
+    [fundGroupRow("youtube-fund", "Làm YouTube", "fund", true)]
+  );
+
+  const youtube = data.fundGroups[0];
+  assert.equal(youtube.allocated, 0);
+  assert.equal(youtube.paidFromFund, 554444);
+  assert.equal(youtube.paidOutsideFund, 20000);
+  // Quỹ đã chi hộ 554.444đ mà chưa được cấp đồng nào, nên nó đang âm đúng số đó.
+  assert.equal(youtube.fundBalance, -554444);
+  assert.equal(youtube.over, 74444);
+  // Ngân sách đã cạn, thứ còn thiếu là tiền mặt phải bù lại cho quỹ — không phải 480.000đ
+  // như công thức cũ (budget - allocated - paidOutsideFund) tính ra.
+  assert.equal(youtube.transferNeeded, 554444);
+
+  assert.equal(
+    fundBudgetText_(data),
+    "📦 Quỹ & ngân sách — tháng 8/2026\n" +
+      "⛔ Làm YouTube: 574.444đ / 500.000đ | vượt, cần hoàn 74.444đ\n" +
+      "   💰 Quỹ Momo: chưa cấp đồng nào · quỹ đang âm 554.444đ · cần chuyển 554.444đ\n" +
+      "\n" +
+      "ℹ️ \"còn\" = ngân sách chưa tiêu. \"cần chuyển\" = tiền thật cần bơm vào " +
+      "tài khoản giữ quỹ."
+  );
 });
 
 test("a fund that does not require allocation never asks for a transfer", () => {
@@ -1023,10 +1062,12 @@ test("fund budget text preserves approved fund statuses and heading", () => {
     fundGroups: [
       {
         name: "Thiết Yếu",
+        destinationAccount: "Quỹ Momo",
         budget: 2400000,
         spent: 2277400,
         over: 0,
         allocated: 2400000,
+        fundBalance: 122600,
         transferNeeded: 0,
         requiresAllocation: true,
         unmatchedCategories: []
@@ -1043,20 +1084,24 @@ test("fund budget text preserves approved fund statuses and heading", () => {
       },
       {
         name: "Phát Sinh",
+        destinationAccount: "Quỹ Momo",
         budget: 600000,
         spent: 0,
         over: 0,
         allocated: 0,
+        fundBalance: 0,
         transferNeeded: 600000,
         requiresAllocation: true,
         unmatchedCategories: []
       },
       {
         name: "Làm YouTube",
+        destinationAccount: "Quỹ Momo",
         budget: 500000,
         spent: 554444,
         over: 54444,
         allocated: 555000,
+        fundBalance: 556,
         transferNeeded: 0,
         requiresAllocation: true,
         unmatchedCategories: []
@@ -1077,11 +1122,18 @@ test("fund budget text preserves approved fund statuses and heading", () => {
   assert.equal(
     text,
     "📦 Quỹ & ngân sách — tháng 7/2026\n" +
-      "✅ Thiết Yếu: 2.277.400đ / 2.400.000đ | còn 122.600đ | đã cấp 2.400.000đ\n" +
+      "✅ Thiết Yếu: 2.277.400đ / 2.400.000đ | còn 122.600đ\n" +
+      "   💰 Quỹ Momo: đã cấp 2.400.000đ · còn 122.600đ trong quỹ · " +
+      "không cần chuyển thêm\n" +
       "✅ Đi Chợ: 801.000đ / 1.300.000đ | còn 499.000đ\n" +
-      "✅ Phát Sinh: 0đ / 600.000đ | còn 600.000đ | cần cấp 600.000đ\n" +
-      "⛔ Làm YouTube: 554.444đ / 500.000đ | vượt, cần hoàn 54.444đ | đã cấp 555.000đ\n" +
-      "✅ Chưa Ghép: 25.000đ / 100.000đ | còn 75.000đ | ⚠️ thiếu loại chi"
+      "✅ Phát Sinh: 0đ / 600.000đ | còn 600.000đ\n" +
+      "   💰 Quỹ Momo: chưa cấp đồng nào · cần chuyển 600.000đ\n" +
+      "⛔ Làm YouTube: 554.444đ / 500.000đ | vượt, cần hoàn 54.444đ\n" +
+      "   💰 Quỹ Momo: đã cấp 555.000đ · còn 556đ trong quỹ · không cần chuyển thêm\n" +
+      "✅ Chưa Ghép: 25.000đ / 100.000đ | còn 75.000đ | ⚠️ thiếu loại chi\n" +
+      "\n" +
+      "ℹ️ \"còn\" = ngân sách chưa tiêu. \"cần chuyển\" = tiền thật cần bơm vào " +
+      "tài khoản giữ quỹ."
   );
 });
 
