@@ -623,41 +623,53 @@ export function buildAccountSpendingData_(
     };
     const advanceByAccount = {};
     const borrowByFund = {};
-    const addDebtRow = (bucket, key, spendRow) => {
+    const groupKey = stripFundPrefix_(group.name);
+    const addDebtRow = (bucket, key, spendRow, amount, partial) => {
       if (!bucket[key]) bucket[key] = { amount: 0, rows: [] };
-      bucket[key].amount += spendRow.amount;
+      bucket[key].amount += amount;
       bucket[key].rows.push({
         name: spendRow.name,
-        amount: spendRow.amount,
-        date: spendRow.date
+        amount,
+        date: spendRow.date,
+        partial: partial === true
       });
     };
-    const groupKey = stripFundPrefix_(group.name);
-    // Ghi chu chi ro muon quy nao thi do la mon no cua quy ay, khong phai cua tai
-    // khoan giu quy. Ghi chu tro ve chinh nhom dang xet thi khong phai muon.
-    const classifySpend = (spendRow) => {
-      const lender = spendRow.lender !== "" && stripFundPrefix_(spendRow.lender) !== groupKey
-        ? spendRow.lender
-        : "";
-      if (lender !== "") {
-        addDebtRow(borrowByFund, lender, spendRow);
-      } else if (spendRow.account === accountNames[destinationAccountId]) {
-        group.paidFromFund += spendRow.amount;
-      } else {
-        group.paidOutsideFund += spendRow.amount;
-        addDebtRow(advanceByAccount, spendRow.account, spendRow);
-      }
-    };
+
+    const groupRows = [];
     for (const fixed of fixedBudgets) {
       if (fixed.groupId !== fundGroupRow.id) continue;
       group.budget += fixed.budget;
       group.spent += fixed.spent;
-      for (const spendRow of fixed.spendRows) classifySpend(spendRow);
+      for (const spendRow of fixed.spendRows) groupRows.push(spendRow);
     }
     // Khoan chi duoc ghi chu "tinh vao quy X" keo vao day, du Loai Chi Phi khac.
     for (const extraRow of extraRowsByGroupId[fundGroupRow.id] || []) {
       group.spent += extraRow.amount;
-      classifySpend(extraRow);
+      groupRows.push(extraRow);
+    }
+
+    // Xet theo thu tu thoi gian: khoan nao day tong vuot qua tran thi chinh no la
+    // phan lo. Tieu trong han muc bang tai khoan khac la binh thuong, khong ghi.
+    groupRows.sort((a, b) => (a.date < b.date ? -1 : (a.date > b.date ? 1 : 0)));
+    let running = 0;
+    for (const spendRow of groupRows) {
+      // Ghi chu chi ro muon quy nao thi do la tien cua tui khac, phai tra du
+      // ke ca khi con trong han muc. Ghi chu tro ve chinh nhom thi khong phai muon.
+      const lender = spendRow.lender !== "" && stripFundPrefix_(spendRow.lender) !== groupKey
+        ? spendRow.lender
+        : "";
+      running += spendRow.amount;
+      if (lender !== "") {
+        addDebtRow(borrowByFund, lender, spendRow, spendRow.amount, false);
+      } else if (spendRow.account === accountNames[destinationAccountId]) {
+        group.paidFromFund += spendRow.amount;
+      } else {
+        group.paidOutsideFund += spendRow.amount;
+        const over = Math.max(0, Math.min(spendRow.amount, running - group.budget));
+        if (over > 0) {
+          addDebtRow(advanceByAccount, spendRow.account, spendRow, over, over < spendRow.amount);
+        }
+      }
     }
 
     let netAllocated = 0;
@@ -922,7 +934,9 @@ function debtRowLines_(rows) {
       ? row.date.slice(8, 10) + "/" + row.date.slice(5, 7) + " "
       : "";
     const name = displayName_(row.name).slice(0, 42);
-    lines.push("    " + day + name + ": " + money_(row.amount));
+    lines.push(
+      "    " + day + name + ": " + money_(row.amount) + (row.partial ? " (phần lố)" : "")
+    );
   }
   const hidden = rows.length - DEBT_ROWS_SHOWN;
   if (hidden > 0) lines.push("    … và " + hidden + " khoản nữa");
@@ -944,7 +958,7 @@ export function fundBudgetText_(data) {
 
   const debts = collectDebts_(groups);
   if (debts.length) {
-    lines.push("", "💸 NỢ CẦN TRẢ — đã tiêu nhưng chưa cấp quỹ");
+    lines.push("", "💸 ỨNG TRƯỚC — cần trả lại");
     let total = 0;
     for (const debt of debts) {
       total += debt.amount;

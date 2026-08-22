@@ -29,28 +29,33 @@ Báo cáo chia làm ba mục tách bạch, mỗi mục trả lời một câu h�
 ✅ Thiết Yếu: 2.328.400đ / 2.330.000đ · còn 1.600đ
 ⛔ Làm YouTube: 574.444đ / 500.000đ · vượt 74.444đ
 
-💸 NỢ CẦN TRẢ — đã tiêu nhưng chưa cấp quỹ
+💸 ỨNG TRƯỚC — cần trả lại
 • Làm YouTube → quỹ tích lũy: 554.444đ
     02/08 Goolge play tự động thanh toán tiền claude: 554.444đ
-• Làm YouTube → Momo: 20.000đ
-    03/08 Nạp ví telegram: 20.000đ
-Tổng: 574.444đ
+• Phát Sinh → Momo: 47.000đ
+    22/08 Thanh toán đơn hàng shoppe: 47.000đ (phần lố)
+Tổng: 601.444đ
 
 💰 CẦN CẤP THÊM — cho phần ngân sách chưa tiêu
 • Phát Sinh → Quỹ Momo: 449.000đ
 ```
 
-Mỗi món nợ liệt kê luôn các giao dịch tạo ra nó, tối đa 6 khoản rồi gộp phần còn lại thành `… và N khoản nữa`. Tên hiển thị được cắt bỏ phần chú thích quỹ trong ngoặc cho gọn, nhưng ngoặc mang ngữ cảnh thật như `( mua đồ cho em )` thì giữ nguyên.
-
 - **NGÂN SÁCH** — đã tiêu bao nhiêu so với mức trần tự đặt. Đây là kế hoạch, không phải tiền thật.
-- **NỢ CẦN TRẢ** — tiền đã tiêu rồi mà chưa được cấp vào quỹ, tức nhóm đó đã mượn tiền của tài khoản khác. Mỗi dòng đọc là: *nhóm nào → nợ tài khoản nào → bao nhiêu*. Tiền đã tiêu mất rồi nên không cấp vào quỹ nữa, việc phải làm là trả lại chỗ đã ứng ra.
+- **ỨNG TRƯỚC** — tiền người khác bỏ ra hộ, phải trả lại. Mỗi dòng đọc là: *nhóm nào → trả cho ai → bao nhiêu*, kèm luôn các giao dịch tạo ra nó.
 - **CẦN CẤP THÊM** — phần ngân sách chưa tiêu mà quỹ chưa có đủ tiền. Cấp vào để chuẩn bị chi tiếp.
 
-Ví dụ nhóm Làm YouTube ở trên: ngân sách 500.000đ nhưng chưa cấp đồng nào vào quỹ, nên toàn bộ 574.444đ đã tiêu đều là tiền đi mượn — 554.444đ của Quỹ Momo và 20.000đ của Momo. Con số nợ bám theo tiền thật đã rời khỏi tài khoản, không bám theo mức trần ngân sách.
+Mục **ỨNG TRƯỚC** chỉ ghi hai loại, còn lại bỏ qua hết:
 
-`vượt 74.444đ` chỉ là thông tin: tháng này nhóm đó xài lố so với dự tính. Không có khoản tiền nào phải chuyển đi đâu vì việc đó — muốn cân lại thì cắt ngân sách nhóm khác hoặc chấp nhận.
+1. **Mượn quỹ khác** (`lấy từ quỹ X`) — trả đủ, kể cả khi còn trong hạn mức. Đó là tiền của túi khác, không phải tiền của nhóm này.
+2. **Phần lố ngân sách** do tài khoản khác trả hộ — tiêu trong hạn mức bằng tài khoản nào cũng được, không cần ghi. Chỉ khi vượt trần mới thành khoản phải trả.
 
-Nhóm nào không bật `Bắt Buộc Cấp Quỹ` trong Notion thì không bao giờ bị tính nợ, vì nó vốn được chi thẳng từ tài khoản của nó.
+Phần lố tính theo thứ tự thời gian: cộng dồn các khoản chi, khoản nào đẩy tổng vượt qua trần thì chính nó là phần lố, và chỉ ghi đúng phần vượt chứ không ghi cả khoản — đánh dấu `(phần lố)`.
+
+Mỗi món liệt kê tối đa 6 giao dịch rồi gộp phần còn lại thành `… và N khoản nữa`. Tên hiển thị được cắt bỏ chú thích quỹ trong ngoặc cho gọn, nhưng ngoặc mang ngữ cảnh thật như `( mua đồ cho em )` thì giữ nguyên.
+
+`vượt 74.444đ` ở mục NGÂN SÁCH chỉ là thông tin: tháng này nhóm đó xài lố so với dự tính.
+
+Nhóm nào không bật `Bắt Buộc Cấp Quỹ` trong Notion thì không bao giờ xuất hiện ở mục ỨNG TRƯỚC, vì nó vốn được chi thẳng từ tài khoản của nó.
 
 ### Quy ước ghi chú
 
