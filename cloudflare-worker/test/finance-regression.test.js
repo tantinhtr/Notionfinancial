@@ -981,7 +981,10 @@ test("a fund that spent from its holding account without any transfer reports th
   // Tiền đã tiêu rồi thì không cấp vào quỹ nữa — cái phải làm là trả lại chỗ đã ứng.
   assert.equal(youtube.fundDebt, 554444);
   assert.equal(youtube.transferNeeded, 0);
-  assert.deepEqual(youtube.advances, [{ account: "Grap Tiền Mặt", amount: 20000 }]);
+  assert.deepEqual(
+    youtube.advances.map((entry) => ({ account: entry.account, amount: entry.amount })),
+    [{ account: "Grap Tiền Mặt", amount: 20000 }]
+  );
 
   assert.equal(
     fundBudgetText_(data),
@@ -993,6 +996,7 @@ test("a fund that spent from its holding account without any transfer reports th
       "💸 NỢ CẦN TRẢ — đã tiêu nhưng chưa cấp quỹ\n" +
       "• Làm YouTube → Quỹ Momo: 554.444đ\n" +
       "• Làm YouTube → Grap Tiền Mặt: 20.000đ\n" +
+      "    20/07 telegram-wallet: 20.000đ\n" +
       "Tổng: 574.444đ"
   );
 });
@@ -1038,9 +1042,16 @@ test("spending notes name the fund that was borrowed from", () => {
   const incidental = data.fundGroups.find((group) => group.name === "Phát Sinh");
 
   // "lấy từ quỹ X" là mượn, và lỗi gõ "quxy" vẫn về đúng tên quỹ.
-  assert.deepEqual(youtube.borrowedFunds, [
-    { fund: "quỹ tích lũy", amount: 554444 },
-    { fund: "quỹ sửa xe", amount: 150000 }
+  assert.deepEqual(
+    youtube.borrowedFunds.map((entry) => ({ fund: entry.fund, amount: entry.amount })),
+    [
+      { fund: "quỹ tích lũy", amount: 554444 },
+      { fund: "quỹ sửa xe", amount: 150000 }
+    ]
+  );
+  // Moi mon no phai chi ra duoc no den tu giao dich nao.
+  assert.deepEqual(youtube.borrowedFunds[0].rows, [
+    { name: "Claude pro ( lấy từ quỹ tích lũy)", amount: 554444, date: "2026-08-02" }
   ]);
   // Đã ghi rõ mượn quỹ khác thì không tính là tiêu tiền của quỹ giữ.
   assert.equal(youtube.paidFromFund, 0);
@@ -1052,13 +1063,17 @@ test("spending notes name the fund that was borrowed from", () => {
 
   // "tính vào" chỉ là phân loại ngân sách, không phải mượn.
   assert.deepEqual(incidental.borrowedFunds, []);
-  assert.deepEqual(incidental.advances, [{ account: "Grap Tiền Mặt", amount: 15000 }]);
+  assert.deepEqual(
+    incidental.advances.map((entry) => ({ account: entry.account, amount: entry.amount })),
+    [{ account: "Grap Tiền Mặt", amount: 15000 }]
+  );
 
   const text = fundBudgetText_(data);
   assert.match(text, /• Làm YouTube → quỹ tích lũy: 554\.444đ/);
   assert.match(text, /• Làm YouTube → quỹ sửa xe: 150\.000đ/);
+  // Ten hien thi bo phan chu thich quy trong ngoac.
+  assert.match(text, /02\/08 Claude pro: 554\.444đ/);
   assert.doesNotMatch(text, /quxy/);
-  assert.doesNotMatch(text, /quỹ phát sinh/);
 });
 
 test("a spending note assigns the expense to that fund even from another category", () => {
@@ -1112,10 +1127,17 @@ test("a spending note assigns the expense to that fund even from another categor
   const incidental = data.fundGroups[0];
   assert.equal(incidental.spent, 421000);
   assert.equal(incidental.over, 0);
-  assert.deepEqual(incidental.advances, [
-    { account: "Momo", amount: 277000 },
-    { account: "Grap Tiền Mặt", amount: 144000 }
-  ]);
+  assert.deepEqual(
+    incidental.advances.map((entry) => ({ account: entry.account, amount: entry.amount })),
+    [
+      { account: "Momo", amount: 277000 },
+      { account: "Grap Tiền Mặt", amount: 144000 }
+    ]
+  );
+  assert.deepEqual(
+    incidental.advances[1].rows.map((row) => row.amount),
+    [109000, 15000, 20000]
+  );
   // Ngân sách chưa tiêu hết nên vẫn còn phần cần cấp, tính trên số thật sau khi gộp.
   assert.equal(incidental.transferNeeded, 179000);
 
@@ -1123,6 +1145,9 @@ test("a spending note assigns the expense to that fund even from another categor
   assert.match(text, /✅ Phát Sinh: 421\.000đ \/ 600\.000đ · còn 179\.000đ/);
   assert.match(text, /• Phát Sinh → Momo: 277\.000đ/);
   assert.match(text, /• Phát Sinh → Grap Tiền Mặt: 144\.000đ/);
+  // Ngoac khong nhac quy la ngu canh that, phai giu lai.
+  assert.match(text, /Đơn hàng shoppe \( mua đồ cho em \): 277\.000đ/);
+  assert.match(text, /Mua bạc xỉu: 15\.000đ/);
 });
 
 test("a fund that does not require allocation never asks for a transfer", () => {

@@ -498,14 +498,26 @@ export function buildAccountSpendingData_(
     if (fixedIdMap[categoryId]) {
       const fixed = fixedIdMap[categoryId];
       fixed.paidByAccount[accountName] = (fixed.paidByAccount[accountName] || 0) + amount;
-      fixed.spendRows.push({ account: accountName, amount, lender });
+      fixed.spendRows.push({
+        account: accountName,
+        amount,
+        lender,
+        name: rowInfo.name,
+        date: rowInfo.date
+      });
     }
     const assignedName = stripFundPrefix_(assignedFund_(expenseRow));
     const assignedGroupId = assignedName === "" ? "" : (fundGroupIdByName[assignedName] || "");
     // Chi keo sang khi loai chi phi von khong thuoc nhom do, tranh dem hai lan.
     if (assignedGroupId !== "" && categoryGroupIds[categoryId] !== assignedGroupId) {
       if (!extraRowsByGroupId[assignedGroupId]) extraRowsByGroupId[assignedGroupId] = [];
-      extraRowsByGroupId[assignedGroupId].push({ account: accountName, amount, lender });
+      extraRowsByGroupId[assignedGroupId].push({
+        account: accountName,
+        amount,
+        lender,
+        name: rowInfo.name,
+        date: rowInfo.date
+      });
     }
 
     if (!accountMap[accountId]) {
@@ -611,6 +623,15 @@ export function buildAccountSpendingData_(
     };
     const advanceByAccount = {};
     const borrowByFund = {};
+    const addDebtRow = (bucket, key, spendRow) => {
+      if (!bucket[key]) bucket[key] = { amount: 0, rows: [] };
+      bucket[key].amount += spendRow.amount;
+      bucket[key].rows.push({
+        name: spendRow.name,
+        amount: spendRow.amount,
+        date: spendRow.date
+      });
+    };
     const groupKey = stripFundPrefix_(group.name);
     // Ghi chu chi ro muon quy nao thi do la mon no cua quy ay, khong phai cua tai
     // khoan giu quy. Ghi chu tro ve chinh nhom dang xet thi khong phai muon.
@@ -619,13 +640,12 @@ export function buildAccountSpendingData_(
         ? spendRow.lender
         : "";
       if (lender !== "") {
-        borrowByFund[lender] = (borrowByFund[lender] || 0) + spendRow.amount;
+        addDebtRow(borrowByFund, lender, spendRow);
       } else if (spendRow.account === accountNames[destinationAccountId]) {
         group.paidFromFund += spendRow.amount;
       } else {
         group.paidOutsideFund += spendRow.amount;
-        advanceByAccount[spendRow.account] =
-          (advanceByAccount[spendRow.account] || 0) + spendRow.amount;
+        addDebtRow(advanceByAccount, spendRow.account, spendRow);
       }
     };
     for (const fixed of fixedBudgets) {
@@ -668,14 +688,16 @@ export function buildAccountSpendingData_(
     // trên số dư dương của quỹ.
     if (requiresAllocation) {
       group.fundDebt = Math.max(-group.fundBalance, 0);
-      group.borrowedFunds = Object.keys(borrowByFund)
-        .map((fund) => ({ fund, amount: borrowByFund[fund] }))
+      const bucketToList = (bucket, key) => Object.keys(bucket)
+        .map((name) => ({
+          [key]: name,
+          amount: bucket[name].amount,
+          rows: bucket[name].rows.slice().sort((a, b) => (a.date < b.date ? -1 : 1))
+        }))
         .filter((entry) => entry.amount > 0)
         .sort((a, b) => b.amount - a.amount);
-      group.advances = Object.keys(advanceByAccount)
-        .map((account) => ({ account, amount: advanceByAccount[account] }))
-        .filter((entry) => entry.amount > 0)
-        .sort((a, b) => b.amount - a.amount);
+      group.borrowedFunds = bucketToList(borrowByFund, "fund");
+      group.advances = bucketToList(advanceByAccount, "account");
       const remainingBudget = Math.max(group.budget - group.spent, 0);
       group.transferNeeded = Math.max(
         remainingBudget - Math.max(group.fundBalance, 0),
@@ -853,21 +875,58 @@ function budgetLine_(group) {
   return row;
 }
 
+const DEBT_ROWS_SHOWN = 6;
+
 function collectDebts_(groups) {
   const debts = [];
   for (const group of groups) {
     const account = group.destinationAccount || "Tài khoản giữ quỹ";
     for (const borrowed of group.borrowedFunds || []) {
-      debts.push({ group: group.name, account: borrowed.fund, amount: borrowed.amount });
+      debts.push({
+        group: group.name,
+        account: borrowed.fund,
+        amount: borrowed.amount,
+        rows: borrowed.rows || []
+      });
     }
     if ((group.fundDebt || 0) > 0) {
-      debts.push({ group: group.name, account, amount: group.fundDebt });
+      // Day la phan hut so du cua quy, khong gan voi giao dich cu the nao.
+      debts.push({ group: group.name, account, amount: group.fundDebt, rows: [] });
     }
     for (const advance of group.advances || []) {
-      debts.push({ group: group.name, account: advance.account, amount: advance.amount });
+      debts.push({
+        group: group.name,
+        account: advance.account,
+        amount: advance.amount,
+        rows: advance.rows || []
+      });
     }
   }
   return debts;
+}
+
+// Bo phan chu thich quy trong ngoac khoi ten hien thi: dong tren da noi ro nhom
+// va ben cho muon roi, giu lai chi ton cho. Ngoac khong nhac quy — vi du
+// "( mua do cho em )" — la ngu canh that, phai giu.
+function displayName_(name) {
+  return String(name || "")
+    .replace(/\([^)]*\)/g, (chunk) => (/(^|\s)qu\S+/i.test(chunk) ? " " : chunk))
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function debtRowLines_(rows) {
+  const lines = [];
+  for (const row of rows.slice(0, DEBT_ROWS_SHOWN)) {
+    const day = typeof row.date === "string" && row.date.length >= 10
+      ? row.date.slice(8, 10) + "/" + row.date.slice(5, 7) + " "
+      : "";
+    const name = displayName_(row.name).slice(0, 42);
+    lines.push("    " + day + name + ": " + money_(row.amount));
+  }
+  const hidden = rows.length - DEBT_ROWS_SHOWN;
+  if (hidden > 0) lines.push("    … và " + hidden + " khoản nữa");
+  return lines;
 }
 
 export function fundBudgetText_(data) {
@@ -890,6 +949,7 @@ export function fundBudgetText_(data) {
     for (const debt of debts) {
       total += debt.amount;
       lines.push("• " + debt.group + " → " + debt.account + ": " + money_(debt.amount));
+      for (const line of debtRowLines_(debt.rows || [])) lines.push(line);
     }
     lines.push("Tổng: " + money_(total));
   }

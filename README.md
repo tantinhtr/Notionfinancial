@@ -30,13 +30,17 @@ Báo cáo chia làm ba mục tách bạch, mỗi mục trả lời một câu h�
 ⛔ Làm YouTube: 574.444đ / 500.000đ · vượt 74.444đ
 
 💸 NỢ CẦN TRẢ — đã tiêu nhưng chưa cấp quỹ
-• Làm YouTube → Quỹ Momo: 554.444đ
+• Làm YouTube → quỹ tích lũy: 554.444đ
+    02/08 Goolge play tự động thanh toán tiền claude: 554.444đ
 • Làm YouTube → Momo: 20.000đ
+    03/08 Nạp ví telegram: 20.000đ
 Tổng: 574.444đ
 
 💰 CẦN CẤP THÊM — cho phần ngân sách chưa tiêu
 • Phát Sinh → Quỹ Momo: 449.000đ
 ```
+
+Mỗi món nợ liệt kê luôn các giao dịch tạo ra nó, tối đa 6 khoản rồi gộp phần còn lại thành `… và N khoản nữa`. Tên hiển thị được cắt bỏ phần chú thích quỹ trong ngoặc cho gọn, nhưng ngoặc mang ngữ cảnh thật như `( mua đồ cho em )` thì giữ nguyên.
 
 - **NGÂN SÁCH** — đã tiêu bao nhiêu so với mức trần tự đặt. Đây là kế hoạch, không phải tiền thật.
 - **NỢ CẦN TRẢ** — tiền đã tiêu rồi mà chưa được cấp vào quỹ, tức nhóm đó đã mượn tiền của tài khoản khác. Mỗi dòng đọc là: *nhóm nào → nợ tài khoản nào → bao nhiêu*. Tiền đã tiêu mất rồi nên không cấp vào quỹ nữa, việc phải làm là trả lại chỗ đã ứng ra.
