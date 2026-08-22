@@ -392,22 +392,20 @@ function stripFundPrefix_(name) {
   return String(name || "").toLowerCase().replace(/\s+/g, " ").replace(/^qu\S*\s+/, "").trim();
 }
 
-// Anh ghi chu bang tay theo quy uoc "( lay tu quy X )" / "( muon quy X )".
-// Chi coi la muon khi co dung dong tu do va theo sau la mot chu bat dau bang "qu",
-// nen "( tinh vao quy phat sinh )" (chi la phan loai ngan sach) khong bi tinh nham,
-// con loi go nhu "quxy sua xe" van ve dung "quy sua xe".
-function borrowedFrom_(expenseRow) {
+// Anh ghi chu bang tay theo quy uoc "( lay tu quy X )" / "( tinh vao quy X )".
+// Uu tien doc phan trong ngoac, roi moi den ca cau. Chi nhan khi sau dong tu la
+// mot chu bat dau bang "qu", nho vay loi go "quxy sua xe" van ve "quy sua xe",
+// con "Tuan muon tien thi bang lai xe" khong de ra mot quy ma.
+function fundMentionedAfter_(expenseRow, verbPattern) {
   const props = expenseRow.properties || {};
-  const title = plainText_(props["Nội Dung Khoản Chi"]);
-  const note = plainText_(props["Ghi Chú"]);
-  const text = title + " | " + note;
+  const text = plainText_(props["Nội Dung Khoản Chi"]) + " | " + plainText_(props["Ghi Chú"]);
   const candidates = [];
   const paren = /\(([^)]*)\)/g;
   let found;
   while ((found = paren.exec(text)) !== null) candidates.push(found[1]);
   candidates.push(text);
   for (const candidate of candidates) {
-    const match = candidate.match(/(?:lấy\s+từ|mượn(?:\s+từ)?)\s+(.+)$/i);
+    const match = candidate.match(verbPattern);
     if (!match) continue;
     const cleaned = match[1].replace(/[()]/g, " ").replace(/\s+/g, " ").trim();
     if (!/^qu\S*\s+/i.test(cleaned)) continue;
@@ -415,6 +413,17 @@ function borrowedFrom_(expenseRow) {
     if (name !== "") return "quỹ " + name;
   }
   return "";
+}
+
+// "lay tu / muon quy X" — khoan nay tieu tien cua quy X, sinh ra mon no voi quy do.
+function borrowedFrom_(expenseRow) {
+  return fundMentionedAfter_(expenseRow, /(?:lấy\s+từ|mượn(?:\s+từ)?)\s+(.+)$/i);
+}
+
+// "tinh vao quy X" — khoan nay thuoc ngan sach nhom X, du Loai Chi Phi la gi.
+// Hai dong tu doc lap: mot khoan co the vua tinh vao Phat Sinh vua muon quy tich luy.
+function assignedFund_(expenseRow) {
+  return fundMentionedAfter_(expenseRow, /tính\s+vào\s+(.+)$/i);
 }
 
 export function buildAccountSpendingData_(
@@ -430,6 +439,13 @@ export function buildAccountSpendingData_(
   fundGroupRows = fundGroupRows || [];
   const categoryNames = {};
   const categoryGroupIds = {};
+  const fundGroupIdByName = {};
+  const extraRowsByGroupId = {};
+  for (const fundGroupRow of fundGroupRows) {
+    const title = (fundGroupRow.properties && fundGroupRow.properties["Tên Nhóm Quỹ"] &&
+      fundGroupRow.properties["Tên Nhóm Quỹ"].title) || [];
+    if (title.length) fundGroupIdByName[stripFundPrefix_(title[0].plain_text)] = fundGroupRow.id;
+  }
   const accountNames = {};
   const globalCategoryTotals = {};
   const accountMap = {};
@@ -478,14 +494,18 @@ export function buildAccountSpendingData_(
     const rowInfo = flowAnalysis.rowsById[expenseRow.id];
     const { amount, categoryId, accountId, categoryName, accountName } = rowInfo;
     globalCategoryTotals[categoryName] = (globalCategoryTotals[categoryName] || 0) + amount;
+    const lender = borrowedFrom_(expenseRow);
     if (fixedIdMap[categoryId]) {
       const fixed = fixedIdMap[categoryId];
       fixed.paidByAccount[accountName] = (fixed.paidByAccount[accountName] || 0) + amount;
-      fixed.spendRows.push({
-        account: accountName,
-        amount,
-        lender: borrowedFrom_(expenseRow)
-      });
+      fixed.spendRows.push({ account: accountName, amount, lender });
+    }
+    const assignedName = stripFundPrefix_(assignedFund_(expenseRow));
+    const assignedGroupId = assignedName === "" ? "" : (fundGroupIdByName[assignedName] || "");
+    // Chi keo sang khi loai chi phi von khong thuoc nhom do, tranh dem hai lan.
+    if (assignedGroupId !== "" && categoryGroupIds[categoryId] !== assignedGroupId) {
+      if (!extraRowsByGroupId[assignedGroupId]) extraRowsByGroupId[assignedGroupId] = [];
+      extraRowsByGroupId[assignedGroupId].push({ account: accountName, amount, lender });
     }
 
     if (!accountMap[accountId]) {
@@ -592,26 +612,32 @@ export function buildAccountSpendingData_(
     const advanceByAccount = {};
     const borrowByFund = {};
     const groupKey = stripFundPrefix_(group.name);
+    // Ghi chu chi ro muon quy nao thi do la mon no cua quy ay, khong phai cua tai
+    // khoan giu quy. Ghi chu tro ve chinh nhom dang xet thi khong phai muon.
+    const classifySpend = (spendRow) => {
+      const lender = spendRow.lender !== "" && stripFundPrefix_(spendRow.lender) !== groupKey
+        ? spendRow.lender
+        : "";
+      if (lender !== "") {
+        borrowByFund[lender] = (borrowByFund[lender] || 0) + spendRow.amount;
+      } else if (spendRow.account === accountNames[destinationAccountId]) {
+        group.paidFromFund += spendRow.amount;
+      } else {
+        group.paidOutsideFund += spendRow.amount;
+        advanceByAccount[spendRow.account] =
+          (advanceByAccount[spendRow.account] || 0) + spendRow.amount;
+      }
+    };
     for (const fixed of fixedBudgets) {
       if (fixed.groupId !== fundGroupRow.id) continue;
       group.budget += fixed.budget;
       group.spent += fixed.spent;
-      for (const spendRow of fixed.spendRows) {
-        // Ghi chu chi ro muon quy nao thi no la mon no cua quy do, khong phai
-        // cua tai khoan giu quy. Ghi chu tro ve chinh no thi khong phai muon.
-        const lender = spendRow.lender !== "" && stripFundPrefix_(spendRow.lender) !== groupKey
-          ? spendRow.lender
-          : "";
-        if (lender !== "") {
-          borrowByFund[lender] = (borrowByFund[lender] || 0) + spendRow.amount;
-        } else if (spendRow.account === accountNames[destinationAccountId]) {
-          group.paidFromFund += spendRow.amount;
-        } else {
-          group.paidOutsideFund += spendRow.amount;
-          advanceByAccount[spendRow.account] =
-            (advanceByAccount[spendRow.account] || 0) + spendRow.amount;
-        }
-      }
+      for (const spendRow of fixed.spendRows) classifySpend(spendRow);
+    }
+    // Khoan chi duoc ghi chu "tinh vao quy X" keo vao day, du Loai Chi Phi khac.
+    for (const extraRow of extraRowsByGroupId[fundGroupRow.id] || []) {
+      group.spent += extraRow.amount;
+      classifySpend(extraRow);
     }
 
     let netAllocated = 0;

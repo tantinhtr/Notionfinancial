@@ -1061,6 +1061,70 @@ test("spending notes name the fund that was borrowed from", () => {
   assert.doesNotMatch(text, /quỹ phát sinh/);
 });
 
+test("a spending note assigns the expense to that fund even from another category", () => {
+  const noted = (id, name, categoryId, accountId, amount, note = "") => ({
+    id,
+    properties: {
+      "Nội Dung Khoản Chi": { title: [{ plain_text: name }] },
+      "Ghi Chú": { rich_text: note ? [{ plain_text: note }] : [] },
+      "Số Tiền": { number: amount },
+      "Ngày": { date: { start: "2026-08-12" } },
+      "Loại Chi Phí": { relation: [{ id: categoryId }] },
+      "Phương Thức Thanh Toán": { relation: [{ id: accountId }] }
+    }
+  });
+  const looseCategoryRow = (id, name) => ({
+    id,
+    properties: {
+      "Loại Chi Phí": { title: [{ plain_text: name }] },
+      "Ngân Sách Tháng": { number: 0 },
+      "Tính Trong 5,5 Triệu": { checkbox: false },
+      "Nhóm Quỹ": { relation: [] }
+    }
+  });
+
+  const data = buildAccountSpendingData_(
+    { y: 2026, m: 8, d: 22 },
+    [
+      trackedCategoryRow("incidental", "Phát Sinh", 600000, "incidental-fund"),
+      looseCategoryRow("cafe", "Cà Phê"),
+      looseCategoryRow("grocery", "Tạp Hóa")
+    ],
+    [
+      noted("own", "Mua thùng mì tôm", "incidental", "cash", 109000),
+      // Loại Chi Phí là Cà Phê / Tạp Hóa, hoàn toàn ngoài nhóm quỹ, nhưng ghi chú
+      // nói rõ tính vào quỹ phát sinh nên vẫn phải đắp vào ngân sách đó.
+      noted("coffee", "Mua bạc xỉu ( tính vào quỹ phát sinh )", "cafe", "cash", 15000),
+      noted("water", "Đổi bình nước 20L ( tính vào quỹ phát sinh )", "grocery", "cash", 20000),
+      noted("shopee", "Đơn hàng shoppe ( mua đồ cho em )", "grocery", "momo", 277000,
+        "Tính vào quỹ phát sinh")
+    ],
+    [
+      cashflowAccountRow("fund", "Quỹ Momo"),
+      cashflowAccountRow("cash", "Grap Tiền Mặt"),
+      cashflowAccountRow("momo", "Momo")
+    ],
+    5500000,
+    [],
+    [fundGroupRow("incidental-fund", "Phát Sinh", "fund", true)]
+  );
+
+  const incidental = data.fundGroups[0];
+  assert.equal(incidental.spent, 421000);
+  assert.equal(incidental.over, 0);
+  assert.deepEqual(incidental.advances, [
+    { account: "Momo", amount: 277000 },
+    { account: "Grap Tiền Mặt", amount: 144000 }
+  ]);
+  // Ngân sách chưa tiêu hết nên vẫn còn phần cần cấp, tính trên số thật sau khi gộp.
+  assert.equal(incidental.transferNeeded, 179000);
+
+  const text = fundBudgetText_(data);
+  assert.match(text, /✅ Phát Sinh: 421\.000đ \/ 600\.000đ · còn 179\.000đ/);
+  assert.match(text, /• Phát Sinh → Momo: 277\.000đ/);
+  assert.match(text, /• Phát Sinh → Grap Tiền Mặt: 144\.000đ/);
+});
+
 test("a fund that does not require allocation never asks for a transfer", () => {
   const data = buildAccountSpendingData_(
     { y: 2026, m: 7, d: 23 },

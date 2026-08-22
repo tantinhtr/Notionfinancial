@@ -48,20 +48,24 @@ Ví dụ nhóm Làm YouTube ở trên: ngân sách 500.000đ nhưng chưa cấp 
 
 Nhóm nào không bật `Bắt Buộc Cấp Quỹ` trong Notion thì không bao giờ bị tính nợ, vì nó vốn được chi thẳng từ tài khoản của nó.
 
-### Quy ước ghi chú: mượn quỹ nào
+### Quy ước ghi chú
 
-Quỹ Momo là tài khoản chung, bên trong chứa nhiều túi (quỹ tích lũy, quỹ sửa xe, quỹ đi chơi...) mà Notion chưa mô hình hoá thành dữ liệu. Bot đọc tiêu đề và ô Ghi Chú của khoản chi để biết tiền được mượn từ túi nào.
+Bot không chỉ nhìn cột `Loại Chi Phí` mà đọc cả tiêu đề và ô Ghi Chú của khoản chi. Hai động từ, hai việc khác nhau và độc lập với nhau:
 
 | Cách viết | Bot hiểu là |
 |---|---|
-| `( lấy từ quỹ X )` | **mượn** của quỹ X → sinh ra dòng nợ trả về quỹ X |
-| `( mượn quỹ X )` | **mượn** của quỹ X |
-| `( tính vào quỹ X )` | chỉ là phân loại ngân sách, **không** phải mượn |
-| `( quỹ X )` | không phải mượn |
+| `( tính vào quỹ X )` | khoản này **thuộc ngân sách** nhóm X, bất kể `Loại Chi Phí` là gì |
+| `( lấy từ quỹ X )` | khoản này **mượn tiền** của quỹ X → sinh dòng nợ trả về quỹ X |
+| `( mượn quỹ X )` | **mượn tiền** của quỹ X |
+| `( quỹ X )` | không có tác dụng gì |
 
-Chỉ `lấy từ` và `mượn` mới tạo ra nợ, và phải theo sau bằng một chữ bắt đầu bằng `qu`. Nhờ vậy lỗi gõ như `( lấy từ quxy sửa xe )` vẫn về đúng `quỹ sửa xe`.
+Một khoản có thể vừa `tính vào quỹ phát sinh` vừa `lấy từ quỹ tích lũy` — nó được đắp vào ngân sách Phát Sinh, và sinh ra món nợ với quỹ tích lũy.
 
-Nếu tên quỹ trong ghi chú trùng với chính nhóm đang xét — ví dụ khoản của nhóm Thiết Yếu ghi `( lấy từ quỹ thiết yếu )` — thì đó là tiêu tiền của chính nó, không tính là mượn.
+`tính vào` là thứ khiến những khoản như *"Mua bạc xỉu ( tính vào quỹ phát sinh )"* — mang `Loại Chi Phí` là Cà Phê, vốn nằm ngoài mọi nhóm quỹ — vẫn được cộng vào ngân sách Phát Sinh. Không có nó, những khoản đó biến mất khỏi báo cáo và ngân sách trông như còn dư trong khi thực tế đã vượt.
+
+Cả hai động từ đều phải theo sau bằng một chữ bắt đầu bằng `qu`. Nhờ ràng buộc đó, lỗi gõ như `( lấy từ quxy sửa xe )` vẫn về đúng `quỹ sửa xe`, còn câu như *"Tuấn mượn tiền thi bằng lái xe"* không đẻ ra quỹ ma.
+
+Tên quỹ trong ghi chú trùng với chính nhóm đang xét — ví dụ khoản của nhóm Thiết Yếu ghi `( lấy từ quỹ thiết yếu )` — là tiêu tiền của chính nó, không tính là mượn. Với `tính vào`, tên quỹ phải khớp một nhóm có thật trong bảng **Nhóm Quỹ Ngân Sách** thì mới có tác dụng.
 
 Quy ước này dựa vào chữ viết tay nên phụ thuộc vào việc ghi đều. Muốn chắc chắn hơn thì tạo các túi đó thành nhóm quỹ thật trong bảng **Nhóm Quỹ Ngân Sách** và gắn nhãn `Nhóm Quỹ` cho giao dịch, khi đó bot biết được cả số dư từng túi.
 
