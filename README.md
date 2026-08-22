@@ -22,21 +22,31 @@ Bot chỉ trả lời đúng một Telegram user id (`ALLOWED_USER_ID`), mọi n
 
 ### Đọc báo cáo Quỹ & ngân sách
 
-Mỗi nhóm quỹ in ra hai dòng, đo hai thứ khác nhau — đừng đọc nhập làm một:
+Báo cáo chia làm ba mục tách bạch, mỗi mục trả lời một câu hỏi khác nhau:
 
 ```
-✅ Thiết Yếu: 2.122.000đ / 2.330.000đ | còn 208.000đ
-   💰 Quỹ Momo: đã cấp 2.150.000đ · còn 28.000đ trong quỹ · cần chuyển 180.000đ
+📊 NGÂN SÁCH
+✅ Thiết Yếu: 2.328.400đ / 2.330.000đ · còn 1.600đ
+⛔ Làm YouTube: 574.444đ / 500.000đ · vượt 74.444đ
+
+💸 NỢ CẦN TRẢ — đã tiêu nhưng chưa cấp quỹ
+• Làm YouTube → Quỹ Momo: 554.444đ
+• Làm YouTube → Momo: 20.000đ
+Tổng: 574.444đ
+
+💰 CẦN CẤP THÊM — cho phần ngân sách chưa tiêu
+• Phát Sinh → Quỹ Momo: 449.000đ
 ```
 
-- Dòng trên là **ngân sách**: `còn 208.000đ` = còn được phép tiêu bấy nhiêu nữa.
-- Dòng dưới là **tiền mặt**: `cần chuyển 180.000đ` = còn phải bơm bấy nhiêu vào tài khoản giữ quỹ.
+- **NGÂN SÁCH** — đã tiêu bao nhiêu so với mức trần tự đặt. Đây là kế hoạch, không phải tiền thật.
+- **NỢ CẦN TRẢ** — tiền đã tiêu rồi mà chưa được cấp vào quỹ, tức nhóm đó đã mượn tiền của tài khoản khác. Mỗi dòng đọc là: *nhóm nào → nợ tài khoản nào → bao nhiêu*. Tiền đã tiêu mất rồi nên không cấp vào quỹ nữa, việc phải làm là trả lại chỗ đã ứng ra.
+- **CẦN CẤP THÊM** — phần ngân sách chưa tiêu mà quỹ chưa có đủ tiền. Cấp vào để chuẩn bị chi tiếp.
 
-Hai số lệch nhau là bình thường. Ở ví dụ trên, quỹ đã có sẵn 28.000đ nên chỉ cần chuyển thêm 180.000đ nữa là đủ cho 208.000đ ngân sách còn lại.
+Ví dụ nhóm Làm YouTube ở trên: ngân sách 500.000đ nhưng chưa cấp đồng nào vào quỹ, nên toàn bộ 574.444đ đã tiêu đều là tiền đi mượn — 554.444đ của Quỹ Momo và 20.000đ của Momo. Con số nợ bám theo tiền thật đã rời khỏi tài khoản, không bám theo mức trần ngân sách.
 
-Nếu quỹ đã chi hộ mà chưa được cấp bù, dòng dưới sẽ ghi `quỹ đang âm ...` — đó là tiền tài khoản giữ quỹ đã ứng ra thay cho nhóm này.
+`vượt 74.444đ` chỉ là thông tin: tháng này nhóm đó xài lố so với dự tính. Không có khoản tiền nào phải chuyển đi đâu vì việc đó — muốn cân lại thì cắt ngân sách nhóm khác hoặc chấp nhận.
 
-Nhóm nào không bật `Bắt Buộc Cấp Quỹ` trong Notion thì không có dòng tiền mặt.
+Nhóm nào không bật `Bắt Buộc Cấp Quỹ` trong Notion thì không bao giờ bị tính nợ, vì nó vốn được chi thẳng từ tài khoản của nó.
 
 ## Kiến trúc
 
