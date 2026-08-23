@@ -981,10 +981,9 @@ test("a fund that spent from its holding account without any transfer reports th
   // Tiền đã tiêu rồi thì không cấp vào quỹ nữa — cái phải làm là trả lại chỗ đã ứng.
   assert.equal(youtube.fundDebt, 554444);
   assert.equal(youtube.transferNeeded, 0);
-  assert.deepEqual(
-    youtube.advances.map((entry) => ({ account: entry.account, amount: entry.amount })),
-    [{ account: "Grap Tiền Mặt", amount: 20000 }]
-  );
+  // Quỹ đang âm, không có đồng nào để hoàn, nên khoản Grap trả hộ không bị ghi —
+  // thôi khỏi cấp số đó vào quỹ nữa.
+  assert.deepEqual(youtube.advances, []);
 
   assert.equal(
     fundBudgetText_(data),
@@ -995,9 +994,7 @@ test("a fund that spent from its holding account without any transfer reports th
       "\n" +
       "💸 ỨNG TRƯỚC — cần trả lại\n" +
       "• Làm YouTube → Quỹ Momo: 554.444đ\n" +
-      "• Làm YouTube → Grap Tiền Mặt: 20.000đ\n" +
-      "    20/07 telegram-wallet: 20.000đ\n" +
-      "Tổng: 574.444đ"
+      "Tổng: 554.444đ"
   );
 });
 
@@ -1141,53 +1138,51 @@ test("a spending note assigns the expense to that fund even from another categor
   assert.doesNotMatch(text, /ỨNG TRƯỚC/);
 });
 
-test("only the part above the budget counts as an advance", () => {
-  const noted = (id, name, categoryId, accountId, amount, date) => ({
+test("paying from the wrong account is settled by what the fund actually holds", () => {
+  const paid = (id, name, categoryId, accountId, amount) => ({
     id,
     properties: {
       "Nội Dung Khoản Chi": { title: [{ plain_text: name }] },
       "Ghi Chú": { rich_text: [] },
       "Số Tiền": { number: amount },
-      "Ngày": { date: { start: date } },
+      "Ngày": { date: { start: "2026-08-12" } },
       "Loại Chi Phí": { relation: [{ id: categoryId }] },
       "Phương Thức Thanh Toán": { relation: [{ id: accountId }] }
     }
   });
-
-  const data = buildAccountSpendingData_(
+  // Thiết Yếu 2.400.000 gồm Nhà Trọ 2.150.000 + Internet 180.000 + Cắt Tóc 70.000,
+  // tất cả đáng lẽ phải thanh toán bằng Quỹ Momo. Hôm đó Cắt Tóc lại trả tiền mặt.
+  const build = (transfers) => buildAccountSpendingData_(
     { y: 2026, m: 8, d: 22 },
-    [trackedCategoryRow("incidental", "Phát Sinh", 600000, "incidental-fund")],
     [
-      noted("a", "Mua đồ đợt một", "incidental", "cash", 400000, "2026-08-05"),
-      noted("b", "Mua đồ đợt hai", "incidental", "cash", 170000, "2026-08-10"),
-      noted("c", "Mua đồ đợt ba", "incidental", "momo", 77000, "2026-08-20")
+      trackedCategoryRow("rent", "Nhà Trọ", 2150000, "essential-fund"),
+      trackedCategoryRow("net", "Internet", 180000, "essential-fund"),
+      trackedCategoryRow("hair", "Cắt Tóc", 70000, "essential-fund")
     ],
-    [
-      cashflowAccountRow("fund", "Quỹ Momo"),
-      cashflowAccountRow("cash", "Grap Tiền Mặt"),
-      cashflowAccountRow("momo", "Momo")
-    ],
+    [paid("haircut", "Cắt tóc", "hair", "cash", 70000)],
+    [cashflowAccountRow("fund", "Quỹ Momo"), cashflowAccountRow("cash", "Tiền Mặt")],
     5500000,
-    [],
-    [fundGroupRow("incidental-fund", "Phát Sinh", "fund", true)]
+    transfers,
+    [fundGroupRow("essential-fund", "Thiết Yếu", "fund", true)]
   );
 
-  const incidental = data.fundGroups[0];
-  assert.equal(incidental.spent, 647000);
-  assert.equal(incidental.over, 47000);
-  // 570.000 đầu nằm trong hạn mức nên bỏ qua; chỉ khoản cuối đẩy qua trần mới bị ghi,
-  // và chỉ ghi đúng 47.000 phần lố chứ không phải cả 77.000.
+  // Quỹ đã có sẵn tiền: phải chuyển 70.000 trả lại đúng chỗ đã ứng.
+  const funded = build([
+    transferRow("cap", "Cấp quỹ thiết yếu", 2400000, "cash", "fund", "essential-fund")
+  ]).fundGroups[0];
   assert.deepEqual(
-    incidental.advances.map((entry) => ({ account: entry.account, amount: entry.amount })),
-    [{ account: "Momo", amount: 47000 }]
+    funded.advances.map((entry) => ({ account: entry.account, amount: entry.amount })),
+    [{ account: "Tiền Mặt", amount: 70000 }]
   );
-  assert.equal(incidental.advances[0].rows[0].partial, true);
-  assert.equal(incidental.transferNeeded, 0);
+  assert.equal(funded.advances[0].rows[0].partial, false);
+  assert.equal(funded.transferNeeded, 0);
 
-  const text = fundBudgetText_(data);
-  assert.match(text, /• Phát Sinh → Momo: 47\.000đ/);
-  assert.match(text, /20\/08 Mua đồ đợt ba: 47\.000đ \(phần lố\)/);
-  assert.doesNotMatch(text, /Grap Tiền Mặt/);
+  // Quỹ chưa có tiền: không ghi nợ, và cũng không cần cấp 70.000 đó vào quỹ nữa —
+  // chỉ còn phải cấp 2.330.000 cho hai khoản chưa tiêu.
+  const unfunded = build([]).fundGroups[0];
+  assert.deepEqual(unfunded.advances, []);
+  assert.equal(unfunded.transferNeeded, 2330000);
+  assert.doesNotMatch(fundBudgetText_(build([])), /ỨNG TRƯỚC/);
 });
 
 test("a fund that does not require allocation never asks for a transfer", () => {

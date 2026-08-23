@@ -635,43 +635,6 @@ export function buildAccountSpendingData_(
       });
     };
 
-    const groupRows = [];
-    for (const fixed of fixedBudgets) {
-      if (fixed.groupId !== fundGroupRow.id) continue;
-      group.budget += fixed.budget;
-      group.spent += fixed.spent;
-      for (const spendRow of fixed.spendRows) groupRows.push(spendRow);
-    }
-    // Khoan chi duoc ghi chu "tinh vao quy X" keo vao day, du Loai Chi Phi khac.
-    for (const extraRow of extraRowsByGroupId[fundGroupRow.id] || []) {
-      group.spent += extraRow.amount;
-      groupRows.push(extraRow);
-    }
-
-    // Xet theo thu tu thoi gian: khoan nao day tong vuot qua tran thi chinh no la
-    // phan lo. Tieu trong han muc bang tai khoan khac la binh thuong, khong ghi.
-    groupRows.sort((a, b) => (a.date < b.date ? -1 : (a.date > b.date ? 1 : 0)));
-    let running = 0;
-    for (const spendRow of groupRows) {
-      // Ghi chu chi ro muon quy nao thi do la tien cua tui khac, phai tra du
-      // ke ca khi con trong han muc. Ghi chu tro ve chinh nhom thi khong phai muon.
-      const lender = spendRow.lender !== "" && stripFundPrefix_(spendRow.lender) !== groupKey
-        ? spendRow.lender
-        : "";
-      running += spendRow.amount;
-      if (lender !== "") {
-        addDebtRow(borrowByFund, lender, spendRow, spendRow.amount, false);
-      } else if (spendRow.account === accountNames[destinationAccountId]) {
-        group.paidFromFund += spendRow.amount;
-      } else {
-        group.paidOutsideFund += spendRow.amount;
-        const over = Math.max(0, Math.min(spendRow.amount, running - group.budget));
-        if (over > 0) {
-          addDebtRow(advanceByAccount, spendRow.account, spendRow, over, over < spendRow.amount);
-        }
-      }
-    }
-
     let netAllocated = 0;
     for (const transferRow of transferRows) {
       const transferProps = transferRow.properties || {};
@@ -688,6 +651,59 @@ export function buildAccountSpendingData_(
       if (toId === destinationAccountId) netAllocated += amount;
       if (fromId === destinationAccountId) netAllocated -= amount;
     }
+
+    const groupRows = [];
+    for (const fixed of fixedBudgets) {
+      if (fixed.groupId !== fundGroupRow.id) continue;
+      group.budget += fixed.budget;
+      group.spent += fixed.spent;
+      for (const spendRow of fixed.spendRows) groupRows.push(spendRow);
+    }
+    // Khoan chi duoc ghi chu "tinh vao quy X" keo vao day, du Loai Chi Phi khac.
+    for (const extraRow of extraRowsByGroupId[fundGroupRow.id] || []) {
+      group.spent += extraRow.amount;
+      groupRows.push(extraRow);
+    }
+    groupRows.sort((a, b) => (a.date < b.date ? -1 : (a.date > b.date ? 1 : 0)));
+
+    // Luot 1: tach ba loai — muon quy khac, tieu tien cua chinh quy, va tra bang
+    // tai khoan khac. Chua ket luan gi ve khoan tra ho, vi con phai biet quy co
+    // san tien hay khong.
+    const paidOutsideRows = [];
+    for (const spendRow of groupRows) {
+      // Ghi chu chi ro muon quy nao thi do la tien cua tui khac, phai tra du
+      // ke ca khi con trong han muc. Ghi chu tro ve chinh nhom thi khong phai muon.
+      const lender = spendRow.lender !== "" && stripFundPrefix_(spendRow.lender) !== groupKey
+        ? spendRow.lender
+        : "";
+      if (lender !== "") {
+        addDebtRow(borrowByFund, lender, spendRow, spendRow.amount, false);
+      } else if (spendRow.account === accountNames[destinationAccountId]) {
+        group.paidFromFund += spendRow.amount;
+      } else {
+        group.paidOutsideFund += spendRow.amount;
+        paidOutsideRows.push(spendRow);
+      }
+    }
+
+    // Luot 2: khoan dang le phai tra bang tai khoan giu quy ma lai tra bang thu
+    // khac thi xu ly theo so du that cua quy:
+    //   quy da co san tien  -> phai chuyen tra lai cho da ung
+    //   quy chua co tien    -> thoi khong cap so do vao quy nua, da tieu roi
+    let available = Math.max(netAllocated - group.paidFromFund, 0);
+    for (const spendRow of paidOutsideRows) {
+      const repay = Math.min(available, spendRow.amount);
+      if (repay <= 0) continue;
+      addDebtRow(
+        advanceByAccount,
+        spendRow.account,
+        spendRow,
+        repay,
+        repay < spendRow.amount
+      );
+      available -= repay;
+    }
+
     group.allocated = Math.max(netAllocated, 0);
     group.over = Math.max(group.spent - group.budget, 0);
     // Tiền của nhóm còn nằm thật trong tài khoản giữ quỹ: đã cấp trừ phần đã chi từ
@@ -935,7 +951,7 @@ function debtRowLines_(rows) {
       : "";
     const name = displayName_(row.name).slice(0, 42);
     lines.push(
-      "    " + day + name + ": " + money_(row.amount) + (row.partial ? " (phần lố)" : "")
+      "    " + day + name + ": " + money_(row.amount) + (row.partial ? " (một phần)" : "")
     );
   }
   const hidden = rows.length - DEBT_ROWS_SHOWN;

@@ -44,12 +44,20 @@ Tổng: 601.444đ
 - **ỨNG TRƯỚC** — tiền người khác bỏ ra hộ, phải trả lại. Mỗi dòng đọc là: *nhóm nào → trả cho ai → bao nhiêu*, kèm luôn các giao dịch tạo ra nó.
 - **CẦN CẤP THÊM** — phần ngân sách chưa tiêu mà quỹ chưa có đủ tiền. Cấp vào để chuẩn bị chi tiếp.
 
-Mục **ỨNG TRƯỚC** chỉ ghi hai loại, còn lại bỏ qua hết:
+Mỗi nhóm quỹ có một tài khoản giữ quỹ (`Tài Khoản Giữ Quỹ` trong Notion), và mọi khoản thuộc nhóm đó đáng lẽ phải thanh toán bằng tài khoản ấy. Khi một khoản lại được trả bằng thứ khác — tiền mặt, ví khác, hay quỹ khác — bot xử lý theo **số dư thật của quỹ**:
 
-1. **Mượn quỹ khác** (`lấy từ quỹ X`) — trả đủ, kể cả khi còn trong hạn mức. Đó là tiền của túi khác, không phải tiền của nhóm này.
-2. **Phần lố ngân sách** do tài khoản khác trả hộ — tiêu trong hạn mức bằng tài khoản nào cũng được, không cần ghi. Chỉ khi vượt trần mới thành khoản phải trả.
+| Tình huống | Bot làm gì |
+|---|---|
+| Quỹ **đã có sẵn tiền** cho khoản đó | Ghi vào ỨNG TRƯỚC → phải chuyển trả lại đúng chỗ đã ứng |
+| Quỹ **chưa có tiền** | Không ghi gì. Tiêu rồi thì thôi khỏi cấp số đó vào quỹ nữa — số ở mục CẦN CẤP THÊM tự giảm đi |
+| Ghi chú nói `lấy từ quỹ X` | Luôn trả đủ cho quỹ X, kể cả khi còn trong hạn mức — đó là tiền của túi khác |
 
-Phần lố tính theo thứ tự thời gian: cộng dồn các khoản chi, khoản nào đẩy tổng vượt qua trần thì chính nó là phần lố, và chỉ ghi đúng phần vượt chứ không ghi cả khoản — đánh dấu `(phần lố)`.
+Ví dụ nhóm Thiết Yếu gồm Nhà Trọ 2.150.000 + Internet 180.000 + Cắt Tóc 70.000, tất cả trả bằng Quỹ Momo. Hôm cắt tóc lại trả bằng tiền mặt:
+
+- Nếu quỹ đã được cấp đủ → hiện `Thiết Yếu → Tiền Mặt: 70.000đ`, chuyển trả lại là xong.
+- Nếu quỹ chưa cấp → không hiện gì, và số cần cấp giảm từ 2.400.000 xuống 2.330.000.
+
+Khi quỹ chỉ đủ trả một phần, bot hoàn tối đa phần quỹ đang có và đánh dấu `(một phần)`.
 
 Mỗi món liệt kê tối đa 6 giao dịch rồi gộp phần còn lại thành `… và N khoản nữa`. Tên hiển thị được cắt bỏ chú thích quỹ trong ngoặc cho gọn, nhưng ngoặc mang ngữ cảnh thật như `( mua đồ cho em )` thì giữ nguyên.
 
