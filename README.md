@@ -73,7 +73,10 @@ Không phải mọi khoản tiền ra đều là chi tiêu trong ngân sách th�
 |---|---|---|
 | **Nhóm quỹ** | Khoản thuộc 5 nhóm — theo `Loại Chi Phí` hoặc theo ghi chú nhắc tên quỹ | ✅ |
 | **Chi lẻ ngoài nhóm** | Từng giao dịch **dưới 500.000đ** không thuộc nhóm nào | ✅ |
-| **Ngoài ngân sách** | Grab (nạp ví, xăng) · Sửa xe · Vay và trả · từng giao dịch lẻ **từ 500.000đ** trở lên | ❌ vẫn báo cáo, không cộng vào trần |
+| **Tiêu ngoài trần** | Đổ xăng · Sửa xe · từng giao dịch lẻ **từ 500.000đ** trở lên | ❌ vẫn là tiêu thật, báo cáo riêng |
+| **Không phải chi tiêu** | Nạp ví Grab · Cho mượn / trả nợ | ❌ tiền đi rồi về, chỉ liệt kê |
+
+Ba tầng đầu cộng lại ra **tổng thực tiêu**. Tầng cuối để riêng vì nạp ví Grab quay về thành doanh thu, còn cho mượn thì người ta trả lại — cộng vào là thổi phồng con số tiêu.
 
 Ngưỡng 500.000đ áp cho **từng giao dịch riêng lẻ**, không phải cho tổng của một loại chi. Một loại chi có tổng 2 triệu gồm nhiều khoản nhỏ vẫn nằm trọn trong ngân sách; chỉ khoản đơn lẻ vượt ngưỡng mới bị tách ra. Đổi ngưỡng ở `outsideBudgetThreshold` trong `src/config.js`.
 

@@ -471,6 +471,10 @@ function buildOutsideBudget_(tiers) {
     loan: tiers.loan,
     largeRows,
     largeTotal,
+    // Xang va sua xe la tien tieu that, chi khong nam trong tran 5tr5.
+    spendingTotal: tiers.grabOperating + tiers.repair + largeTotal,
+    // Nap vi Grab va cho muon/tra no khong phai chi tieu — tien di roi ve.
+    cyclingTotal: tiers.grabCapital + tiers.loan,
     total: tiers.grabCapital + tiers.grabOperating + tiers.repair + tiers.loan + largeTotal
   };
 }
@@ -1083,12 +1087,10 @@ function budgetHeadline_(budget) {
   return "📊 NGÂN SÁCH — " + money_(budget.total) + " / " + money_(budget.limit) + " · " + mark;
 }
 
-function outsideBudgetLines_(outside) {
+function outsideSpendingLines_(outside) {
   const lines = [];
-  const grabTotal = outside.grabCapital + outside.grabOperating;
-  if (grabTotal > 0) lines.push("• Grab (nạp ví, xăng): " + money_(grabTotal));
+  if (outside.grabOperating > 0) lines.push("• Đổ xăng: " + money_(outside.grabOperating));
   if (outside.repair > 0) lines.push("• Sửa xe: " + money_(outside.repair));
-  if (outside.loan > 0) lines.push("• Cho mượn / trả nợ: " + money_(outside.loan));
   if (outside.largeTotal > 0) {
     lines.push("• Chi lẻ lớn: " + money_(outside.largeTotal));
     for (const row of outside.largeRows.slice(0, 4)) {
@@ -1101,6 +1103,13 @@ function outsideBudgetLines_(outside) {
       );
     }
   }
+  return lines;
+}
+
+function cyclingLines_(outside) {
+  const lines = [];
+  if (outside.grabCapital > 0) lines.push("• Nạp ví Grab: " + money_(outside.grabCapital));
+  if (outside.loan > 0) lines.push("• Cho mượn / trả nợ: " + money_(outside.loan));
   return lines;
 }
 
@@ -1134,9 +1143,19 @@ export function fundBudgetText_(data) {
   }
 
   const outside = data.outsideBudget;
-  if (outside && outside.total > 0) {
-    lines.push("", "🚗 NGOÀI NGÂN SÁCH — " + money_(outside.total));
-    for (const line of outsideBudgetLines_(outside)) lines.push(line);
+  if (outside && outside.spendingTotal > 0) {
+    lines.push("", "🚗 TIÊU NGOÀI TRẦN — " + money_(outside.spendingTotal));
+    for (const line of outsideSpendingLines_(outside)) lines.push(line);
+  }
+  if (budget && outside) {
+    lines.push(
+      "",
+      "💰 TỔNG THỰC TIÊU: " + money_(budget.total + outside.spendingTotal)
+    );
+  }
+  if (outside && outside.cyclingTotal > 0) {
+    lines.push("", "🔁 KHÔNG PHẢI CHI TIÊU — " + money_(outside.cyclingTotal));
+    for (const line of cyclingLines_(outside)) lines.push(line);
   }
 
   const debts = collectDebts_(groups);

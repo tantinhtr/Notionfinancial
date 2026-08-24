@@ -994,6 +994,8 @@ test("a fund that spent from its holding account without any transfer reports th
       "Nhóm quỹ — 574.444đ\n" +
       "⛔ Làm YouTube: 574.444đ / 500.000đ · vượt 74.444đ\n" +
       "\n" +
+      "💰 TỔNG THỰC TIÊU: 574.444đ\n" +
+      "\n" +
       "💸 ỨNG TRƯỚC — cần trả lại\n" +
       "• Làm YouTube → Quỹ Momo: 554.444đ\n" +
       "Tổng: 554.444đ"
@@ -1268,6 +1270,10 @@ test("monthly spending splits into budget, outside-budget and large one-offs", (
     data.outsideBudget.largeRows.map((row) => ({ name: row.name, amount: row.amount })),
     [{ name: "Đi ăn với em", amount: 850000 }]
   );
+  // Xang + sua xe + chi le lon = tieu that, chi khong nam trong tran.
+  assert.equal(data.outsideBudget.spendingTotal, 1060000);
+  // Nap vi Grab va cho muon khong phai chi tieu — tien di roi ve.
+  assert.equal(data.outsideBudget.cyclingTotal, 3650000);
   assert.equal(data.outsideBudget.total, 4710000);
 
   // Thu nhap that chi la bang Bao Cao Thu Nhap; Grab gop va tien muon khong tinh.
@@ -1276,8 +1282,12 @@ test("monthly spending splits into budget, outside-budget and large one-offs", (
   const text = fundBudgetText_(data);
   assert.match(text, /💵 Thu nhập thật: 7\.876\.709đ/);
   assert.match(text, /📊 NGÂN SÁCH — 2\.015\.000đ \/ 5\.500\.000đ · ✅ còn 3\.485\.000đ/);
-  assert.match(text, /• Grab \(nạp ví, xăng\): 710\.000đ/);
+  assert.match(text, /🚗 TIÊU NGOÀI TRẦN — 1\.060\.000đ/);
+  assert.match(text, /• Đổ xăng: 60\.000đ/);
   assert.match(text, /• Sửa xe: 150\.000đ/);
+  assert.match(text, /💰 TỔNG THỰC TIÊU: 3\.075\.000đ/);
+  assert.match(text, /🔁 KHÔNG PHẢI CHI TIÊU — 3\.650\.000đ/);
+  assert.match(text, /• Nạp ví Grab: 650\.000đ/);
   assert.match(text, /• Cho mượn \/ trả nợ: 3\.000\.000đ/);
   assert.match(text, /12\/08 Đi ăn với em: 850\.000đ · Grap Tiền Mặt/);
 });
