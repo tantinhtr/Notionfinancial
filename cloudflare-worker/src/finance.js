@@ -1103,9 +1103,16 @@ export function fundBudgetText_(data) {
       if (inflow !== "") lines.push(inflow);
     }
     const allocated = groups.reduce((sum, group) => sum + (group.allocated || 0), 0);
-    const planned = groups.reduce((sum, group) => sum + (group.budget || 0), 0);
-    if (planned > 0) {
-      lines.push("💵 Đã cấp vào quỹ: " + money_(allocated) + " / " + money_(planned));
+    const held = groups.reduce(
+      (sum, group) => sum + Math.max(group.fundBalance || 0, 0),
+      0
+    );
+    // Khong so voi tong ngan sach: phan da tieu roi thi cap vao lam gi nua. Chi noi
+    // da bom bao nhieu va quy con giu bao nhieu; so can cap nam o muc CAN CAP THEM.
+    if (allocated > 0 || held > 0) {
+      lines.push(
+        "💵 Đã cấp vào quỹ: " + money_(allocated) + " · quỹ đang giữ: " + money_(held)
+      );
     }
   }
 
