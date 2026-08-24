@@ -1064,7 +1064,7 @@ function debtRowLines_(rows) {
   return lines;
 }
 
-const LOOSE_CATEGORIES_SHOWN = 8;
+const LOOSE_CATEGORIES_SHOWN = 12;
 
 function budgetHeadline_(budget, groups) {
   const spent = (groups || []).reduce((sum, group) => sum + (group.spent || 0), 0);
