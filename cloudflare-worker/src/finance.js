@@ -461,22 +461,16 @@ function buildMonthlyBudget_(tiers, monthlyLimit) {
   };
 }
 
-function buildOutsideBudget_(tiers) {
-  const largeRows = tiers.outsideLargeRows.slice().sort((a, b) => b.amount - a.amount);
-  const largeTotal = largeRows.reduce((sum, row) => sum + row.amount, 0);
-  return {
-    grabCapital: tiers.grabCapital,
-    grabOperating: tiers.grabOperating,
-    repair: tiers.repair,
-    loan: tiers.loan,
-    largeRows,
-    largeTotal,
-    // Xang va sua xe la tien tieu that, chi khong nam trong tran 5tr5.
-    spendingTotal: tiers.grabOperating + tiers.repair + largeTotal,
-    // Nap vi Grab va cho muon/tra no khong phai chi tieu — tien di roi ve.
-    cyclingTotal: tiers.grabCapital + tiers.loan,
-    total: tiers.grabCapital + tiers.grabOperating + tiers.repair + tiers.loan + largeTotal
-  };
+function attachThreshold_(excluded, outsideThreshold) {
+  excluded.threshold = outsideThreshold;
+  return excluded;
+}
+
+// Giao dich le ngoai nhom quy tu nguong tro len: khong tinh la chi tieu cua thang,
+// chi liet ke ra de anh tu quyet.
+function buildExcluded_(tiers) {
+  const rows = tiers.outsideLargeRows.slice().sort((a, b) => b.amount - a.amount);
+  return { rows, total: rows.reduce((sum, row) => sum + row.amount, 0) };
 }
 
 // Thu nhap that chi la bang Bao Cao Thu Nhap. Bang Khoan Thu Khac la tien chay qua:
@@ -530,11 +524,7 @@ export function buildAccountSpendingData_(
     groupSpending: 0,
     looseSpending: 0,
     looseByCategory: {},
-    outsideLargeRows: [],
-    grabCapital: 0,
-    grabOperating: 0,
-    repair: 0,
-    loan: 0
+    outsideLargeRows: []
   };
   const accountNames = {};
   const globalCategoryTotals = {};
@@ -610,21 +600,15 @@ export function buildAccountSpendingData_(
       });
     }
 
-    // Phan tang chi tieu. Chi tang mot va hai moi la chi tieu thang; Grab, sua xe
-    // va vay/tra deu la tien ra that nhung khong nam trong tran 5tr5.
+    // Hai nhom duy nhat: trong nhom quy va ngoai nhom quy.
+    // Khoan trong nhom quy luon tinh, du to nho. Khoan ngoai nhom quy chi tinh khi
+    // tung giao dich duoi nguong — giao dich le qua lon la bat thuong, tach ra.
     const ownGroupId = fixedIdMap[categoryId] && groupIdSet[categoryGroupIds[categoryId]]
       ? categoryGroupIds[categoryId]
       : "";
     if (ownGroupId !== "" || assignedGroupId !== "") {
       tiers.groupSpending += amount;
-    } else if (rowInfo.nature.kind === "grab") {
-      if (rowInfo.nature.grabType === "repair") tiers.repair += amount;
-      else if (rowInfo.nature.grabType === "capital") tiers.grabCapital += amount;
-      else tiers.grabOperating += amount;
-    } else if (rowInfo.nature.kind === "loan") {
-      tiers.loan += amount;
     } else if (amount >= outsideThreshold) {
-      // Giao dich le rieng le qua lon: bat thuong, khong phai chi tieu dinh ky.
       tiers.outsideLargeRows.push({
         name: rowInfo.name,
         amount,
@@ -875,7 +859,7 @@ export function buildAccountSpendingData_(
     monthlyLimit,
     fundGroups,
     monthlyBudget: buildMonthlyBudget_(tiers, monthlyLimit),
-    outsideBudget: buildOutsideBudget_(tiers),
+    excluded: attachThreshold_(buildExcluded_(tiers), outsideThreshold),
     income: buildIncomeSplit_(options.incomeRows, options.otherIncomeRows)
   };
 }
@@ -1082,35 +1066,12 @@ function debtRowLines_(rows) {
 
 const LOOSE_CATEGORIES_SHOWN = 8;
 
-function budgetHeadline_(budget) {
-  const mark = budget.over > 0 ? "⛔ vượt " + money_(budget.over) : "✅ còn " + money_(budget.remaining);
-  return "📊 NGÂN SÁCH — " + money_(budget.total) + " / " + money_(budget.limit) + " · " + mark;
-}
-
-function outsideSpendingLines_(outside) {
-  const lines = [];
-  if (outside.grabOperating > 0) lines.push("• Đổ xăng: " + money_(outside.grabOperating));
-  if (outside.repair > 0) lines.push("• Sửa xe: " + money_(outside.repair));
-  if (outside.largeTotal > 0) {
-    lines.push("• Chi lẻ lớn: " + money_(outside.largeTotal));
-    for (const row of outside.largeRows.slice(0, 4)) {
-      const day = typeof row.date === "string" && row.date.length >= 10
-        ? row.date.slice(8, 10) + "/" + row.date.slice(5, 7) + " "
-        : "";
-      lines.push(
-        "    " + day + displayName_(row.name).slice(0, 34) + ": " + money_(row.amount) +
-        " · " + row.account
-      );
-    }
-  }
-  return lines;
-}
-
-function cyclingLines_(outside) {
-  const lines = [];
-  if (outside.grabCapital > 0) lines.push("• Nạp ví Grab: " + money_(outside.grabCapital));
-  if (outside.loan > 0) lines.push("• Cho mượn / trả nợ: " + money_(outside.loan));
-  return lines;
+function budgetHeadline_(budget, groups) {
+  const spent = (groups || []).reduce((sum, group) => sum + (group.spent || 0), 0);
+  const planned = (groups || []).reduce((sum, group) => sum + (group.budget || 0), 0);
+  const diff = planned - spent;
+  const mark = diff < 0 ? "⛔ vượt " + money_(-diff) : "✅ còn " + money_(diff);
+  return "📊 NHÓM QUỸ — " + money_(spent) + " / " + money_(planned) + " · " + mark;
 }
 
 export function fundBudgetText_(data) {
@@ -1124,17 +1085,13 @@ export function fundBudgetText_(data) {
   }
 
   const budget = data.monthlyBudget;
-  if (budget) {
-    lines.push("", budgetHeadline_(budget));
-  }
-
   if (groups.length) {
-    lines.push("", "Nhóm quỹ — " + money_(budget ? budget.groupSpending : 0));
+    lines.push("", budgetHeadline_(budget || { total: 0, limit: 0 }, groups));
     for (const group of groups) lines.push(budgetLine_(group));
   }
 
   if (budget && budget.looseByCategory.length) {
-    lines.push("", "Chi lẻ ngoài nhóm — " + money_(budget.looseSpending));
+    lines.push("", "🧾 NGOÀI NHÓM QUỸ — " + money_(budget.looseSpending));
     for (const entry of budget.looseByCategory.slice(0, LOOSE_CATEGORIES_SHOWN)) {
       lines.push("• " + entry.category + ": " + money_(entry.amount));
     }
@@ -1142,20 +1099,28 @@ export function fundBudgetText_(data) {
     if (hidden > 0) lines.push("• … và " + hidden + " loại nữa");
   }
 
-  const outside = data.outsideBudget;
-  if (outside && outside.spendingTotal > 0) {
-    lines.push("", "🚗 TIÊU NGOÀI TRẦN — " + money_(outside.spendingTotal));
-    for (const line of outsideSpendingLines_(outside)) lines.push(line);
+  if (budget) {
+    lines.push("", "💰 TỔNG CHI TIÊU: " + money_(budget.total));
   }
-  if (budget && outside) {
+
+  const excluded = data.excluded;
+  if (excluded && excluded.total > 0) {
     lines.push(
       "",
-      "💰 TỔNG THỰC TIÊU: " + money_(budget.total + outside.spendingTotal)
+      "🚫 KHÔNG TÍNH — giao dịch lẻ ≥" + money_(excluded.threshold || 500000) +
+      " · " + money_(excluded.total)
     );
-  }
-  if (outside && outside.cyclingTotal > 0) {
-    lines.push("", "🔁 KHÔNG PHẢI CHI TIÊU — " + money_(outside.cyclingTotal));
-    for (const line of cyclingLines_(outside)) lines.push(line);
+    for (const row of excluded.rows.slice(0, 6)) {
+      const day = typeof row.date === "string" && row.date.length >= 10
+        ? row.date.slice(8, 10) + "/" + row.date.slice(5, 7) + " "
+        : "";
+      lines.push(
+        "• " + day + displayName_(row.name).slice(0, 34) + ": " + money_(row.amount) +
+        " · " + row.account
+      );
+    }
+    const hidden = excluded.rows.length - 6;
+    if (hidden > 0) lines.push("• … và " + hidden + " khoản nữa");
   }
 
   const debts = collectDebts_(groups);

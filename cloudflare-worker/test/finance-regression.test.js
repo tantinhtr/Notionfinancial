@@ -989,12 +989,10 @@ test("a fund that spent from its holding account without any transfer reports th
     fundBudgetText_(data),
     "📦 QUỸ & NGÂN SÁCH — tháng 8/2026\n" +
       "\n" +
-      "📊 NGÂN SÁCH — 574.444đ / 5.500.000đ · ✅ còn 4.925.556đ\n" +
-      "\n" +
-      "Nhóm quỹ — 574.444đ\n" +
+      "📊 NHÓM QUỸ — 574.444đ / 500.000đ · ⛔ vượt 74.444đ\n" +
       "⛔ Làm YouTube: 574.444đ / 500.000đ · vượt 74.444đ\n" +
       "\n" +
-      "💰 TỔNG THỰC TIÊU: 574.444đ\n" +
+      "💰 TỔNG CHI TIÊU: 574.444đ\n" +
       "\n" +
       "💸 ỨNG TRƯỚC — cần trả lại\n" +
       "• Làm YouTube → Quỹ Momo: 554.444đ\n" +
@@ -1189,7 +1187,7 @@ test("paying from the wrong account is settled by what the fund actually holds",
   assert.doesNotMatch(fundBudgetText_(build([])), /ỨNG TRƯỚC/);
 });
 
-test("monthly spending splits into budget, outside-budget and large one-offs", () => {
+test("spending splits into fund groups, loose spending and excluded one-offs", () => {
   const spend = (id, name, categoryId, accountId, amount) => ({
     id,
     properties: {
@@ -1256,39 +1254,31 @@ test("monthly spending splits into budget, outside-budget and large one-offs", (
 
   // Trong tran: nhom quy 2.000.000 + chi le duoi 500k 15.000.
   assert.equal(data.monthlyBudget.groupSpending, 2000000);
-  assert.equal(data.monthlyBudget.looseSpending, 15000);
-  assert.equal(data.monthlyBudget.total, 2015000);
-  assert.equal(data.monthlyBudget.remaining, 3485000);
+  // Ngoai nhom quy, duoi 500k: xang 60.000 + sua xe 150.000 + ca phe 15.000.
+  assert.equal(data.monthlyBudget.looseSpending, 225000);
+  assert.equal(data.monthlyBudget.total, 2225000);
 
-  // Ngoai tran nhung van la tien ra that.
-  assert.equal(data.outsideBudget.grabCapital, 650000);
-  assert.equal(data.outsideBudget.grabOperating, 60000);
-  assert.equal(data.outsideBudget.repair, 150000);
-  assert.equal(data.outsideBudget.loan, 3000000);
-  // Giao dich le rieng le >= 500k bi tach ra, khong an vao tran.
+  // Moi giao dich le ngoai nhom quy tu 500k tro len deu bi loai, khong phan biet
+  // no la nap vi Grab, cho muon hay an uong.
   assert.deepEqual(
-    data.outsideBudget.largeRows.map((row) => ({ name: row.name, amount: row.amount })),
-    [{ name: "Đi ăn với em", amount: 850000 }]
+    data.excluded.rows.map((row) => ({ name: row.name, amount: row.amount })),
+    [
+      { name: "Cho c Thủy mượn", amount: 3000000 },
+      { name: "Đi ăn với em", amount: 850000 },
+      { name: "Nạp tiền ví grap", amount: 650000 }
+    ]
   );
-  // Xang + sua xe + chi le lon = tieu that, chi khong nam trong tran.
-  assert.equal(data.outsideBudget.spendingTotal, 1060000);
-  // Nap vi Grab va cho muon khong phai chi tieu — tien di roi ve.
-  assert.equal(data.outsideBudget.cyclingTotal, 3650000);
-  assert.equal(data.outsideBudget.total, 4710000);
+  assert.equal(data.excluded.total, 4500000);
 
   // Thu nhap that chi la bang Bao Cao Thu Nhap; Grab gop va tien muon khong tinh.
   assert.deepEqual(data.income, { real: 7876709, grabGross: 1310000, other: 1000000 });
 
   const text = fundBudgetText_(data);
   assert.match(text, /💵 Thu nhập thật: 7\.876\.709đ/);
-  assert.match(text, /📊 NGÂN SÁCH — 2\.015\.000đ \/ 5\.500\.000đ · ✅ còn 3\.485\.000đ/);
-  assert.match(text, /🚗 TIÊU NGOÀI TRẦN — 1\.060\.000đ/);
-  assert.match(text, /• Đổ xăng: 60\.000đ/);
-  assert.match(text, /• Sửa xe: 150\.000đ/);
-  assert.match(text, /💰 TỔNG THỰC TIÊU: 3\.075\.000đ/);
-  assert.match(text, /🔁 KHÔNG PHẢI CHI TIÊU — 3\.650\.000đ/);
-  assert.match(text, /• Nạp ví Grab: 650\.000đ/);
-  assert.match(text, /• Cho mượn \/ trả nợ: 3\.000\.000đ/);
+  assert.match(text, /📊 NHÓM QUỸ — 2\.000\.000đ \/ 2\.150\.000đ · ✅ còn 150\.000đ/);
+  assert.match(text, /🧾 NGOÀI NHÓM QUỸ — 225\.000đ/);
+  assert.match(text, /💰 TỔNG CHI TIÊU: 2\.225\.000đ/);
+  assert.match(text, /🚫 KHÔNG TÍNH — giao dịch lẻ ≥500\.000đ · 4\.500\.000đ/);
   assert.match(text, /12\/08 Đi ăn với em: 850\.000đ · Grap Tiền Mặt/);
 });
 
@@ -1425,7 +1415,7 @@ test("fund budget text preserves approved fund statuses and heading", () => {
     text,
     "📦 QUỸ & NGÂN SÁCH — tháng 7/2026\n" +
       "\n" +
-      "Nhóm quỹ — 0đ\n" +
+      "📊 NHÓM QUỸ — 3.657.844đ / 4.900.000đ · ✅ còn 1.242.156đ\n" +
       "✅ Thiết Yếu: 2.277.400đ / 2.400.000đ · còn 122.600đ\n" +
       "✅ Đi Chợ: 801.000đ / 1.300.000đ · còn 499.000đ\n" +
       "✅ Phát Sinh: 0đ / 600.000đ · còn 600.000đ\n" +

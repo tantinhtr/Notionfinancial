@@ -65,22 +65,20 @@ Mỗi món liệt kê tối đa 6 giao dịch rồi gộp phần còn lại thà
 
 Nhóm nào không bật `Bắt Buộc Cấp Quỹ` trong Notion thì không bao giờ xuất hiện ở mục ỨNG TRƯỚC, vì nó vốn được chi thẳng từ tài khoản của nó.
 
-### Ba tầng chi tiêu
+### Hai nhóm chi tiêu
 
-Không phải mọi khoản tiền ra đều là chi tiêu trong ngân sách tháng. Bot chia làm ba tầng:
+Bot chia mọi khoản chi làm đúng hai nhóm:
 
-| Tầng | Gồm gì | Có tính vào 5tr5? |
+| Nhóm | Gồm gì | Quy tắc |
 |---|---|---|
-| **Nhóm quỹ** | Khoản thuộc 5 nhóm — theo `Loại Chi Phí` hoặc theo ghi chú nhắc tên quỹ | ✅ |
-| **Chi lẻ ngoài nhóm** | Từng giao dịch **dưới 500.000đ** không thuộc nhóm nào | ✅ |
-| **Tiêu ngoài trần** | Đổ xăng · Sửa xe · từng giao dịch lẻ **từ 500.000đ** trở lên | ❌ vẫn là tiêu thật, báo cáo riêng |
-| **Không phải chi tiêu** | Nạp ví Grab · Cho mượn / trả nợ | ❌ tiền đi rồi về, chỉ liệt kê |
+| **Nhóm quỹ** | Khoản thuộc 5 nhóm — theo `Loại Chi Phí` hoặc theo ghi chú nhắc tên quỹ | Tính hết, không phân biệt to nhỏ |
+| **Ngoài nhóm quỹ** | Mọi khoản còn lại | Chỉ tính giao dịch **dưới 500.000đ** |
 
-Ba tầng đầu cộng lại ra **tổng thực tiêu**. Tầng cuối để riêng vì nạp ví Grab quay về thành doanh thu, còn cho mượn thì người ta trả lại — cộng vào là thổi phồng con số tiêu.
+Giao dịch lẻ ngoài nhóm quỹ **từ 500.000đ trở lên** không được tính là chi tiêu của tháng — nó là khoản bất thường, bot liệt kê riêng ở mục `🚫 KHÔNG TÍNH` để tự quyết.
 
-Ngưỡng 500.000đ áp cho **từng giao dịch riêng lẻ**, không phải cho tổng của một loại chi. Một loại chi có tổng 2 triệu gồm nhiều khoản nhỏ vẫn nằm trọn trong ngân sách; chỉ khoản đơn lẻ vượt ngưỡng mới bị tách ra. Đổi ngưỡng ở `outsideBudgetThreshold` trong `src/config.js`.
+Ngưỡng áp cho **từng giao dịch riêng lẻ**, không phải cho tổng của một loại chi. Một loại chi có tổng 2 triệu gồm nhiều khoản nhỏ vẫn được tính trọn; chỉ khoản đơn lẻ vượt ngưỡng mới bị tách. Đổi ngưỡng ở `outsideBudgetThreshold` trong `src/config.js`.
 
-Sửa xe mang `Loại Chi Phí` là Grap nhưng được tách riêng (bắt các cụm `sửa xe`, `thay nhớt`, `vá bánh`, `thay ruột`, `bơm xe`) — nó là tiền ra thật, chỉ không nằm trong trần.
+Không có ngoại lệ theo loại: nạp ví Grab, đổ xăng, sửa xe, cho mượn — tất cả đều theo đúng luật trên. Khoản nào dưới ngưỡng thì là chi tiêu, trên ngưỡng thì bị loại.
 
 ### Thu nhập thật và tiền chạy qua
 
