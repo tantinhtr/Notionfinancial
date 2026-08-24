@@ -65,6 +65,24 @@ Mỗi món liệt kê tối đa 6 giao dịch rồi gộp phần còn lại thà
 
 Nhóm nào không bật `Bắt Buộc Cấp Quỹ` trong Notion thì không bao giờ xuất hiện ở mục ỨNG TRƯỚC, vì nó vốn được chi thẳng từ tài khoản của nó.
 
+### Tiền vào quỹ
+
+Mỗi nhóm quỹ có hai chiều tiền, báo cáo hiện cả hai:
+
+```
+⛔ Thiết Yếu: 2.494.400đ / 2.400.000đ · vượt 94.400đ
+   ↳ đã cấp 2.330.000đ · quỹ còn 31.600đ
+💵 Đã cấp vào quỹ: 2.330.000đ / 5.500.000đ
+```
+
+- Dòng trên là **tiền ra**: đã tiêu bao nhiêu so với ngân sách.
+- Dòng `↳` là **tiền vào**: đã chuyển bao nhiêu vào tài khoản giữ quỹ, và còn lại bao nhiêu chưa tiêu. `quỹ âm` nghĩa là nhóm đó đã chi nhiều hơn số được cấp — tiêu bằng tiền của túi khác.
+- Dòng `💵` là tổng: đã bơm bao nhiêu trên tổng ngân sách cả tháng.
+
+Tiền vào lấy từ bảng **Giao Dịch Các Tài Khoản**, chỉ tính giao dịch có gắn nhãn `Nhóm Quỹ` và chuyển **đến** đúng tài khoản giữ quỹ của nhóm. Chuyển ra khỏi tài khoản đó thì trừ đi.
+
+Nhóm không bật `Bắt Buộc Cấp Quỹ` (như Đi Chợ) không có dòng `↳`, vì nó vốn chi thẳng không cần cấp trước.
+
 ### Hai nhóm chi tiêu
 
 Bot chia mọi khoản chi làm đúng hai nhóm:

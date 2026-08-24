@@ -1064,6 +1064,17 @@ function debtRowLines_(rows) {
 
 const LOOSE_CATEGORIES_SHOWN = 12;
 
+// Tien DI VAO nhom quy: da cap bao nhieu, con lai bao nhieu trong tai khoan giu quy.
+function fundInflowLine_(group) {
+  if (!group.requiresAllocation) return "";
+  const parts = [];
+  parts.push((group.allocated || 0) > 0 ? "đã cấp " + money_(group.allocated) : "chưa cấp");
+  const balance = group.fundBalance || 0;
+  if (balance > 0) parts.push("quỹ còn " + money_(balance));
+  else if (balance < 0) parts.push("quỹ âm " + money_(-balance));
+  return "   ↳ " + parts.join(" · ");
+}
+
 function budgetHeadline_(budget, groups) {
   const spent = (groups || []).reduce((sum, group) => sum + (group.spent || 0), 0);
   const planned = (groups || []).reduce((sum, group) => sum + (group.budget || 0), 0);
@@ -1085,7 +1096,16 @@ export function fundBudgetText_(data) {
   const budget = data.monthlyBudget;
   if (groups.length) {
     lines.push("", budgetHeadline_(budget || { total: 0, limit: 0 }, groups));
-    for (const group of groups) lines.push(budgetLine_(group));
+    for (const group of groups) {
+      lines.push(budgetLine_(group));
+      const inflow = fundInflowLine_(group);
+      if (inflow !== "") lines.push(inflow);
+    }
+    const allocated = groups.reduce((sum, group) => sum + (group.allocated || 0), 0);
+    const planned = groups.reduce((sum, group) => sum + (group.budget || 0), 0);
+    if (planned > 0) {
+      lines.push("💵 Đã cấp vào quỹ: " + money_(allocated) + " / " + money_(planned));
+    }
   }
 
   if (budget && budget.looseByCategory.length) {

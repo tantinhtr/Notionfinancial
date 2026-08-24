@@ -991,6 +991,8 @@ test("a fund that spent from its holding account without any transfer reports th
       "\n" +
       "📊 NHÓM QUỸ — 574.444đ / 500.000đ · ⛔ vượt 74.444đ\n" +
       "⛔ Làm YouTube: 574.444đ / 500.000đ · vượt 74.444đ\n" +
+      "   ↳ chưa cấp · quỹ âm 554.444đ\n" +
+      "💵 Đã cấp vào quỹ: 0đ / 500.000đ\n" +
       "\n" +
       "💰 TỔNG CHI TIÊU: 574.444đ\n" +
       "\n" +
@@ -1462,10 +1464,14 @@ test("fund budget text preserves approved fund statuses and heading", () => {
       "\n" +
       "📊 NHÓM QUỸ — 3.657.844đ / 4.900.000đ · ✅ còn 1.242.156đ\n" +
       "✅ Thiết Yếu: 2.277.400đ / 2.400.000đ · còn 122.600đ\n" +
+      "   ↳ đã cấp 2.400.000đ · quỹ còn 122.600đ\n" +
       "✅ Đi Chợ: 801.000đ / 1.300.000đ · còn 499.000đ\n" +
       "✅ Phát Sinh: 0đ / 600.000đ · còn 600.000đ\n" +
+      "   ↳ chưa cấp\n" +
       "⛔ Làm YouTube: 554.444đ / 500.000đ · vượt 54.444đ\n" +
+      "   ↳ đã cấp 555.000đ · quỹ còn 556đ\n" +
       "✅ Chưa Ghép: 25.000đ / 100.000đ · còn 75.000đ · ⚠️ thiếu loại chi\n" +
+      "💵 Đã cấp vào quỹ: 2.955.000đ / 4.900.000đ\n" +
       "\n" +
       "💰 CẦN CẤP THÊM\n" +
       "• Phát Sinh → Quỹ Momo: 600.000đ"
