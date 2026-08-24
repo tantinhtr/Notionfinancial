@@ -573,31 +573,29 @@ export function buildAccountSpendingData_(
   for (const expenseRow of expenseRows) {
     const rowInfo = flowAnalysis.rowsById[expenseRow.id];
     const { amount, categoryId, accountId, categoryName, accountName } = rowInfo;
-    globalCategoryTotals[categoryName] = (globalCategoryTotals[categoryName] || 0) + amount;
     const lender = borrowedFrom_(expenseRow);
-    if (fixedIdMap[categoryId]) {
-      const fixed = fixedIdMap[categoryId];
-      fixed.paidByAccount[accountName] = (fixed.paidByAccount[accountName] || 0) + amount;
-      fixed.spendRows.push({
-        account: accountName,
-        amount,
-        lender,
-        name: rowInfo.name,
-        date: rowInfo.date
-      });
-    }
     const assignedName = stripFundPrefix_(assignedFund_(expenseRow, groupNameKeys));
     const assignedGroupId = assignedName === "" ? "" : (fundGroupIdByName[assignedName] || "");
-    // Chi keo sang khi loai chi phi von khong thuoc nhom do, tranh dem hai lan.
-    if (assignedGroupId !== "" && categoryGroupIds[categoryId] !== assignedGroupId) {
+    // Ghi chu keu tinh vao nhom khac thi khoan nay ROI KHOI nhan cua no hoan toan:
+    // khong cong vao tong cua loai chi do nua, chi tinh cho nhom duoc chi dinh.
+    const movedAway = assignedGroupId !== "" && categoryGroupIds[categoryId] !== assignedGroupId;
+    const spendRow = {
+      account: accountName,
+      amount,
+      lender,
+      name: rowInfo.name,
+      date: rowInfo.date
+    };
+    if (movedAway) {
       if (!extraRowsByGroupId[assignedGroupId]) extraRowsByGroupId[assignedGroupId] = [];
-      extraRowsByGroupId[assignedGroupId].push({
-        account: accountName,
-        amount,
-        lender,
-        name: rowInfo.name,
-        date: rowInfo.date
-      });
+      extraRowsByGroupId[assignedGroupId].push(spendRow);
+    } else {
+      globalCategoryTotals[categoryName] = (globalCategoryTotals[categoryName] || 0) + amount;
+      if (fixedIdMap[categoryId]) {
+        const fixed = fixedIdMap[categoryId];
+        fixed.paidByAccount[accountName] = (fixed.paidByAccount[accountName] || 0) + amount;
+        fixed.spendRows.push(spendRow);
+      }
     }
 
     // Hai nhom duy nhat: trong nhom quy va ngoai nhom quy.

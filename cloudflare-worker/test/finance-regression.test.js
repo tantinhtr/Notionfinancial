@@ -1282,6 +1282,51 @@ test("spending splits into fund groups, loose spending and excluded one-offs", (
   assert.match(text, /12\/08 Đi ăn với em: 850\.000đ · Grap Tiền Mặt/);
 });
 
+test("a note pointing at another fund pulls the expense out of its own label", () => {
+  const noted = (id, name, categoryId, amount, note = "") => ({
+    id,
+    properties: {
+      "Nội Dung Khoản Chi": { title: [{ plain_text: name }] },
+      "Ghi Chú": { rich_text: note ? [{ plain_text: note }] : [] },
+      "Số Tiền": { number: amount },
+      "Ngày": { date: { start: "2026-08-12" } },
+      "Loại Chi Phí": { relation: [{ id: categoryId }] },
+      "Phương Thức Thanh Toán": { relation: [{ id: "cash" }] }
+    }
+  });
+
+  const data = buildAccountSpendingData_(
+    { y: 2026, m: 8, d: 22 },
+    [
+      trackedCategoryRow("rent", "Nhà Trọ", 2150000, "essential-fund"),
+      trackedCategoryRow("incidental", "Phát Sinh", 600000, "incidental-fund")
+    ],
+    [
+      noted("a", "Tiền phòng", "rent", 2000000),
+      // Nhan la Nha Tro (nhom Thiet Yeu) nhung ghi chu keu tinh vao Phat Sinh:
+      // phai roi hoan toan khoi Thiet Yeu, khong duoc dem ca hai noi.
+      noted("b", "Sửa vòi nước", "rent", 300000, "Tính vào quỹ phát sinh")
+    ],
+    [cashflowAccountRow("cash", "Grap Tiền Mặt"), cashflowAccountRow("fund", "Quỹ Momo")],
+    5500000,
+    [],
+    [
+      fundGroupRow("essential-fund", "Thiết Yếu", "fund", true),
+      fundGroupRow("incidental-fund", "Phát Sinh", "fund", true)
+    ]
+  );
+
+  const essential = data.fundGroups.find((group) => group.name === "Thiết Yếu");
+  const incidental = data.fundGroups.find((group) => group.name === "Phát Sinh");
+  assert.equal(essential.spent, 2000000);
+  assert.equal(incidental.spent, 300000);
+  // Tong hai nhom bang dung tong chi, khong dem trung 300.000.
+  assert.equal(data.monthlyBudget.groupSpending, 2300000);
+
+  const rent = data.fixedBudgets.find((fixed) => fixed.name === "Nhà Trọ");
+  assert.equal(rent.spent, 2000000);
+});
+
 test("a fund that does not require allocation never asks for a transfer", () => {
   const data = buildAccountSpendingData_(
     { y: 2026, m: 7, d: 23 },

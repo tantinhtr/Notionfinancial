@@ -96,12 +96,14 @@ Bot không chỉ nhìn cột `Loại Chi Phí` mà đọc cả tiêu đề và �
 
 | Cách viết | Bot hiểu là |
 |---|---|
-| `( tính vào quỹ X )` | khoản này **thuộc ngân sách** nhóm X, bất kể `Loại Chi Phí` là gì |
+| `( tính vào quỹ X )` | khoản này **chỉ** thuộc ngân sách nhóm X — rời hẳn khỏi `Loại Chi Phí` của nó |
 | `( lấy từ quỹ X )` | khoản này **mượn tiền** của quỹ X → sinh dòng nợ trả về quỹ X |
 | `( mượn quỹ X )` | **mượn tiền** của quỹ X |
 | `( quỹ X )` | không có tác dụng gì |
 
 Một khoản có thể vừa `tính vào quỹ phát sinh` vừa `lấy từ quỹ tích lũy` — nó được đắp vào ngân sách Phát Sinh, và sinh ra món nợ với quỹ tích lũy.
+
+Khoản được `tính vào quỹ X` **không còn được cộng vào loại chi gốc nữa**. Ví dụ một khoản mang nhãn `Nhà Trọ` (thuộc Thiết Yếu) mà ghi chú kêu tính vào Phát Sinh thì nó rời hẳn Thiết Yếu, chỉ tính cho Phát Sinh — không đếm ở cả hai nơi.
 
 `tính vào` là thứ khiến những khoản như *"Mua bạc xỉu ( tính vào quỹ phát sinh )"* — mang `Loại Chi Phí` là Cà Phê, vốn nằm ngoài mọi nhóm quỹ — vẫn được cộng vào ngân sách Phát Sinh. Không có nó, những khoản đó biến mất khỏi báo cáo và ngân sách trông như còn dư trong khi thực tế đã vượt.
 
