@@ -1070,8 +1070,9 @@ function fundInflowLine_(group) {
   const parts = [];
   parts.push((group.allocated || 0) > 0 ? "đã cấp " + money_(group.allocated) : "chưa cấp");
   const balance = group.fundBalance || 0;
+  // Chi noi so con lai khi quy thuc su con tien. Tieu qua so da cap khong phai
+  // "quy am" — do la tien di muon, va no da duoc neu o muc UNG TRUOC roi.
   if (balance > 0) parts.push("quỹ còn " + money_(balance));
-  else if (balance < 0) parts.push("quỹ âm " + money_(-balance));
   return "   ↳ " + parts.join(" · ");
 }
 

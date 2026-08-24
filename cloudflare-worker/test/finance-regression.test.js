@@ -991,7 +991,7 @@ test("a fund that spent from its holding account without any transfer reports th
       "\n" +
       "📊 NHÓM QUỸ — 574.444đ / 500.000đ · ⛔ vượt 74.444đ\n" +
       "⛔ Làm YouTube: 574.444đ / 500.000đ · vượt 74.444đ\n" +
-      "   ↳ chưa cấp · quỹ âm 554.444đ\n" +
+      "   ↳ chưa cấp\n" +
       "💵 Đã cấp vào quỹ: 0đ / 500.000đ\n" +
       "\n" +
       "💰 TỔNG CHI TIÊU: 574.444đ\n" +
