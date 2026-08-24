@@ -296,9 +296,14 @@ function classifyExpenseNature_(categoryName, expenseName, expenseNote, isFixedB
       (normalizedName.indexOf("nap") >= 0 &&
        (normalizedName.indexOf("grap") >= 0 || normalizedName.indexOf("grab") >= 0)) ||
       (normalizedName.indexOf("chuyen tien") >= 0 && normalizedName.indexOf("nap ho") >= 0);
+    // Sua xe deo nhan Grap nhung khong phai von chay xe — tach ra de bao cao rieng.
+    const isRepair = [
+      "sua xe", "thay nhot", "va banh", "va 1 lo", "va xe",
+      "thay ruot", "bom xe", "thay lop"
+    ].some((keyword) => normalizedName.indexOf(keyword) >= 0);
     return {
       kind: "grab",
-      grabType: isCapital ? "capital" : "operating",
+      grabType: isRepair ? "repair" : (isCapital ? "capital" : "operating"),
       isUnusual: false
     };
   }
@@ -317,7 +322,7 @@ function analyzeExpenseRows_(expenseRows, categoryNames, fixedIdMap, accountName
     personalSpendingTotal: 0,
     unplannedTotal: 0,
     loanFlow: { total: 0, lent: 0, repaid: 0, other: 0 },
-    grabFlow: { total: 0, capital: 0, operating: 0 },
+    grabFlow: { total: 0, capital: 0, operating: 0, repair: 0 },
     unusualSpending: { total: 0, rows: [] },
     rowsById: {}
   };
@@ -420,10 +425,73 @@ function borrowedFrom_(expenseRow) {
   return fundMentionedAfter_(expenseRow, /(?:lấy\s+từ|mượn(?:\s+từ)?)\s+(.+)$/i);
 }
 
-// "tinh vao quy X" — khoan nay thuoc ngan sach nhom X, du Loai Chi Phi la gi.
-// Hai dong tu doc lap: mot khoan co the vua tinh vao Phat Sinh vua muon quy tich luy.
-function assignedFund_(expenseRow) {
-  return fundMentionedAfter_(expenseRow, /tính\s+vào\s+(.+)$/i);
+// Khoan nay thuoc ngan sach nhom nao. Uu tien cum "tinh vao quy X"; neu khong co
+// thi chi can tieu de/ghi chu NHAC TOI ten mot nhom quy co that la du — anh viet tat
+// kieu "( phat sinh )" van phai an. Khong nhan khi ten do chinh la ben cho muon
+// ("lay tu quy X"), vi do la nguon tien chu khong phai ngan sach.
+function assignedFund_(expenseRow, groupNameKeys) {
+  const explicit = fundMentionedAfter_(expenseRow, /tính\s+vào\s+(.+)$/i);
+  if (explicit !== "") return explicit;
+  const props = expenseRow.properties || {};
+  const text = normalizeSearchText_(
+    plainText_(props["Nội Dung Khoản Chi"]) + " " + plainText_(props["Ghi Chú"])
+  );
+  const lenderKey = stripFundPrefix_(borrowedFrom_(expenseRow));
+  let best = "";
+  for (const key of groupNameKeys || []) {
+    if (key === "" || key === lenderKey) continue;
+    if (text.indexOf(normalizeSearchText_(key)) < 0) continue;
+    if (key.length > best.length) best = key;
+  }
+  return best === "" ? "" : "quỹ " + best;
+}
+
+function buildMonthlyBudget_(tiers, monthlyLimit) {
+  const total = tiers.groupSpending + tiers.looseSpending;
+  return {
+    limit: monthlyLimit,
+    groupSpending: tiers.groupSpending,
+    looseSpending: tiers.looseSpending,
+    looseByCategory: Object.keys(tiers.looseByCategory)
+      .map((category) => ({ category, amount: tiers.looseByCategory[category] }))
+      .sort((a, b) => b.amount - a.amount),
+    total,
+    over: Math.max(total - monthlyLimit, 0),
+    remaining: Math.max(monthlyLimit - total, 0)
+  };
+}
+
+function buildOutsideBudget_(tiers) {
+  const largeRows = tiers.outsideLargeRows.slice().sort((a, b) => b.amount - a.amount);
+  const largeTotal = largeRows.reduce((sum, row) => sum + row.amount, 0);
+  return {
+    grabCapital: tiers.grabCapital,
+    grabOperating: tiers.grabOperating,
+    repair: tiers.repair,
+    loan: tiers.loan,
+    largeRows,
+    largeTotal,
+    total: tiers.grabCapital + tiers.grabOperating + tiers.repair + tiers.loan + largeTotal
+  };
+}
+
+// Thu nhap that chi la bang Bao Cao Thu Nhap. Bang Khoan Thu Khac la tien chay qua:
+// doanh thu gop Grab (doi ung voi chi phi nap vi/xang) va tien muon/tra/thu ho.
+function buildIncomeSplit_(incomeRows, otherIncomeRows) {
+  const sum = (rows) => (rows || []).reduce(
+    (total, row) => total + num_((row.properties || {})["Số Tiền"]),
+    0
+  );
+  let grabGross = 0;
+  let other = 0;
+  for (const row of otherIncomeRows || []) {
+    const props = row.properties || {};
+    const name = normalizeSearchText_(plainText_(props["Tên Khoản Thu"]));
+    const amount = num_(props["Số Tiền"]);
+    if (name.indexOf("grap") >= 0 || name.indexOf("grab") >= 0) grabGross += amount;
+    else other += amount;
+  }
+  return { real: sum(incomeRows), grabGross, other };
 }
 
 export function buildAccountSpendingData_(
@@ -433,10 +501,15 @@ export function buildAccountSpendingData_(
   accountRows,
   monthlyLimit,
   transferRows,
-  fundGroupRows
+  fundGroupRows,
+  options
 ) {
   transferRows = transferRows || [];
   fundGroupRows = fundGroupRows || [];
+  options = options || {};
+  const outsideThreshold = Number.isFinite(options.outsideThreshold)
+    ? options.outsideThreshold
+    : 500000;
   const categoryNames = {};
   const categoryGroupIds = {};
   const fundGroupIdByName = {};
@@ -446,6 +519,19 @@ export function buildAccountSpendingData_(
       fundGroupRow.properties["Tên Nhóm Quỹ"].title) || [];
     if (title.length) fundGroupIdByName[stripFundPrefix_(title[0].plain_text)] = fundGroupRow.id;
   }
+  const groupNameKeys = Object.keys(fundGroupIdByName);
+  const groupIdSet = {};
+  for (const key of groupNameKeys) groupIdSet[fundGroupIdByName[key]] = true;
+  const tiers = {
+    groupSpending: 0,
+    looseSpending: 0,
+    looseByCategory: {},
+    outsideLargeRows: [],
+    grabCapital: 0,
+    grabOperating: 0,
+    repair: 0,
+    loan: 0
+  };
   const accountNames = {};
   const globalCategoryTotals = {};
   const accountMap = {};
@@ -506,7 +592,7 @@ export function buildAccountSpendingData_(
         date: rowInfo.date
       });
     }
-    const assignedName = stripFundPrefix_(assignedFund_(expenseRow));
+    const assignedName = stripFundPrefix_(assignedFund_(expenseRow, groupNameKeys));
     const assignedGroupId = assignedName === "" ? "" : (fundGroupIdByName[assignedName] || "");
     // Chi keo sang khi loai chi phi von khong thuoc nhom do, tranh dem hai lan.
     if (assignedGroupId !== "" && categoryGroupIds[categoryId] !== assignedGroupId) {
@@ -518,6 +604,34 @@ export function buildAccountSpendingData_(
         name: rowInfo.name,
         date: rowInfo.date
       });
+    }
+
+    // Phan tang chi tieu. Chi tang mot va hai moi la chi tieu thang; Grab, sua xe
+    // va vay/tra deu la tien ra that nhung khong nam trong tran 5tr5.
+    const ownGroupId = fixedIdMap[categoryId] && groupIdSet[categoryGroupIds[categoryId]]
+      ? categoryGroupIds[categoryId]
+      : "";
+    if (ownGroupId !== "" || assignedGroupId !== "") {
+      tiers.groupSpending += amount;
+    } else if (rowInfo.nature.kind === "grab") {
+      if (rowInfo.nature.grabType === "repair") tiers.repair += amount;
+      else if (rowInfo.nature.grabType === "capital") tiers.grabCapital += amount;
+      else tiers.grabOperating += amount;
+    } else if (rowInfo.nature.kind === "loan") {
+      tiers.loan += amount;
+    } else if (amount >= outsideThreshold) {
+      // Giao dich le rieng le qua lon: bat thuong, khong phai chi tieu dinh ky.
+      tiers.outsideLargeRows.push({
+        name: rowInfo.name,
+        amount,
+        date: rowInfo.date,
+        account: accountName,
+        category: categoryName
+      });
+    } else {
+      tiers.looseSpending += amount;
+      tiers.looseByCategory[categoryName] =
+        (tiers.looseByCategory[categoryName] || 0) + amount;
     }
 
     if (!accountMap[accountId]) {
@@ -755,7 +869,10 @@ export function buildAccountSpendingData_(
     unplannedTotal: flowAnalysis.unplannedTotal,
     unallocatedBudget: Math.max(monthlyLimit - totalFixedBudget, 0),
     monthlyLimit,
-    fundGroups
+    fundGroups,
+    monthlyBudget: buildMonthlyBudget_(tiers, monthlyLimit),
+    outsideBudget: buildOutsideBudget_(tiers),
+    income: buildIncomeSplit_(options.incomeRows, options.otherIncomeRows)
   };
 }
 
@@ -959,18 +1076,68 @@ function debtRowLines_(rows) {
   return lines;
 }
 
+const LOOSE_CATEGORIES_SHOWN = 8;
+
+function budgetHeadline_(budget) {
+  const mark = budget.over > 0 ? "⛔ vượt " + money_(budget.over) : "✅ còn " + money_(budget.remaining);
+  return "📊 NGÂN SÁCH — " + money_(budget.total) + " / " + money_(budget.limit) + " · " + mark;
+}
+
+function outsideBudgetLines_(outside) {
+  const lines = [];
+  const grabTotal = outside.grabCapital + outside.grabOperating;
+  if (grabTotal > 0) lines.push("• Grab (nạp ví, xăng): " + money_(grabTotal));
+  if (outside.repair > 0) lines.push("• Sửa xe: " + money_(outside.repair));
+  if (outside.loan > 0) lines.push("• Cho mượn / trả nợ: " + money_(outside.loan));
+  if (outside.largeTotal > 0) {
+    lines.push("• Chi lẻ lớn: " + money_(outside.largeTotal));
+    for (const row of outside.largeRows.slice(0, 4)) {
+      const day = typeof row.date === "string" && row.date.length >= 10
+        ? row.date.slice(8, 10) + "/" + row.date.slice(5, 7) + " "
+        : "";
+      lines.push(
+        "    " + day + displayName_(row.name).slice(0, 34) + ": " + money_(row.amount) +
+        " · " + row.account
+      );
+    }
+  }
+  return lines;
+}
+
 export function fundBudgetText_(data) {
   data = data || {};
   const t = data.t || {};
   const groups = data.fundGroups || [];
-  const lines = ["📦 Quỹ & ngân sách — tháng " + t.m + "/" + t.y];
-  if (!groups.length) {
-    lines.push("", "Chưa có nhóm quỹ nào trong tháng này.");
-    return lines.join("\n");
+  const lines = ["📦 QUỸ & NGÂN SÁCH — tháng " + t.m + "/" + t.y];
+
+  if (data.income && data.income.real > 0) {
+    lines.push("", "💵 Thu nhập thật: " + money_(data.income.real));
   }
 
-  lines.push("", "📊 NGÂN SÁCH");
-  for (const group of groups) lines.push(budgetLine_(group));
+  const budget = data.monthlyBudget;
+  if (budget) {
+    lines.push("", budgetHeadline_(budget));
+  }
+
+  if (groups.length) {
+    lines.push("", "Nhóm quỹ — " + money_(budget ? budget.groupSpending : 0));
+    for (const group of groups) lines.push(budgetLine_(group));
+  }
+
+  if (budget && budget.looseByCategory.length) {
+    lines.push("", "Chi lẻ ngoài nhóm — " + money_(budget.looseSpending));
+    for (const entry of budget.looseByCategory.slice(0, LOOSE_CATEGORIES_SHOWN)) {
+      lines.push("• " + entry.category + ": " + money_(entry.amount));
+    }
+    const hidden = budget.looseByCategory.length - LOOSE_CATEGORIES_SHOWN;
+    if (hidden > 0) lines.push("• … và " + hidden + " loại nữa");
+  }
+
+  const outside = data.outsideBudget;
+  if (outside && outside.total > 0) {
+    lines.push("", "🚗 NGOÀI NGÂN SÁCH — " + money_(outside.total));
+    for (const line of outsideBudgetLines_(outside)) lines.push(line);
+  }
 
   const debts = collectDebts_(groups);
   if (debts.length) {
@@ -986,7 +1153,7 @@ export function fundBudgetText_(data) {
 
   const funding = groups.filter((group) => (group.transferNeeded || 0) > 0);
   if (funding.length) {
-    lines.push("", "💰 CẦN CẤP THÊM — cho phần ngân sách chưa tiêu");
+    lines.push("", "💰 CẦN CẤP THÊM");
     for (const group of funding) {
       lines.push(
         "• " + group.name + " → " + (group.destinationAccount || "Tài khoản giữ quỹ") +
@@ -995,6 +1162,9 @@ export function fundBudgetText_(data) {
     }
   }
 
+  if (!groups.length && !budget) {
+    lines.push("", "Chưa có dữ liệu tháng này.");
+  }
   return lines.join("\n");
 }
 

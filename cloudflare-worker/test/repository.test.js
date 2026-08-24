@@ -309,20 +309,24 @@ test("goal status counts February 29 in a leap year", async () => {
   assert.equal(status.requiredPerDay, 14500);
 });
 
-test("fund report wires five concurrent Notion queries into the finance builder", async () => {
+test("fund report wires seven concurrent Notion queries into the finance builder", async () => {
   const { notion, repository } = createRepository({ rows: {
-    budgets: [], expenses: [], accounts: [], transfers: [], "fund-groups": []
+    budgets: [], expenses: [], accounts: [], transfers: [], "fund-groups": [],
+    income: [], "other-income": []
   } });
 
   const model = await repository.getFundBudgetReport();
 
   assert.deepEqual(model.t, { y: 2026, m: 7, d: 29 });
+  // Bao cao can ca thu nhap de tach thu nhap that khoi tien chay qua.
   assert.deepEqual(notion.calls, [
     ["budgets", undefined],
     ["expenses", monthFilter],
     ["accounts", undefined],
     ["transfers", monthFilter],
-    ["fund-groups", undefined]
+    ["fund-groups", undefined],
+    ["income", monthFilter],
+    ["other-income", monthFilter]
   ]);
 });
 

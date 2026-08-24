@@ -168,12 +168,22 @@ export function createFinanceRepository({ notion, state, config, now = () => new
   async function getFundBudgetReport() {
     const t = createDateParts(now, dateFormatter);
     const filter = monthFilterFor(t);
-    const [categoryRows, expenseRows, accountRows, transferRows, fundGroupRows] = await Promise.all([
+    const [
+      categoryRows,
+      expenseRows,
+      accountRows,
+      transferRows,
+      fundGroupRows,
+      incomeRows,
+      otherIncomeRows
+    ] = await Promise.all([
       notion.queryDatabase(config.budgetDb),
       notion.queryDatabase(config.expenseDb, filter),
       notion.queryDatabase(config.accountDb),
       notion.queryDatabase(config.transferDb, filter),
-      notion.queryDatabase(config.fundGroupDb)
+      notion.queryDatabase(config.fundGroupDb),
+      notion.queryDatabase(config.incomeDb, filter),
+      notion.queryDatabase(config.otherIncomeDb, filter)
     ]);
     return buildAccountSpendingData_(
       t,
@@ -182,7 +192,12 @@ export function createFinanceRepository({ notion, state, config, now = () => new
       accountRows,
       config.monthlyExpenseLimit,
       transferRows,
-      fundGroupRows
+      fundGroupRows,
+      {
+        incomeRows,
+        otherIncomeRows,
+        outsideThreshold: config.outsideBudgetThreshold
+      }
     );
   }
 

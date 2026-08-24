@@ -65,6 +65,30 @@ Mỗi món liệt kê tối đa 6 giao dịch rồi gộp phần còn lại thà
 
 Nhóm nào không bật `Bắt Buộc Cấp Quỹ` trong Notion thì không bao giờ xuất hiện ở mục ỨNG TRƯỚC, vì nó vốn được chi thẳng từ tài khoản của nó.
 
+### Ba tầng chi tiêu
+
+Không phải mọi khoản tiền ra đều là chi tiêu trong ngân sách tháng. Bot chia làm ba tầng:
+
+| Tầng | Gồm gì | Có tính vào 5tr5? |
+|---|---|---|
+| **Nhóm quỹ** | Khoản thuộc 5 nhóm — theo `Loại Chi Phí` hoặc theo ghi chú nhắc tên quỹ | ✅ |
+| **Chi lẻ ngoài nhóm** | Từng giao dịch **dưới 500.000đ** không thuộc nhóm nào | ✅ |
+| **Ngoài ngân sách** | Grab (nạp ví, xăng) · Sửa xe · Vay và trả · từng giao dịch lẻ **từ 500.000đ** trở lên | ❌ vẫn báo cáo, không cộng vào trần |
+
+Ngưỡng 500.000đ áp cho **từng giao dịch riêng lẻ**, không phải cho tổng của một loại chi. Một loại chi có tổng 2 triệu gồm nhiều khoản nhỏ vẫn nằm trọn trong ngân sách; chỉ khoản đơn lẻ vượt ngưỡng mới bị tách ra. Đổi ngưỡng ở `outsideBudgetThreshold` trong `src/config.js`.
+
+Sửa xe mang `Loại Chi Phí` là Grap nhưng được tách riêng (bắt các cụm `sửa xe`, `thay nhớt`, `vá bánh`, `thay ruột`, `bơm xe`) — nó là tiền ra thật, chỉ không nằm trong trần.
+
+### Thu nhập thật và tiền chạy qua
+
+| Nguồn | Bot hiểu là |
+|---|---|
+| Bảng **Báo Cáo Thu Nhập** | **Thu nhập thật** |
+| Bảng **Khoản Thu Khác**, tên chứa `Grap` | Doanh thu gộp — đối ứng với chi phí nạp ví/xăng, không phải kiếm được |
+| Bảng **Khoản Thu Khác**, còn lại | Mượn / trả / thu hộ |
+
+Chỉ dòng đầu được cộng vào thu nhập tháng. Hai dòng sau là tiền chạy qua tài khoản.
+
 ### Quy ước ghi chú
 
 Bot không chỉ nhìn cột `Loại Chi Phí` mà đọc cả tiêu đề và ô Ghi Chú của khoản chi. Hai động từ, hai việc khác nhau và độc lập với nhau:
