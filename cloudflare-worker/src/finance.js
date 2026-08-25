@@ -515,6 +515,12 @@ export function buildAccountSpendingData_(
   transferRows = transferRows || [];
   fundGroupRows = fundGroupRows || [];
   options = options || {};
+  const fundingSourceKeys = {};
+  for (const name of options.fundingSourceAccounts || []) {
+    fundingSourceKeys[normalizeSearchText_(name)] = true;
+  }
+  const isFundingSource = (accountName) =>
+    fundingSourceKeys[normalizeSearchText_(accountName)] === true;
   const outsideThreshold = Number.isFinite(options.outsideThreshold)
     ? options.outsideThreshold
     : 500000;
@@ -777,9 +783,7 @@ export function buildAccountSpendingData_(
     }
     groupRows.sort((a, b) => (a.date < b.date ? -1 : (a.date > b.date ? 1 : 0)));
 
-    // Luot 1: tach ba loai — muon quy khac, tieu tien cua chinh quy, va tra bang
-    // tai khoan khac. Chua ket luan gi ve khoan tra ho, vi con phai biet quy co
-    // san tien hay khong.
+    // Luot 1: xep moi khoan chi vao dung nguon tien da tra no.
     const paidOutsideRows = [];
     for (const spendRow of groupRows) {
       // Ghi chu chi ro muon quy nao thi do la tien cua tui khac, phai tra du
@@ -791,16 +795,18 @@ export function buildAccountSpendingData_(
         addDebtRow(borrowByFund, lender, spendRow, spendRow.amount, false);
       } else if (spendRow.account === accountNames[destinationAccountId]) {
         group.paidFromFund += spendRow.amount;
+      } else if (isFundingSource(spendRow.account)) {
+        // Momo va Grap Tien Mat la NGUON cap quy. Chi thang bang chung thi coi nhu
+        // da cap cho nhom roi, khong ai phai tra lai ai — chi la bo qua buoc chuyen.
+        group.paidOutsideFund += spendRow.amount;
       } else {
         group.paidOutsideFund += spendRow.amount;
         paidOutsideRows.push(spendRow);
       }
     }
 
-    // Luot 2: khoan dang le phai tra bang tai khoan giu quy ma lai tra bang thu khac
-    // deu la tien nguoi ta bo ra ho, phai tra lai — khong phu thuoc quy da co tien
-    // hay chua. Quy chua duoc cap khong lam mon no bien mat: no chi co nghia la phai
-    // cap tien vao roi tra.
+    // Luot 2: con lai la tai khoan KHONG phai nguon cap quy da bo tien ra ho —
+    // tien cua tui khac, phai tra lai, khong phu thuoc quy da co tien hay chua.
     for (const spendRow of paidOutsideRows) {
       addDebtRow(advanceByAccount, spendRow.account, spendRow, spendRow.amount, false);
     }

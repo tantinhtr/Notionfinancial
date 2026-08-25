@@ -1319,6 +1319,66 @@ test("a fund name only counts when it is written out in full after the word quy"
   assert.match(text, /• Đà Nẵng: 220\.000đ/);
 });
 
+test("spending paid straight from a funding source counts as funded, not owed", () => {
+  const noted = (id, name, categoryId, accountId, amount, note = "") => ({
+    id,
+    properties: {
+      "Nội Dung Khoản Chi": { title: [{ plain_text: name }] },
+      "Ghi Chú": { rich_text: note ? [{ plain_text: note }] : [] },
+      "Số Tiền": { number: amount },
+      "Ngày": { date: { start: "2026-08-02" } },
+      "Loại Chi Phí": { relation: [{ id: categoryId }] },
+      "Phương Thức Thanh Toán": { relation: [{ id: accountId }] }
+    }
+  });
+  const build = (options) => buildAccountSpendingData_(
+    { y: 2026, m: 8, d: 25 },
+    [trackedCategoryRow("affiliate", "Affiilate", 600000, "youtube-fund")],
+    [
+      // Tra bang chinh tai khoan giu quy, nhung ghi chu noi lay cua mot quy con
+      // khong co trong danh sach nhom quy -> phai tra lai cho quy do.
+      noted("claude", "Claude Pro", "affiliate", "fund", 554444, "( lấy từ quỹ tích lũy )"),
+      // Tra thang bang Momo — mot trong hai nguon dung de cap quy.
+      noted("telegram", "Nạp ví telegram", "affiliate", "momo", 20000),
+      // Tai khoan khac han, khong phai nguon cap quy -> van la tien bo ra ho.
+      noted("bank", "Mua tài khoản", "affiliate", "bank", 5000)
+    ],
+    [
+      cashflowAccountRow("fund", "Quỹ Momo"),
+      cashflowAccountRow("momo", "Momo"),
+      cashflowAccountRow("bank", "Banking")
+    ],
+    5500000,
+    [],
+    [fundGroupRow("youtube-fund", "Làm YouTube", "fund", true)],
+    options
+  );
+
+  const withSources = build({ fundingSourceAccounts: ["Momo", "Grap Tiền Mặt"] });
+  const youtube = withSources.fundGroups[0];
+  assert.deepEqual(
+    youtube.borrowedFunds.map((entry) => ({ fund: entry.fund, amount: entry.amount })),
+    [{ fund: "quỹ tích lũy", amount: 554444 }]
+  );
+  // Momo la nguon cap quy nen 20.000 khong phai tra lai; Banking thi phai.
+  assert.deepEqual(
+    youtube.advances.map((entry) => ({ account: entry.account, amount: entry.amount })),
+    [{ account: "Banking", amount: 5000 }]
+  );
+
+  const text = fundBudgetText_(withSources);
+  assert.match(text, /• Làm YouTube → quỹ tích lũy: 554\.444đ/);
+  assert.match(text, /• Làm YouTube → Banking: 5\.000đ/);
+  assert.doesNotMatch(text, /→ Momo/);
+
+  // Khong khai bao nguon cap quy thi moi tai khoan la deu bi coi la tra ho.
+  const withoutSources = build({}).fundGroups[0];
+  assert.deepEqual(
+    withoutSources.advances.map((entry) => entry.account).sort(),
+    ["Banking", "Momo"]
+  );
+});
+
 test("spending splits into fund groups, loose spending and excluded one-offs", () => {
   const spend = (id, name, categoryId, accountId, amount) => ({
     id,
