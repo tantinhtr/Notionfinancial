@@ -429,6 +429,16 @@ function borrowedFrom_(expenseRow) {
 // thi chi can tieu de/ghi chu NHAC TOI ten mot nhom quy co that la du — anh viet tat
 // kieu "( phat sinh )" van phai an. Khong nhan khi ten do chinh la ben cho muon
 // ("lay tu quy X"), vi do la nguon tien chu khong phai ngan sach.
+// Ten nhom quy chi tinh la duoc nhac toi khi no DI SAU chu "quy" va KET THUC tron
+// ven. Thieu hai dieu kien do thi "Gửi xe đi chợ" bi keo vao nhom Đi Chợ, va
+// "( lấy từ quỹ đi chơi với em )" cung bi cat thanh "quỹ đi chợ".
+function mentionsFund_(normalizedText, key) {
+  const needle = normalizeSearchText_(key);
+  if (needle === "") return false;
+  const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp("qu\\S*\\s+" + escaped + "(?![a-z0-9])").test(normalizedText);
+}
+
 function assignedFund_(expenseRow, groupNameKeys) {
   const explicit = fundMentionedAfter_(expenseRow, /tính\s+vào\s+(.+)$/i);
   if (explicit !== "") return explicit;
@@ -440,7 +450,7 @@ function assignedFund_(expenseRow, groupNameKeys) {
   let best = "";
   for (const key of groupNameKeys || []) {
     if (key === "" || key === lenderKey) continue;
-    if (text.indexOf(normalizeSearchText_(key)) < 0) continue;
+    if (!mentionsFund_(text, key)) continue;
     if (key.length > best.length) best = key;
   }
   return best === "" ? "" : "quỹ " + best;
@@ -787,22 +797,12 @@ export function buildAccountSpendingData_(
       }
     }
 
-    // Luot 2: khoan dang le phai tra bang tai khoan giu quy ma lai tra bang thu
-    // khac thi xu ly theo so du that cua quy:
-    //   quy da co san tien  -> phai chuyen tra lai cho da ung
-    //   quy chua co tien    -> thoi khong cap so do vao quy nua, da tieu roi
-    let available = Math.max(netAllocated - group.paidFromFund, 0);
+    // Luot 2: khoan dang le phai tra bang tai khoan giu quy ma lai tra bang thu khac
+    // deu la tien nguoi ta bo ra ho, phai tra lai — khong phu thuoc quy da co tien
+    // hay chua. Quy chua duoc cap khong lam mon no bien mat: no chi co nghia la phai
+    // cap tien vao roi tra.
     for (const spendRow of paidOutsideRows) {
-      const repay = Math.min(available, spendRow.amount);
-      if (repay <= 0) continue;
-      addDebtRow(
-        advanceByAccount,
-        spendRow.account,
-        spendRow,
-        repay,
-        repay < spendRow.amount
-      );
-      available -= repay;
+      addDebtRow(advanceByAccount, spendRow.account, spendRow, spendRow.amount, false);
     }
 
     group.allocated = Math.max(netAllocated, 0);
@@ -831,11 +831,10 @@ export function buildAccountSpendingData_(
       // Khong tru thi bot vua khoe "quy con X" vua doi tra dung X o muc UNG TRUOC.
       const advancesTotal = group.advances.reduce((sum, entry) => sum + entry.amount, 0);
       group.fundRemaining = Math.max(group.fundBalance - advancesTotal, 0);
-      const remainingBudget = Math.max(group.budget - group.spent, 0);
-      group.transferNeeded = Math.max(
-        remainingBudget - Math.max(group.fundBalance, 0),
-        0
-      );
+      // Can cap them = phan ngan sach chua bom vao quy. Nhom nao da tieu bang tui
+      // khac thi so nay chinh la tien de tra lai ho — nen khong duoc tru di phan
+      // "da tieu roi". Chan tren bang ngan sach: tieu lo thi thoi, khong cap bu.
+      group.transferNeeded = Math.max(group.budget - group.allocated, 0);
     }
     fundGroups.push(group);
   }

@@ -36,28 +36,26 @@ Báo cáo chia làm ba mục tách bạch, mỗi mục trả lời một câu h�
     22/08 Thanh toán đơn hàng shoppe: 47.000đ (phần lố)
 Tổng: 601.444đ
 
-💰 CẦN CẤP THÊM — cho phần ngân sách chưa tiêu
+💰 CẦN CẤP THÊM — phần ngân sách chưa bơm vào quỹ
 • Phát Sinh → Quỹ Momo: 449.000đ
 ```
 
 - **NGÂN SÁCH** — đã tiêu bao nhiêu so với mức trần tự đặt. Đây là kế hoạch, không phải tiền thật.
 - **ỨNG TRƯỚC** — tiền người khác bỏ ra hộ, phải trả lại. Mỗi dòng đọc là: *nhóm nào → trả cho ai → bao nhiêu*, kèm luôn các giao dịch tạo ra nó.
-- **CẦN CẤP THÊM** — phần ngân sách chưa tiêu mà quỹ chưa có đủ tiền. Cấp vào để chuẩn bị chi tiếp. Nhóm đã tiêu vượt ngân sách thì không xuất hiện ở đây.
+- **CẦN CẤP THÊM** — `ngân sách − đã cấp`, tức phần ngân sách chưa được bơm vào tài khoản giữ quỹ. Không trừ đi phần đã tiêu: phần đã tiêu bằng túi khác chính là số phải bơm vào rồi trả lại. Trần là ngân sách — tiêu lố thì thôi, không cấp bù phần lố.
 
-Mỗi nhóm quỹ có một tài khoản giữ quỹ (`Tài Khoản Giữ Quỹ` trong Notion), và mọi khoản thuộc nhóm đó đáng lẽ phải thanh toán bằng tài khoản ấy. Khi một khoản lại được trả bằng thứ khác — tiền mặt, ví khác, hay quỹ khác — bot xử lý theo **số dư thật của quỹ**:
+Mỗi nhóm quỹ có một tài khoản giữ quỹ (`Tài Khoản Giữ Quỹ` trong Notion), và mọi khoản thuộc nhóm đó đáng lẽ phải thanh toán bằng tài khoản ấy. Khi một khoản lại được trả bằng thứ khác — tiền mặt, ví khác, hay quỹ khác:
 
 | Tình huống | Bot làm gì |
 |---|---|
-| Quỹ **đã có sẵn tiền** cho khoản đó | Ghi vào ỨNG TRƯỚC → phải chuyển trả lại đúng chỗ đã ứng |
-| Quỹ **chưa có tiền** | Không ghi gì. Tiêu rồi thì thôi khỏi cấp số đó vào quỹ nữa — số ở mục CẦN CẤP THÊM tự giảm đi |
-| Ghi chú nói `lấy từ quỹ X` | Luôn trả đủ cho quỹ X, kể cả khi còn trong hạn mức — đó là tiền của túi khác |
+| Trả bằng tài khoản khác | Ghi vào ỨNG TRƯỚC → phải chuyển trả lại đúng chỗ đã ứng, **dù quỹ đã được cấp hay chưa** |
+| Ghi chú nói `lấy từ quỹ X` | Trả đủ cho quỹ X, kể cả khi còn trong hạn mức — đó là tiền của túi khác |
 
-Ví dụ nhóm Thiết Yếu gồm Nhà Trọ 2.150.000 + Internet 180.000 + Cắt Tóc 70.000, tất cả trả bằng Quỹ Momo. Hôm cắt tóc lại trả bằng tiền mặt:
+**Quỹ chưa được cấp đồng nào không làm món nợ biến mất.** Ví dụ nhóm Làm YouTube chưa cấp gì mà đã tiêu 574.444đ — 554.444đ mượn quỹ tích lũy, 20.000đ Momo trả hộ — thì báo cáo nói đủ cả hai chỗ phải trả, và cả 600.000đ ngân sách vẫn nằm ở mục CẦN CẤP THÊM, vì đó chính là tiền để trả lại.
 
-- Nếu quỹ đã được cấp đủ → hiện `Thiết Yếu → Tiền Mặt: 70.000đ`, chuyển trả lại là xong.
-- Nếu quỹ chưa cấp → không hiện gì, và số cần cấp giảm từ 2.400.000 xuống 2.330.000.
+Ví dụ nhóm Thiết Yếu gồm Nhà Trọ 2.150.000 + Internet 180.000 + Khác 70.000, tất cả trả bằng Quỹ Momo. Hôm cắt tóc lại trả bằng tiền mặt thì báo cáo hiện `Thiết Yếu → Tiền Mặt: 70.000đ` — quỹ đã cấp đủ hay chưa cũng vậy, tiền mặt bỏ ra hộ thì phải được trả lại.
 
-Khi quỹ chỉ đủ trả một phần, bot hoàn tối đa phần quỹ đang có và đánh dấu `(một phần)`.
+Tên nhóm quỹ trong ghi chú chỉ được tính khi nó đứng **sau chữ `quỹ`** và **kết thúc trọn vẹn**. Nhờ vậy `Gửi xe đi chợ` không bị kéo vào nhóm Đi Chợ, và `( lấy từ quỹ đi chơi với em )` không bị cắt thành `quỹ Đi Chợ`.
 
 Mỗi món liệt kê tối đa 6 giao dịch rồi gộp phần còn lại thành `… và N khoản nữa`. Tên hiển thị được cắt bỏ chú thích quỹ trong ngoặc cho gọn, nhưng ngoặc mang ngữ cảnh thật như `( mua đồ cho em )` thì giữ nguyên.
 
@@ -81,7 +79,7 @@ Mỗi nhóm quỹ có hai chiều tiền, báo cáo hiện cả hai:
 
 `quỹ còn X` **không phải** là ngân sách trừ đã tiêu. Nó là `đã cấp − đã tiêu`, tức tiền đang thật sự nằm trong tài khoản giữ quỹ. Ví dụ trên: ngân sách còn dư 101.600 trên giấy, nhưng 70.000 tiền cắt tóc chưa hề được cấp vào quỹ nên không được tính là tiền của nhóm — trong quỹ chỉ có 31.600 (tiền trọ thừa 28.000 + wifi thừa 3.600). Khi nào cấp nốt 70.000 kia thì dòng này mới thành `quỹ còn 101.600đ`.
 
-Phần chênh lệch đó chính là mục **CẦN CẤP THÊM**: `ngân sách chưa tiêu − tiền đang có trong quỹ`. Nhóm nào tiêu vượt ngân sách rồi thì không còn gì để cấp trước nữa, mục này bỏ qua nhóm đó — tiền đã đi mất, việc phải làm là trả lại chỗ đã ứng chứ không phải bơm thêm vào quỹ.
+Phần chênh lệch đó chính là mục **CẦN CẤP THÊM**: `ngân sách − đã cấp` (xem ở trên).
 
 `quỹ còn X` chỉ hiện khi đó là tiền thật sự **rảnh**. Nếu nhóm có khoản chi trả bằng tài khoản khác thì số dư đã bị hẹn trả lại, nên bị trừ đi trước — không thể vừa khoe *"quỹ còn 31.600đ"* vừa đòi trả đúng 31.600đ đó ở mục ỨNG TRƯỚC.
 
