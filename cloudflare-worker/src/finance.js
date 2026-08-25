@@ -831,10 +831,15 @@ export function buildAccountSpendingData_(
       // Khong tru thi bot vua khoe "quy con X" vua doi tra dung X o muc UNG TRUOC.
       const advancesTotal = group.advances.reduce((sum, entry) => sum + entry.amount, 0);
       group.fundRemaining = Math.max(group.fundBalance - advancesTotal, 0);
-      // Can cap them = phan ngan sach chua bom vao quy. Nhom nao da tieu bang tui
-      // khac thi so nay chinh la tien de tra lai ho — nen khong duoc tru di phan
-      // "da tieu roi". Chan tren bang ngan sach: tieu lo thi thoi, khong cap bu.
-      group.transferNeeded = Math.max(group.budget - group.allocated, 0);
+      // Tien tieu bang tui khac CUNG COI NHU DA CAP: dang le no phai di qua quy,
+      // chi la chua co giao dich chuyen thoi. Viec tra lai cho ben da ung nam o muc
+      // UNG TRUOC, khong phai cap lai lan hai. Nen can cap them chi con la phan
+      // ngan sach chua dung toi, tru di so quy dang giu.
+      const remainingBudget = Math.max(group.budget - group.spent, 0);
+      group.transferNeeded = Math.max(
+        remainingBudget - Math.max(group.fundBalance, 0),
+        0
+      );
     }
     fundGroups.push(group);
   }

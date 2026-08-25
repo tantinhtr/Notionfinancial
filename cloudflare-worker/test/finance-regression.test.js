@@ -931,8 +931,8 @@ test("fund groups reconcile Notion transfers with spending paid outside the virt
   assert.equal(incidental.spent, 861790);
   assert.equal(incidental.over, 261790);
   assert.equal(incidental.paidOutsideFund, 715790);
-  // Moi cap 200.000 tren ngan sach 600.000 nen con thieu 400.000 phai bom vao quy.
-  assert.equal(incidental.transferNeeded, 400000);
+  // Da tieu qua ngan sach roi thi khong con gi de cap truoc nua.
+  assert.equal(incidental.transferNeeded, 0);
   assert.equal(data.unallocatedBudget, 2000000);
 
   const text = accountSpendingText_(data);
@@ -981,8 +981,9 @@ test("a fund that spent from its holding account without any transfer reports th
   assert.equal(youtube.fundBalance, -554444);
   assert.equal(youtube.over, 74444);
   assert.equal(youtube.fundDebt, 554444);
-  // Chua bom dong nao vao quy: phai cap ca 500.000 ngan sach de tra lai cho da ung.
-  assert.equal(youtube.transferNeeded, 500000);
+  // 574.444 da tieu bang tui khac cung coi nhu da cap, ma con vuot ngan sach roi
+  // nen khong con gi de cap them; viec phai lam la tra lai cho da ung.
+  assert.equal(youtube.transferNeeded, 0);
   // Quy chua co tien khong lam mon no bien mat: Grap tra ho 20.000 van phai tra lai.
   assert.deepEqual(
     youtube.advances.map((entry) => ({ account: entry.account, amount: entry.amount })),
@@ -1003,10 +1004,7 @@ test("a fund that spent from its holding account without any transfer reports th
       "• Làm YouTube → Quỹ Momo: 554.444đ\n" +
       "• Làm YouTube → Grap Tiền Mặt: 20.000đ\n" +
       "    20/07 telegram-wallet: 20.000đ\n" +
-      "Tổng: 574.444đ\n" +
-      "\n" +
-      "💰 CẦN CẤP THÊM\n" +
-      "• Làm YouTube → Quỹ Momo: 500.000đ"
+      "Tổng: 574.444đ"
   );
 });
 
@@ -1149,8 +1147,8 @@ test("a spending note assigns the expense to that fund even from another categor
     incidental.advances.map((entry) => ({ account: entry.account, amount: entry.amount })),
     [{ account: "Momo", amount: 277000 }, { account: "Grap Tiền Mặt", amount: 144000 }]
   );
-  // Chua bom dong nao vao quy nen ca 600.000 ngan sach van la so phai cap.
-  assert.equal(incidental.transferNeeded, 600000);
+  // 421.000 tieu bang tui khac coi nhu da cap; con 179.000 ngan sach chua dung toi.
+  assert.equal(incidental.transferNeeded, 179000);
 
   const text = fundBudgetText_(data);
   // Quy chua duoc cap dong nao nen khong khoe "con 179.000" — do la ngan sach,
@@ -1209,7 +1207,8 @@ test("paying from the wrong account is settled by what the fund actually holds",
     unfunded.advances.map((entry) => ({ account: entry.account, amount: entry.amount })),
     [{ account: "Tiền Mặt", amount: 70000 }]
   );
-  assert.equal(unfunded.transferNeeded, 2400000);
+  // 70.000 tieu bang tien mat coi nhu da cap roi, chi con 2.330.000 chua dung toi.
+  assert.equal(unfunded.transferNeeded, 2330000);
   assert.match(fundBudgetText_(build([])), /• Thiết Yếu → Tiền Mặt: 70\.000đ/);
 });
 
