@@ -919,19 +919,16 @@ test("fund groups reconcile Notion transfers with spending paid outside the virt
     fundDebt: 0,
     borrowedFunds: [],
     advances: [],
-    transferNeeded: 0,
     requiresAllocation: true,
     unmatchedCategories: []
   });
   assert.equal(youtube.allocated, 555000);
   assert.equal(youtube.spent, 554444);
   assert.equal(youtube.over, 54444);
-  assert.equal(youtube.transferNeeded, 0);
   assert.equal(incidental.allocated, 200000);
   assert.equal(incidental.spent, 861790);
   assert.equal(incidental.over, 261790);
   assert.equal(incidental.paidOutsideFund, 715790);
-  assert.equal(incidental.transferNeeded, 0);
   assert.equal(data.unallocatedBudget, 2000000);
 
   const text = accountSpendingText_(data);
@@ -944,7 +941,7 @@ test("fund groups reconcile Notion transfers with spending paid outside the virt
   assert.doesNotMatch(text, /quỹ tích lũy/);
 });
 
-test("a managed fund with no transfer or outside spending warns the amount to transfer", () => {
+test("a managed fund with nothing spent yet is never told to transfer money in", () => {
   const data = buildAccountSpendingData_(
     { y: 2026, m: 7, d: 23 },
     [trackedCategoryRow("incidental", "Phát Sinh", 600000, "incidental-fund")],
@@ -954,8 +951,12 @@ test("a managed fund with no transfer or outside spending warns the amount to tr
     [],
     [fundGroupRow("incidental-fund", "Phát Sinh", "fund", true)]
   );
-  assert.equal(data.fundGroups[0].transferNeeded, 600000);
-  assert.match(accountSpendingText_(data), /⚠️ Phát Sinh: 0đ \/ 600\.000đ \| cần cấp 600\.000đ/);
+  // Chua tieu dong nao thi khong co gi de doi: bao cao chi noi quy chua duoc cap.
+  assert.match(accountSpendingText_(data), /✅ Phát Sinh: 0đ \/ 600\.000đ/);
+  assert.doesNotMatch(accountSpendingText_(data), /cần cấp/);
+  const text = fundBudgetText_(data);
+  assert.match(text, /↳ chưa cấp/);
+  assert.doesNotMatch(text, /CẦN CẤP THÊM/);
 });
 
 test("a fund that spent from its holding account without any transfer reports the debt", () => {
@@ -981,7 +982,6 @@ test("a fund that spent from its holding account without any transfer reports th
   assert.equal(youtube.over, 74444);
   // Tiền đã tiêu rồi thì không cấp vào quỹ nữa — cái phải làm là trả lại chỗ đã ứng.
   assert.equal(youtube.fundDebt, 554444);
-  assert.equal(youtube.transferNeeded, 0);
   // Quỹ đang âm, không có đồng nào để hoàn, nên khoản Grap trả hộ không bị ghi —
   // thôi khỏi cấp số đó vào quỹ nữa.
   assert.deepEqual(youtube.advances, []);
@@ -1135,7 +1135,6 @@ test("a spending note assigns the expense to that fund even from another categor
   assert.equal(incidental.over, 0);
   // Vẫn trong hạn mức nên tài khoản trả hộ không bị ghi là ứng trước.
   assert.deepEqual(incidental.advances, []);
-  assert.equal(incidental.transferNeeded, 179000);
 
   const text = fundBudgetText_(data);
   assert.match(text, /✅ Phát Sinh: 421\.000đ \/ 600\.000đ · còn 179\.000đ/);
@@ -1179,14 +1178,64 @@ test("paying from the wrong account is settled by what the fund actually holds",
     [{ account: "Tiền Mặt", amount: 70000 }]
   );
   assert.equal(funded.advances[0].rows[0].partial, false);
-  assert.equal(funded.transferNeeded, 0);
 
-  // Quỹ chưa có tiền: không ghi nợ, và cũng không cần cấp 70.000 đó vào quỹ nữa —
-  // chỉ còn phải cấp 2.330.000 cho hai khoản chưa tiêu.
+  // Quỹ chưa có tiền: không ghi nợ, và cũng không đòi cấp 70.000 đó vào quỹ nữa —
+  // tiền đã tiêu bằng tài khoản khác rồi, cấp bù vào quỹ chẳng để làm gì.
   const unfunded = build([]).fundGroups[0];
   assert.deepEqual(unfunded.advances, []);
-  assert.equal(unfunded.transferNeeded, 2330000);
   assert.doesNotMatch(fundBudgetText_(build([])), /ỨNG TRƯỚC/);
+  assert.doesNotMatch(fundBudgetText_(build([])), /CẦN CẤP THÊM/);
+});
+
+test("a fund supplied above what it spent is not asked to top up the leftover budget", () => {
+  const paid = (id, name, categoryId, amount, date) => ({
+    id,
+    properties: {
+      "Nội Dung Khoản Chi": { title: [{ plain_text: name }] },
+      "Ghi Chú": { rich_text: [] },
+      "Số Tiền": { number: amount },
+      "Ngày": { date: { start: date } },
+      "Loại Chi Phí": { relation: [{ id: categoryId }] },
+      "Phương Thức Thanh Toán": { relation: [{ id: "fund" }] }
+    }
+  });
+  // Thiết Yếu tháng 8: cấp 2.150.000 + 180.000 vào Quỹ Momo, tiêu hết 2.298.400
+  // cũng từ chính quỹ đó. Cắt Tóc 70.000 chưa cắt nên chưa tiêu.
+  const data = buildAccountSpendingData_(
+    { y: 2026, m: 8, d: 25 },
+    [
+      trackedCategoryRow("rent", "Nhà Trọ", 2150000, "essential-fund"),
+      trackedCategoryRow("net", "Internet", 180000, "essential-fund"),
+      trackedCategoryRow("hair", "Cắt Tóc", 70000, "essential-fund")
+    ],
+    [
+      paid("rent-aug", "Tiền phòng và tiền điện nước", "rent", 2122000, "2026-08-01"),
+      paid("net-aug", "Thanh toán tiền wifi ở nhà", "net", 176400, "2026-08-18")
+    ],
+    [cashflowAccountRow("fund", "Quỹ Momo"), cashflowAccountRow("momo", "Momo")],
+    5500000,
+    [
+      transferRow("cap-tro", "Tiền phòng tháng này", 2150000, "momo", "fund", "essential-fund"),
+      transferRow("cap-net", "Tiền wifi", 180000, "momo", "fund", "essential-fund")
+    ],
+    [fundGroupRow("essential-fund", "Thiết Yếu", "fund", true)]
+  );
+
+  const essential = data.fundGroups[0];
+  assert.equal(essential.allocated, 2330000);
+  assert.equal(essential.spent, 2298400);
+  assert.equal(essential.fundBalance, 31600);
+  assert.equal(essential.fundRemaining, 31600);
+  assert.equal(essential.fundDebt, 0);
+  assert.deepEqual(essential.advances, []);
+
+  const text = fundBudgetText_(data);
+  assert.match(text, /✅ Thiết Yếu: 2\.298\.400đ \/ 2\.400\.000đ · còn 101\.600đ/);
+  assert.match(text, /↳ đã cấp 2\.330\.000đ · quỹ còn 31\.600đ/);
+  // Đã cấp vượt số đã tiêu thì quỹ không thiếu gì: không đòi cấp thêm 70.000 nữa.
+  assert.doesNotMatch(text, /CẦN CẤP THÊM/);
+  assert.doesNotMatch(text, /ỨNG TRƯỚC/);
+  assert.doesNotMatch(accountSpendingText_(data), /cần cấp/);
 });
 
 test("spending splits into fund groups, loose spending and excluded one-offs", () => {
@@ -1388,7 +1437,6 @@ test("a fund that does not require allocation never asks for a transfer", () => 
     [fundGroupRow("market-fund", "Đi Chợ", "cash", false)]
   );
   assert.equal(data.fundGroups[0].requiresAllocation, false);
-  assert.equal(data.fundGroups[0].transferNeeded, 0);
   const text = accountSpendingText_(data);
   assert.match(text, /✅ Đi Chợ: 0đ \/ 1\.300\.000đ/);
   assert.doesNotMatch(text, /Cần chuyển thêm vào Đi Chợ/);
@@ -1456,7 +1504,6 @@ test("fund budget text preserves approved fund statuses and heading", () => {
         allocated: 2400000,
         fundBalance: 122600,
         fundRemaining: 122600,
-        transferNeeded: 0,
         requiresAllocation: true,
         unmatchedCategories: []
       },
@@ -1466,7 +1513,6 @@ test("fund budget text preserves approved fund statuses and heading", () => {
         spent: 801000,
         over: 0,
         allocated: 0,
-        transferNeeded: 0,
         requiresAllocation: false,
         unmatchedCategories: []
       },
@@ -1478,7 +1524,6 @@ test("fund budget text preserves approved fund statuses and heading", () => {
         over: 0,
         allocated: 0,
         fundBalance: 0,
-        transferNeeded: 600000,
         requiresAllocation: true,
         unmatchedCategories: []
       },
@@ -1491,7 +1536,6 @@ test("fund budget text preserves approved fund statuses and heading", () => {
         allocated: 555000,
         fundBalance: 556,
         fundRemaining: 556,
-        transferNeeded: 0,
         requiresAllocation: true,
         unmatchedCategories: []
       },
@@ -1501,7 +1545,6 @@ test("fund budget text preserves approved fund statuses and heading", () => {
         spent: 25000,
         over: 0,
         allocated: 0,
-        transferNeeded: 0,
         requiresAllocation: false,
         unmatchedCategories: ["missing-category"]
       }
@@ -1521,10 +1564,7 @@ test("fund budget text preserves approved fund statuses and heading", () => {
       "⛔ Làm YouTube: 554.444đ / 500.000đ · vượt 54.444đ\n" +
       "   ↳ đã cấp 555.000đ · quỹ còn 556đ\n" +
       "✅ Chưa Ghép: 25.000đ / 100.000đ · còn 75.000đ · ⚠️ thiếu loại chi\n" +
-      "💵 Đã cấp vào quỹ: 2.955.000đ · quỹ đang giữ: 123.156đ\n" +
-      "\n" +
-      "💰 CẦN CẤP THÊM\n" +
-      "• Phát Sinh → Quỹ Momo: 600.000đ"
+      "💵 Đã cấp vào quỹ: 2.955.000đ · quỹ đang giữ: 123.156đ"
   );
 });
 

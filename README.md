@@ -35,27 +35,25 @@ Báo cáo chia làm ba mục tách bạch, mỗi mục trả lời một câu h�
 • Phát Sinh → Momo: 47.000đ
     22/08 Thanh toán đơn hàng shoppe: 47.000đ (phần lố)
 Tổng: 601.444đ
-
-💰 CẦN CẤP THÊM — cho phần ngân sách chưa tiêu
-• Phát Sinh → Quỹ Momo: 449.000đ
 ```
 
 - **NGÂN SÁCH** — đã tiêu bao nhiêu so với mức trần tự đặt. Đây là kế hoạch, không phải tiền thật.
 - **ỨNG TRƯỚC** — tiền người khác bỏ ra hộ, phải trả lại. Mỗi dòng đọc là: *nhóm nào → trả cho ai → bao nhiêu*, kèm luôn các giao dịch tạo ra nó.
-- **CẦN CẤP THÊM** — phần ngân sách chưa tiêu mà quỹ chưa có đủ tiền. Cấp vào để chuẩn bị chi tiếp.
+
+Báo cáo **không bao giờ bảo cấp trước** cho phần ngân sách chưa tiêu. Ngân sách là mức trần, không phải nghĩa vụ phải bơm đủ tiền vào quỹ từ đầu tháng: đã cấp vượt số đã tiêu thì quỹ chẳng thiếu gì, mà tiêu rồi mới cấp bù thì càng vô nghĩa. Thứ duy nhất còn phải làm là **trả lại** cho ai đã ứng, và đó chính là mục ỨNG TRƯỚC.
 
 Mỗi nhóm quỹ có một tài khoản giữ quỹ (`Tài Khoản Giữ Quỹ` trong Notion), và mọi khoản thuộc nhóm đó đáng lẽ phải thanh toán bằng tài khoản ấy. Khi một khoản lại được trả bằng thứ khác — tiền mặt, ví khác, hay quỹ khác — bot xử lý theo **số dư thật của quỹ**:
 
 | Tình huống | Bot làm gì |
 |---|---|
 | Quỹ **đã có sẵn tiền** cho khoản đó | Ghi vào ỨNG TRƯỚC → phải chuyển trả lại đúng chỗ đã ứng |
-| Quỹ **chưa có tiền** | Không ghi gì. Tiêu rồi thì thôi khỏi cấp số đó vào quỹ nữa — số ở mục CẦN CẤP THÊM tự giảm đi |
+| Quỹ **chưa có tiền** | Không ghi gì. Tiêu rồi thì thôi, khỏi cấp số đó vào quỹ nữa |
 | Ghi chú nói `lấy từ quỹ X` | Luôn trả đủ cho quỹ X, kể cả khi còn trong hạn mức — đó là tiền của túi khác |
 
 Ví dụ nhóm Thiết Yếu gồm Nhà Trọ 2.150.000 + Internet 180.000 + Cắt Tóc 70.000, tất cả trả bằng Quỹ Momo. Hôm cắt tóc lại trả bằng tiền mặt:
 
 - Nếu quỹ đã được cấp đủ → hiện `Thiết Yếu → Tiền Mặt: 70.000đ`, chuyển trả lại là xong.
-- Nếu quỹ chưa cấp → không hiện gì, và số cần cấp giảm từ 2.400.000 xuống 2.330.000.
+- Nếu quỹ chưa cấp → không hiện gì cả: 70.000 đó đã tiêu bằng tiền mặt rồi, cấp bù vào quỹ chẳng để làm gì.
 
 Khi quỹ chỉ đủ trả một phần, bot hoàn tối đa phần quỹ đang có và đánh dấu `(một phần)`.
 
@@ -81,7 +79,7 @@ Mỗi nhóm quỹ có hai chiều tiền, báo cáo hiện cả hai:
 `quỹ còn X` chỉ hiện khi đó là tiền thật sự rảnh. Nếu nhóm có khoản chi trả bằng tài khoản khác thì số dư đã bị hẹn trả lại, nên bị trừ đi trước — không thể vừa khoe *"quỹ còn 31.600đ"* vừa đòi trả đúng 31.600đ đó ở mục ỨNG TRƯỚC.
 - Dòng `💵` là tổng của cả hai.
 
-Dòng tổng **không so với tổng ngân sách 5tr5**, vì phần ngân sách đã tiêu rồi thì cấp vào cũng vô nghĩa — tiền đi mất rồi. Số thật sự cần bơm thêm nằm ở mục **CẦN CẤP THÊM**, và nó chỉ tính trên phần ngân sách **chưa tiêu**.
+Dòng tổng **không so với tổng ngân sách 5tr5**, vì phần ngân sách đã tiêu rồi thì cấp vào cũng vô nghĩa — tiền đi mất rồi. Ví dụ Thiết Yếu cấp 2.330.000 mà chỉ tiêu 2.298.400: quỹ còn 31.600 và 70.000 tiền cắt tóc chưa cắt, bot **không** đòi cấp thêm 70.000 — cấp đã vượt số tiêu rồi thì cấp nữa làm gì.
 
 Tiền vào lấy từ bảng **Giao Dịch Các Tài Khoản**, chỉ tính giao dịch có gắn nhãn `Nhóm Quỹ` và chuyển **đến** đúng tài khoản giữ quỹ của nhóm. Chuyển ra khỏi tài khoản đó thì trừ đi.
 
