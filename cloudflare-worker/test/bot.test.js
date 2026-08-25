@@ -72,6 +72,7 @@ function fundFixture() {
       spent: 2277400,
       over: 0,
       allocated: 2400000,
+      transferNeeded: 0,
       requiresAllocation: true,
       unmatchedCategories: []
     }]

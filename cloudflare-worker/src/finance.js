@@ -718,6 +718,7 @@ export function buildAccountSpendingData_(
       fundDebt: 0,
       borrowedFunds: [],
       advances: [],
+      transferNeeded: 0,
       requiresAllocation,
       unmatchedCategories: []
     };
@@ -809,11 +810,11 @@ export function buildAccountSpendingData_(
     // Tiền của nhóm còn nằm thật trong tài khoản giữ quỹ: đã cấp trừ phần đã chi từ
     // chính tài khoản đó. Âm nghĩa là quỹ đã ứng tiền của nhóm khác để chi hộ.
     group.fundBalance = netAllocated - group.paidFromFund;
-    // Báo cáo chỉ nói những gì ĐÃ xảy ra với dòng tiền, không bắt cấp trước cho
-    // phần ngân sách chưa tiêu: tiền đã cấp vượt số đã tiêu thì quỹ không thiếu gì,
-    // mà tiêu rồi mới cấp bù thì cũng vô nghĩa. Chỉ còn hai khoản thật sự phải trả:
-    //   fundDebt — quỹ đã tiêu lấn tiền nhóm khác trong cùng tài khoản, phải bù lại.
-    //   advances — tài khoản khác đã trả hộ mà quỹ còn tiền để hoàn, phải trả lại.
+    // Hai khoản này khác bản chất, không được cộng chung:
+    //   fundDebt      — quỹ đã ứng tiền chi hộ, phải TRẢ LẠI. Tiền đã tiêu rồi.
+    //   transferNeeded— phần ngân sách CHƯA tiêu, phải CẤP vào quỹ trước khi chi.
+    // Đã ứng trước rồi thì thôi không cần cấp nữa, nên transferNeeded chỉ tính
+    // trên số dư dương của quỹ.
     if (requiresAllocation) {
       group.fundDebt = Math.max(-group.fundBalance, 0);
       const bucketToList = (bucket, key) => Object.keys(bucket)
@@ -830,6 +831,11 @@ export function buildAccountSpendingData_(
       // Khong tru thi bot vua khoe "quy con X" vua doi tra dung X o muc UNG TRUOC.
       const advancesTotal = group.advances.reduce((sum, entry) => sum + entry.amount, 0);
       group.fundRemaining = Math.max(group.fundBalance - advancesTotal, 0);
+      const remainingBudget = Math.max(group.budget - group.spent, 0);
+      group.transferNeeded = Math.max(
+        remainingBudget - Math.max(group.fundBalance, 0),
+        0
+      );
     }
     fundGroups.push(group);
   }
@@ -917,6 +923,9 @@ export function accountSpendingText_(data) {
       if (group.over > 0) {
         row = "⛔ " + group.name + ": " + money_(group.spent) + " / " +
           money_(group.budget) + " | vượt, cần hoàn " + money_(group.over) + " | DỪNG CHI";
+      } else if (group.transferNeeded > 0) {
+        row = "⚠️ " + group.name + ": " + money_(group.spent) + " / " +
+          money_(group.budget) + " | cần cấp " + money_(group.transferNeeded);
       } else {
         row = "✅ " + group.name + ": " + money_(group.spent) + " / " + money_(group.budget);
         if (group.requiresAllocation && group.allocated > 0) {
@@ -992,10 +1001,18 @@ export function unusualSpendingKeyboard_() {
 function budgetLine_(group) {
   const over = group.over || 0;
   let row = (over > 0 ? "⛔ " : "✅ ") + group.name + ": " +
-    money_(group.spent) + " / " + money_(group.budget) + " · " +
-    (over > 0
-      ? "vượt " + money_(over)
-      : "còn " + money_(Math.max((group.budget || 0) - (group.spent || 0), 0)));
+    money_(group.spent) + " / " + money_(group.budget);
+  if (over > 0) {
+    row += " · vượt " + money_(over);
+  } else if (group.requiresAllocation) {
+    // Nhóm có quỹ riêng thì "còn" phải là TIỀN THẬT đang nằm trong tài khoản giữ
+    // quỹ, không phải ngân sách trừ đã tiêu. Phần ngân sách chưa cấp vào quỹ thì
+    // chưa phải tiền của nhóm — nó nằm ở mục CẦN CẤP THÊM cho tới khi được cấp.
+    const held = group.fundRemaining || 0;
+    if (held > 0) row += " · quỹ còn " + money_(held);
+  } else {
+    row += " · còn " + money_(Math.max((group.budget || 0) - (group.spent || 0), 0));
+  }
   if (group.unmatchedCategories && group.unmatchedCategories.length) {
     row += " · ⚠️ thiếu loại chi";
   }
@@ -1063,12 +1080,11 @@ const LOOSE_CATEGORIES_SHOWN = 12;
 // Tien DI VAO nhom quy: da cap bao nhieu, con lai bao nhieu trong tai khoan giu quy.
 function fundInflowLine_(group) {
   if (!group.requiresAllocation) return "";
-  const parts = [];
-  parts.push((group.allocated || 0) > 0 ? "đã cấp " + money_(group.allocated) : "chưa cấp");
-  // Chi noi so con lai khi quy that su con tien RANH — da tru phan hen tra lai.
-  const remaining = group.fundRemaining || 0;
-  if (remaining > 0) parts.push("quỹ còn " + money_(remaining));
-  return "   ↳ " + parts.join(" · ");
+  // "Quy con" da nam o dong tren roi, day chi noi da bom vao bao nhieu.
+  const allocated = group.allocated || 0;
+  return "   ↳ " + (allocated > 0
+    ? "đã cấp " + money_(allocated) + " / " + money_(group.budget || 0)
+    : "chưa cấp");
 }
 
 function budgetHeadline_(budget, groups) {
@@ -1154,6 +1170,17 @@ export function fundBudgetText_(data) {
       for (const line of debtRowLines_(debt.rows || [])) lines.push(line);
     }
     lines.push("Tổng: " + money_(total));
+  }
+
+  const funding = groups.filter((group) => (group.transferNeeded || 0) > 0);
+  if (funding.length) {
+    lines.push("", "💰 CẦN CẤP THÊM");
+    for (const group of funding) {
+      lines.push(
+        "• " + group.name + " → " + (group.destinationAccount || "Tài khoản giữ quỹ") +
+        ": " + money_(group.transferNeeded)
+      );
+    }
   }
 
   if (!groups.length && !budget) {
