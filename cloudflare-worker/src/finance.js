@@ -714,6 +714,7 @@ export function buildAccountSpendingData_(
       paidFromFund: 0,
       paidOutsideFund: 0,
       fundBalance: 0,
+      fundRemaining: 0,
       fundDebt: 0,
       borrowedFunds: [],
       advances: [],
@@ -826,6 +827,10 @@ export function buildAccountSpendingData_(
         .sort((a, b) => b.amount - a.amount);
       group.borrowedFunds = bucketToList(borrowByFund, "fund");
       group.advances = bucketToList(advanceByAccount, "account");
+      // So du quy con RANH: tru di phan da hen tra lai cho cac tai khoan da ung.
+      // Khong tru thi bot vua khoe "quy con X" vua doi tra dung X o muc UNG TRUOC.
+      const advancesTotal = group.advances.reduce((sum, entry) => sum + entry.amount, 0);
+      group.fundRemaining = Math.max(group.fundBalance - advancesTotal, 0);
       const remainingBudget = Math.max(group.budget - group.spent, 0);
       group.transferNeeded = Math.max(
         remainingBudget - Math.max(group.fundBalance, 0),
@@ -1069,10 +1074,9 @@ function fundInflowLine_(group) {
   if (!group.requiresAllocation) return "";
   const parts = [];
   parts.push((group.allocated || 0) > 0 ? "đã cấp " + money_(group.allocated) : "chưa cấp");
-  const balance = group.fundBalance || 0;
-  // Chi noi so con lai khi quy thuc su con tien. Tieu qua so da cap khong phai
-  // "quy am" — do la tien di muon, va no da duoc neu o muc UNG TRUOC roi.
-  if (balance > 0) parts.push("quỹ còn " + money_(balance));
+  // Chi noi so con lai khi quy that su con tien RANH — da tru phan hen tra lai.
+  const remaining = group.fundRemaining || 0;
+  if (remaining > 0) parts.push("quỹ còn " + money_(remaining));
   return "   ↳ " + parts.join(" · ");
 }
 
@@ -1104,7 +1108,7 @@ export function fundBudgetText_(data) {
     }
     const allocated = groups.reduce((sum, group) => sum + (group.allocated || 0), 0);
     const held = groups.reduce(
-      (sum, group) => sum + Math.max(group.fundBalance || 0, 0),
+      (sum, group) => sum + Math.max(group.fundRemaining || 0, 0),
       0
     );
     // Khong so voi tong ngan sach: phan da tieu roi thi cap vao lam gi nua. Chi noi

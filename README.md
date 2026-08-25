@@ -76,7 +76,9 @@ Mỗi nhóm quỹ có hai chiều tiền, báo cáo hiện cả hai:
 ```
 
 - Dòng trên là **tiền ra**: đã tiêu bao nhiêu so với ngân sách.
-- Dòng `↳` là **tiền vào**: đã chuyển bao nhiêu vào tài khoản giữ quỹ, và còn giữ lại bao nhiêu.
+- Dòng `↳` là **tiền vào**: đã chuyển bao nhiêu vào tài khoản giữ quỹ, và còn **rảnh** bao nhiêu.
+
+`quỹ còn X` chỉ hiện khi đó là tiền thật sự rảnh. Nếu nhóm có khoản chi trả bằng tài khoản khác thì số dư đã bị hẹn trả lại, nên bị trừ đi trước — không thể vừa khoe *"quỹ còn 31.600đ"* vừa đòi trả đúng 31.600đ đó ở mục ỨNG TRƯỚC.
 - Dòng `💵` là tổng của cả hai.
 
 Dòng tổng **không so với tổng ngân sách 5tr5**, vì phần ngân sách đã tiêu rồi thì cấp vào cũng vô nghĩa — tiền đi mất rồi. Số thật sự cần bơm thêm nằm ở mục **CẦN CẤP THÊM**, và nó chỉ tính trên phần ngân sách **chưa tiêu**.

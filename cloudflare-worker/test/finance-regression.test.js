@@ -915,6 +915,7 @@ test("fund groups reconcile Notion transfers with spending paid outside the virt
     paidFromFund: 2277400,
     paidOutsideFund: 0,
     fundBalance: 122600,
+    fundRemaining: 122600,
     fundDebt: 0,
     borrowedFunds: [],
     advances: [],
@@ -1328,6 +1329,54 @@ test("a note pointing at another fund pulls the expense out of its own label", (
   assert.equal(rent.spent, 2000000);
 });
 
+test("a fund balance already promised back is not shown as spare money", () => {
+  const spend = (id, name, categoryId, accountId, amount, date) => ({
+    id,
+    properties: {
+      "Nội Dung Khoản Chi": { title: [{ plain_text: name }] },
+      "Ghi Chú": { rich_text: [] },
+      "Số Tiền": { number: amount },
+      "Ngày": { date: { start: date } },
+      "Loại Chi Phí": { relation: [{ id: categoryId }] },
+      "Phương Thức Thanh Toán": { relation: [{ id: accountId }] }
+    }
+  });
+
+  const data = buildAccountSpendingData_(
+    { y: 2026, m: 8, d: 22 },
+    [
+      trackedCategoryRow("rent", "Nhà Trọ", 2150000, "essential-fund"),
+      trackedCategoryRow("net", "Internet", 250000, "essential-fund")
+    ],
+    [
+      spend("a", "Tiền phòng", "rent", "fund", 2098400, "2026-08-01"),
+      // Tra bang Momo chu khong phai tai khoan giu quy: quy dang no lai Momo.
+      spend("b", "Đăng ký 4g", "net", "momo", 196000, "2026-08-19")
+    ],
+    [
+      cashflowAccountRow("fund", "Quỹ Momo"),
+      cashflowAccountRow("momo", "Momo")
+    ],
+    5500000,
+    [transferRow("cap", "Cấp quỹ thiết yếu", 2130000, "momo", "fund", "essential-fund")],
+    [fundGroupRow("essential-fund", "Thiết Yếu", "fund", true)]
+  );
+
+  const essential = data.fundGroups[0];
+  assert.equal(essential.fundBalance, 31600);
+  // 31.600 nay da hen tra lai Momo nen khong con la tien ranh.
+  assert.deepEqual(
+    essential.advances.map((entry) => ({ account: entry.account, amount: entry.amount })),
+    [{ account: "Momo", amount: 31600 }]
+  );
+  assert.equal(essential.fundRemaining, 0);
+
+  const text = fundBudgetText_(data);
+  assert.match(text, /↳ đã cấp 2\.130\.000đ\n/);
+  assert.doesNotMatch(text, /quỹ còn/);
+  assert.match(text, /• Thiết Yếu → Momo: 31\.600đ/);
+});
+
 test("a fund that does not require allocation never asks for a transfer", () => {
   const data = buildAccountSpendingData_(
     { y: 2026, m: 7, d: 23 },
@@ -1406,6 +1455,7 @@ test("fund budget text preserves approved fund statuses and heading", () => {
         over: 0,
         allocated: 2400000,
         fundBalance: 122600,
+        fundRemaining: 122600,
         transferNeeded: 0,
         requiresAllocation: true,
         unmatchedCategories: []
@@ -1440,6 +1490,7 @@ test("fund budget text preserves approved fund statuses and heading", () => {
         over: 54444,
         allocated: 555000,
         fundBalance: 556,
+        fundRemaining: 556,
         transferNeeded: 0,
         requiresAllocation: true,
         unmatchedCategories: []
