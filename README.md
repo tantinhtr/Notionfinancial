@@ -76,7 +76,18 @@ Ví dụ nhóm Thiết Yếu gồm Nhà Trọ 2.150.000 + Internet 180.000 + Kh�
    ↳ đã cấp 2.330.000đ / 4.400.000đ
 ```
 
-Lọ nào có từ 2 nhãn con trở lên thì in thêm dòng con, nên gộp nhiều nhãn vào một lọ vẫn thấy được nhãn nào vượt.
+Lọ nào có từ 2 nhãn con trở lên thì in thêm dòng con, nên gộp nhiều nhãn vào một lọ vẫn thấy được nhãn nào vượt. Lọ chưa dùng tới — chưa đặt ngân sách, chưa tiêu, chưa cấp — thì không in, nên Notion giữ đủ 6 lọ mà báo cáo chỉ nói những lọ đang chạy.
+
+Sáu lọ trong Notion và phần 5,5 triệu chi tiêu hiện rơi vào:
+
+| Lọ | Nhãn con | Ngân sách |
+|---|---|---|
+| Nhu cầu thiết yếu (55%) | Nhà Trọ · Đi Chợ · Phát Sinh · Internet · Khác | 4.400.000 |
+| Giáo dục phát triển (10%) | Affiilate · Phát triển bản thân | 1.100.000 |
+| Tiết kiệm dài hạn (10%) | — (ứng với quỹ sửa xe, quỹ mua máy tính cho cháu) | 0 |
+| Đầu tư tài chính (10%) | — (ứng với quỹ tích lũy cá nhân) | 0 |
+| Hưởng thụ (10%) | — (ứng với quỹ đi chơi với em) | 0 |
+| Cho đi (5%) | — | 0 |
 
 Ghi chú `( tính vào quỹ X )` nhận **cả tên lọ lẫn tên nhãn con**. Tên nhãn con thì khoản đó vào đúng dòng con ấy; tên lọ thì chỉ vào lọ. Thứ tự ưu tiên khi trùng tên: tên lọ → tên nhãn con → tên cũ.
 

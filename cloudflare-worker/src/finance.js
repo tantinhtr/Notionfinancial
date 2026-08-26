@@ -917,6 +917,9 @@ export function buildAccountSpendingData_(
       );
     }
     group.children.sort((a, b) => b.budget - a.budget);
+    // Lo chua dung toi — chua dat ngan sach, chua tieu, chua cap — thi khong in.
+    // Nho vay dung du 6 lo trong Notion ma bao cao van chi noi nhung lo dang chay.
+    if (group.budget === 0 && group.spent === 0 && group.allocated === 0) continue;
     fundGroups.push(group);
   }
 
