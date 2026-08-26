@@ -439,21 +439,24 @@ function mentionsFund_(normalizedText, key) {
   return new RegExp("qu\\S*\\s+" + escaped + "(?![a-z0-9])").test(normalizedText);
 }
 
-function assignedFund_(expenseRow, groupNameKeys) {
-  const explicit = fundMentionedAfter_(expenseRow, /tính\s+vào\s+(.+)$/i);
-  if (explicit !== "") return explicit;
+// Ghi chu co the goi ten LO ("quỹ nhu cầu thiết yếu") hoac ten NHAN CON
+// ("quỹ phát sinh"). Ca hai deu hop le: nhan con thuoc lo nao thi khoan do ve lo do,
+// va con duoc ghi dung vao dong con — nho vay bao cao khong mat chi tiet.
+function assignedFund_(expenseRow, assignmentKeys) {
+  const explicit = stripFundPrefix_(fundMentionedAfter_(expenseRow, /tính\s+vào\s+(.+)$/i));
+  if (explicit !== "" && assignmentKeys[explicit]) return explicit;
   const props = expenseRow.properties || {};
   const text = normalizeSearchText_(
     plainText_(props["Nội Dung Khoản Chi"]) + " " + plainText_(props["Ghi Chú"])
   );
   const lenderKey = stripFundPrefix_(borrowedFrom_(expenseRow));
   let best = "";
-  for (const key of groupNameKeys || []) {
+  for (const key of Object.keys(assignmentKeys)) {
     if (key === "" || key === lenderKey) continue;
     if (!mentionsFund_(text, key)) continue;
     if (key.length > best.length) best = key;
   }
-  return best === "" ? "" : "quỹ " + best;
+  return best;
 }
 
 function buildMonthlyBudget_(tiers, monthlyLimit) {
@@ -527,15 +530,33 @@ export function buildAccountSpendingData_(
   const categoryNames = {};
   const categoryGroupIds = {};
   const fundGroupIdByName = {};
+  const pendingAliases = [];
   const extraRowsByGroupId = {};
+  // Doi ten lo thi ghi chu cu ("lấy từ quỹ thiết yếu") van phai khop. Cot "Tên Cũ"
+  // trong Notion liet ke cac ten cu, cach nhau bang dau phay.
+  const groupAliasKeys = {};
   for (const fundGroupRow of fundGroupRows) {
-    const title = (fundGroupRow.properties && fundGroupRow.properties["Tên Nhóm Quỹ"] &&
-      fundGroupRow.properties["Tên Nhóm Quỹ"].title) || [];
-    if (title.length) fundGroupIdByName[stripFundPrefix_(title[0].plain_text)] = fundGroupRow.id;
+    const props = fundGroupRow.properties || {};
+    const title = (props["Tên Nhóm Quỹ"] && props["Tên Nhóm Quỹ"].title) || [];
+    if (!title.length) continue;
+    const realKey = stripFundPrefix_(title[0].plain_text);
+    fundGroupIdByName[realKey] = fundGroupRow.id;
+    groupAliasKeys[fundGroupRow.id] = { [realKey]: true };
+    for (const alias of plainText_(props["Tên Cũ"]).split(",")) {
+      const key = stripFundPrefix_(alias);
+      if (key === "") continue;
+      groupAliasKeys[fundGroupRow.id][key] = true;
+      pendingAliases.push({ key, groupId: fundGroupRow.id });
+    }
   }
   const groupNameKeys = Object.keys(fundGroupIdByName);
   const groupIdSet = {};
   for (const key of groupNameKeys) groupIdSet[fundGroupIdByName[key]] = true;
+  // Ten goi duoc phep viet trong ghi chu: ten lo -> ca lo, ten nhan con -> dung nhan do.
+  const assignmentKeys = {};
+  for (const key of groupNameKeys) {
+    assignmentKeys[key] = { groupId: fundGroupIdByName[key], categoryId: "" };
+  }
   const tiers = {
     groupSpending: 0,
     looseSpending: 0,
@@ -560,11 +581,17 @@ export function buildAccountSpendingData_(
       continue;
     }
     const budget = num_(props["Ngân Sách Tháng"]);
+    // Nhan con tick "Chi Thang Khong Qua Quy" thi khong bao gio can bom truoc vao
+    // tai khoan giu quy — vi du Đi Chợ tra thang bang tien mat. Notion tra ve false
+    // cho o chua tick, nen phai hoi nguoc kieu nay: mac dinh la VAN theo co cua lo.
+    const skipsFund = !!(props["Chi Thẳng Không Qua Quỹ"] &&
+      props["Chi Thẳng Không Qua Quỹ"].checkbox === true);
     const fixed = {
       id: categoryRow.id,
       groupId: categoryGroupIds[categoryRow.id],
       name,
       budget,
+      skipsFund,
       spent: 0,
       remaining: budget,
       over: 0,
@@ -576,6 +603,20 @@ export function buildAccountSpendingData_(
     fixedBudgets.push(fixed);
     fixedIdMap[fixed.id] = fixed;
     totalFixedBudget += fixed.budget;
+    const childKey = stripFundPrefix_(name);
+    // Ten lo uu tien hon: neu trung ten thi giu nghia "ca lo".
+    if (childKey !== "" && !assignmentKeys[childKey]) {
+      assignmentKeys[childKey] = { groupId: fixed.groupId, categoryId: fixed.id };
+    }
+  }
+
+  // Ten cu cua lo chi duoc dung khi khong dung ten nhan con nao. Vi du doi ten
+  // "Phát Sinh" tu lo thanh nhan con: ghi chu "quỹ phát sinh" phai ve dung nhan do,
+  // khong duoc ve chung ca lo.
+  for (const alias of pendingAliases) {
+    if (!assignmentKeys[alias.key]) {
+      assignmentKeys[alias.key] = { groupId: alias.groupId, categoryId: "" };
+    }
   }
 
   for (const accountRow of accountRows) {
@@ -590,11 +631,15 @@ export function buildAccountSpendingData_(
     const rowInfo = flowAnalysis.rowsById[expenseRow.id];
     const { amount, categoryId, accountId, categoryName, accountName } = rowInfo;
     const lender = borrowedFrom_(expenseRow);
-    const assignedName = stripFundPrefix_(assignedFund_(expenseRow, groupNameKeys));
-    const assignedGroupId = assignedName === "" ? "" : (fundGroupIdByName[assignedName] || "");
-    // Ghi chu keu tinh vao nhom khac thi khoan nay ROI KHOI nhan cua no hoan toan:
-    // khong cong vao tong cua loai chi do nua, chi tinh cho nhom duoc chi dinh.
-    const movedAway = assignedGroupId !== "" && categoryGroupIds[categoryId] !== assignedGroupId;
+    const assignedName = assignedFund_(expenseRow, assignmentKeys);
+    const assigned = assignedName === "" ? null : assignmentKeys[assignedName];
+    const assignedGroupId = assigned ? assigned.groupId : "";
+    const assignedCategoryId = assigned ? assigned.categoryId : "";
+    // Ghi chu keu tinh vao cho khac thi khoan nay ROI KHOI nhan cua no hoan toan:
+    // khong cong vao tong cua loai chi do nua, chi tinh cho noi duoc chi dinh.
+    const movedAway = assignedCategoryId !== ""
+      ? assignedCategoryId !== categoryId
+      : (assignedGroupId !== "" && categoryGroupIds[categoryId] !== assignedGroupId);
     const spendRow = {
       account: accountName,
       amount,
@@ -602,7 +647,13 @@ export function buildAccountSpendingData_(
       name: rowInfo.name,
       date: rowInfo.date
     };
-    if (movedAway) {
+    if (movedAway && assignedCategoryId !== "" && fixedIdMap[assignedCategoryId]) {
+      // Ghi chu goi ten mot nhan con co that -> khoan nay chinh la chi tieu cua nhan do.
+      const target = fixedIdMap[assignedCategoryId];
+      globalCategoryTotals[target.name] = (globalCategoryTotals[target.name] || 0) + amount;
+      target.paidByAccount[accountName] = (target.paidByAccount[accountName] || 0) + amount;
+      target.spendRows.push(spendRow);
+    } else if (movedAway) {
       if (!extraRowsByGroupId[assignedGroupId]) extraRowsByGroupId[assignedGroupId] = [];
       extraRowsByGroupId[assignedGroupId].push(spendRow);
     } else {
@@ -734,13 +785,14 @@ export function buildAccountSpendingData_(
       fundDebt: 0,
       borrowedFunds: [],
       advances: [],
+      children: [],
       transferNeeded: 0,
       requiresAllocation,
       unmatchedCategories: []
     };
     const advanceByAccount = {};
     const borrowByFund = {};
-    const groupKey = stripFundPrefix_(group.name);
+    const ownKeys = groupAliasKeys[fundGroupRow.id] || {};
     const addDebtRow = (bucket, key, spendRow, amount, partial) => {
       if (!bucket[key]) bucket[key] = { amount: 0, rows: [] };
       bucket[key].amount += amount;
@@ -770,10 +822,24 @@ export function buildAccountSpendingData_(
     }
 
     const groupRows = [];
+    let unfundedBudget = 0;
+    let unfundedSpent = 0;
     for (const fixed of fixedBudgets) {
       if (fixed.groupId !== fundGroupRow.id) continue;
       group.budget += fixed.budget;
       group.spent += fixed.spent;
+      group.children.push({
+        name: fixed.name,
+        budget: fixed.budget,
+        spent: fixed.spent,
+        over: Math.max(fixed.spent - fixed.budget, 0)
+      });
+      // Chi nhung nhan con thuc su phai di qua tai khoan giu quy moi tinh vao so
+      // can cap them. Đi Chợ tra thang bang tien mat thi khong doi bom truoc.
+      if (fixed.skipsFund) {
+        unfundedBudget += fixed.budget;
+        unfundedSpent += fixed.spent;
+      }
       for (const spendRow of fixed.spendRows) groupRows.push(spendRow);
     }
     // Khoan chi duoc ghi chu "tinh vao quy X" keo vao day, du Loai Chi Phi khac.
@@ -788,7 +854,7 @@ export function buildAccountSpendingData_(
     for (const spendRow of groupRows) {
       // Ghi chu chi ro muon quy nao thi do la tien cua tui khac, phai tra du
       // ke ca khi con trong han muc. Ghi chu tro ve chinh nhom thi khong phai muon.
-      const lender = spendRow.lender !== "" && stripFundPrefix_(spendRow.lender) !== groupKey
+      const lender = spendRow.lender !== "" && ownKeys[stripFundPrefix_(spendRow.lender)] !== true
         ? spendRow.lender
         : "";
       if (lender !== "") {
@@ -841,12 +907,16 @@ export function buildAccountSpendingData_(
       // chi la chua co giao dich chuyen thoi. Viec tra lai cho ben da ung nam o muc
       // UNG TRUOC, khong phai cap lai lan hai. Nen can cap them chi con la phan
       // ngan sach chua dung toi, tru di so quy dang giu.
-      const remainingBudget = Math.max(group.budget - group.spent, 0);
+      const remainingBudget = Math.max(
+        (group.budget - unfundedBudget) - (group.spent - unfundedSpent),
+        0
+      );
       group.transferNeeded = Math.max(
         remainingBudget - Math.max(group.fundBalance, 0),
         0
       );
     }
+    group.children.sort((a, b) => b.budget - a.budget);
     fundGroups.push(group);
   }
 
@@ -1029,6 +1099,16 @@ function budgetLine_(group) {
   return row;
 }
 
+// Lo la ten lon, nhan Notion la con cua lo. Lo nao co nhieu hon mot nhan thi in
+// them dong con, khong thi dong tong da noi du roi.
+function childLines_(group) {
+  const children = group.children || [];
+  if (children.length < 2) return [];
+  return children.map((child) => "   • " + child.name + ": " +
+    money_(child.spent) + " / " + money_(child.budget) +
+    (child.over > 0 ? " ⛔ vượt " + money_(child.over) : ""));
+}
+
 const DEBT_ROWS_SHOWN = 6;
 
 function collectDebts_(groups) {
@@ -1120,6 +1200,7 @@ export function fundBudgetText_(data) {
     lines.push("", budgetHeadline_(budget || { total: 0, limit: 0 }, groups));
     for (const group of groups) {
       lines.push(budgetLine_(group));
+      for (const childLine of childLines_(group)) lines.push(childLine);
       const inflow = fundInflowLine_(group);
       if (inflow !== "") lines.push(inflow);
     }

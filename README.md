@@ -62,7 +62,32 @@ Ví dụ nhóm Làm YouTube (ngân sách 600.000đ) chưa cấp đồng nào mà
 
 Ví dụ nhóm Thiết Yếu gồm Nhà Trọ 2.150.000 + Internet 180.000 + Khác 70.000, tất cả trả bằng Quỹ Momo. Hôm cắt tóc lại trả bằng Banking thì báo cáo hiện `Thiết Yếu → Banking: 70.000đ` — Banking không phải nguồn cấp quỹ nên phải được trả lại.
 
-Tên nhóm quỹ trong ghi chú chỉ được tính khi nó đứng **sau chữ `quỹ`** và **kết thúc trọn vẹn**. Nhờ vậy `Gửi xe đi chợ` không bị kéo vào nhóm Đi Chợ, và `( lấy từ quỹ đi chơi với em )` không bị cắt thành `quỹ Đi Chợ`.
+### Lọ và nhãn con
+
+**Nhóm quỹ = một lọ** trong 6 lọ tài chính, đó là tên lớn. **Nhãn `Loại Chi Phí` trong Notion là con của lọ** — nó giữ ngân sách chi tiết.
+
+```
+✅ Nhu cầu thiết yếu: 3.614.400đ / 4.400.000đ · quỹ còn 31.600đ
+   • Nhà Trọ: 2.122.000đ / 2.150.000đ
+   • Đi Chợ: 669.000đ / 1.400.000đ
+   • Phát Sinh: 647.000đ / 600.000đ ⛔ vượt 47.000đ
+   • Internet: 176.400đ / 180.000đ
+   • Khác: 0đ / 70.000đ
+   ↳ đã cấp 2.330.000đ / 4.400.000đ
+```
+
+Lọ nào có từ 2 nhãn con trở lên thì in thêm dòng con, nên gộp nhiều nhãn vào một lọ vẫn thấy được nhãn nào vượt.
+
+Ghi chú `( tính vào quỹ X )` nhận **cả tên lọ lẫn tên nhãn con**. Tên nhãn con thì khoản đó vào đúng dòng con ấy; tên lọ thì chỉ vào lọ. Thứ tự ưu tiên khi trùng tên: tên lọ → tên nhãn con → tên cũ.
+
+Tên trong ghi chú chỉ được tính khi nó đứng **sau chữ `quỹ`** và **kết thúc trọn vẹn**. Nhờ vậy `Gửi xe đi chợ` không bị kéo vào lọ Đi Chợ, và `( lấy từ quỹ đi chơi với em )` không bị cắt thành `quỹ Đi Chợ`.
+
+### Hai cột phụ trong Notion
+
+| Cột | Ở đâu | Để làm gì |
+|---|---|---|
+| `Tên Cũ` | Nhóm Quỹ Ngân Sách | Tên cũ của lọ, cách nhau bằng dấu phẩy. Đổi tên lọ mà ghi chú cũ vẫn khớp, không phải sửa lại giao dịch cũ |
+| `Chi Thẳng Không Qua Quỹ` | Chi Phí Và Ngân Sách | Tick cho nhãn con trả thẳng bằng tiền mặt (như Đi Chợ). Phần ngân sách chưa tiêu của nhãn đó không bị đòi bơm vào tài khoản giữ quỹ |
 
 Mỗi món liệt kê tối đa 6 giao dịch rồi gộp phần còn lại thành `… và N khoản nữa`. Tên hiển thị được cắt bỏ chú thích quỹ trong ngoặc cho gọn, nhưng ngoặc mang ngữ cảnh thật như `( mua đồ cho em )` thì giữ nguyên.
 

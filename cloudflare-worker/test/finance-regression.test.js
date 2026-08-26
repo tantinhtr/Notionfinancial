@@ -919,6 +919,10 @@ test("fund groups reconcile Notion transfers with spending paid outside the virt
     fundDebt: 0,
     borrowedFunds: [],
     advances: [],
+    children: [
+      { name: "Nhà Trọ", budget: 2200000, spent: 2101000, over: 0 },
+      { name: "Internet", budget: 200000, spent: 176400, over: 0 }
+    ],
     transferNeeded: 0,
     requiresAllocation: true,
     unmatchedCategories: []
@@ -1377,6 +1381,92 @@ test("spending paid straight from a funding source counts as funded, not owed", 
     withoutSources.advances.map((entry) => entry.account).sort(),
     ["Banking", "Momo"]
   );
+});
+
+test("a jar keeps its children visible and honours old names in notes", () => {
+  const groupRow = (id, name, oldNames, accountId) => ({
+    id,
+    properties: {
+      "Tên Nhóm Quỹ": { title: [{ plain_text: name }] },
+      "Tên Cũ": { rich_text: oldNames ? [{ plain_text: oldNames }] : [] },
+      "Tài Khoản Giữ Quỹ": { relation: [{ id: accountId }] },
+      "Bắt Buộc Cấp Quỹ": { checkbox: true }
+    }
+  });
+  const child = (id, name, budget, groupId, needsFund) => {
+    const row = trackedCategoryRow(id, name, budget, groupId);
+    if (needsFund === false) {
+      row.properties["Chi Thẳng Không Qua Quỹ"] = { checkbox: true };
+    }
+    return row;
+  };
+  const loose = (id, name) => ({
+    id,
+    properties: {
+      "Loại Chi Phí": { title: [{ plain_text: name }] },
+      "Ngân Sách Tháng": { number: 0 },
+      "Tính Trong 5,5 Triệu": { checkbox: false },
+      "Nhóm Quỹ": { relation: [] }
+    }
+  });
+  const noted = (id, name, categoryId, accountId, amount, note = "") => ({
+    id,
+    properties: {
+      "Nội Dung Khoản Chi": { title: [{ plain_text: name }] },
+      "Ghi Chú": { rich_text: note ? [{ plain_text: note }] : [] },
+      "Số Tiền": { number: amount },
+      "Ngày": { date: { start: "2026-08-12" } },
+      "Loại Chi Phí": { relation: [{ id: categoryId }] },
+      "Phương Thức Thanh Toán": { relation: [{ id: accountId }] }
+    }
+  });
+
+  const data = buildAccountSpendingData_(
+    { y: 2026, m: 8, d: 25 },
+    [
+      child("rent", "Nhà Trọ", 2150000, "nec"),
+      child("market", "Đi Chợ", 1400000, "nec", false),
+      child("incidental", "Phát Sinh", 600000, "nec"),
+      loose("cafe", "Cà Phê")
+    ],
+    [
+      noted("rent-aug", "Tiền phòng", "rent", "fund", 2122000),
+      // Ghi chu dung TEN CU cua lo -> khong phai muon quy khac, van la tien cua lo.
+      noted("wifi", "Wifi ( lấy từ quỹ thiết yếu )", "rent", "fund", 8000),
+      noted("market-aug", "Đi chợ", "market", "cash", 669000),
+      // "quỹ phát sinh" la ten NHAN CON -> phai ghi dung vao dong con do.
+      noted("cafe-aug", "Mua bạc xỉu ( tính vào quỹ phát sinh )", "cafe", "cash", 45000)
+    ],
+    [cashflowAccountRow("fund", "Quỹ Momo"), cashflowAccountRow("cash", "Grap Tiền Mặt")],
+    5500000,
+    [transferRow("cap", "Cấp quỹ", 2200000, "cash", "fund", "nec")],
+    [groupRow("nec", "Nhu cầu thiết yếu", "Thiết Yếu, Phát Sinh", "fund")],
+    { fundingSourceAccounts: ["Momo", "Grap Tiền Mặt"] }
+  );
+
+  const nec = data.fundGroups[0];
+  assert.equal(nec.budget, 4150000);
+  assert.equal(nec.spent, 2844000);
+  // Ten cu "thiết yếu" tro ve chinh lo nay nen khong sinh mon no.
+  assert.deepEqual(nec.borrowedFunds, []);
+  assert.equal(nec.paidFromFund, 2130000);
+  // 45.000 Cà Phê phai nam o dong con Phát Sinh, khong bi gom chung vao lo.
+  assert.deepEqual(nec.children, [
+    { name: "Nhà Trọ", budget: 2150000, spent: 2130000, over: 0 },
+    { name: "Đi Chợ", budget: 1400000, spent: 669000, over: 0 },
+    { name: "Phát Sinh", budget: 600000, spent: 45000, over: 0 }
+  ]);
+  // Đi Chợ tick "Chi Thẳng Không Qua Quỹ" nen 731.000 chua tieu khong bi doi cap.
+  // Con lai: (2.150.000 + 600.000) - (2.130.000 + 45.000) = 575.000, quy dang giu
+  // 2.200.000 - 2.130.000 = 70.000 -> can cap them 505.000.
+  assert.equal(nec.fundBalance, 70000);
+  assert.equal(nec.transferNeeded, 505000);
+
+  const text = fundBudgetText_(data);
+  assert.match(text, /✅ Nhu cầu thiết yếu: 2\.844\.000đ \/ 4\.150\.000đ · quỹ còn 70\.000đ/);
+  assert.match(text, /   • Nhà Trọ: 2\.130\.000đ \/ 2\.150\.000đ/);
+  assert.match(text, /   • Phát Sinh: 45\.000đ \/ 600\.000đ/);
+  assert.doesNotMatch(text, /ỨNG TRƯỚC/);
 });
 
 test("spending splits into fund groups, loose spending and excluded one-offs", () => {
