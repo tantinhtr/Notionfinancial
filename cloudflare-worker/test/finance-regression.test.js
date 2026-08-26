@@ -1560,8 +1560,9 @@ test("spending splits into fund groups, loose spending and excluded one-offs", (
   assert.match(text, /📊 NHÓM QUỸ — 2\.000\.000đ \/ 2\.150\.000đ · ✅ còn 150\.000đ/);
   assert.match(text, /🧾 NGOÀI NHÓM QUỸ — 225\.000đ/);
   assert.match(text, /💰 TỔNG CHI TIÊU: 2\.225\.000đ/);
-  assert.match(text, /🚫 KHÔNG TÍNH — giao dịch lẻ ≥500\.000đ · 4\.500\.000đ/);
-  assert.match(text, /12\/08 Đi ăn với em: 850\.000đ · Grap Tiền Mặt/);
+  // Giao dich le >=500.000 van bi loai khoi 5tr5, chi la khong liet ke ra cho gon.
+  assert.doesNotMatch(text, /KHÔNG TÍNH/);
+  assert.doesNotMatch(text, /Đi ăn với em/);
 });
 
 test("a note pointing at another fund pulls the expense out of its own label", () => {

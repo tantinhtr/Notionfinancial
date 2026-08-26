@@ -1234,26 +1234,6 @@ export function fundBudgetText_(data) {
     lines.push("", "💰 TỔNG CHI TIÊU: " + money_(budget.total));
   }
 
-  const excluded = data.excluded;
-  if (excluded && excluded.total > 0) {
-    lines.push(
-      "",
-      "🚫 KHÔNG TÍNH — giao dịch lẻ ≥" + money_(excluded.threshold || 500000) +
-      " · " + money_(excluded.total)
-    );
-    for (const row of excluded.rows.slice(0, 6)) {
-      const day = typeof row.date === "string" && row.date.length >= 10
-        ? row.date.slice(8, 10) + "/" + row.date.slice(5, 7) + " "
-        : "";
-      lines.push(
-        "• " + day + displayName_(row.name).slice(0, 34) + ": " + money_(row.amount) +
-        " · " + row.account
-      );
-    }
-    const hidden = excluded.rows.length - 6;
-    if (hidden > 0) lines.push("• … và " + hidden + " khoản nữa");
-  }
-
   const debts = collectDebts_(groups);
   if (debts.length) {
     lines.push("", "💸 ỨNG TRƯỚC — cần trả lại");

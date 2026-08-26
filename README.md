@@ -140,14 +140,13 @@ Bot chia mọi khoản chi làm đúng hai nhóm:
 
 | Nhóm | Gồm gì | Quy tắc |
 |---|---|---|
-| **Nhóm quỹ** | Khoản thuộc 5 nhóm — theo `Loại Chi Phí` hoặc theo ghi chú nhắc tên quỹ | Tính hết, không phân biệt to nhỏ |
+| **Nhóm quỹ** | Khoản thuộc một lọ — theo `Loại Chi Phí` hoặc theo ghi chú nhắc tên lọ / tên nhãn con | Tính hết, không phân biệt to nhỏ |
 | **Ngoài nhóm quỹ** | Mọi khoản còn lại | Chỉ tính giao dịch **dưới 500.000đ** |
 
-Giao dịch lẻ ngoài nhóm quỹ **từ 500.000đ trở lên** không được tính là chi tiêu của tháng — nó là khoản bất thường, bot liệt kê riêng ở mục `🚫 KHÔNG TÍNH` để tự quyết.
 
 Ngưỡng áp cho **từng giao dịch riêng lẻ**, không phải cho tổng của một loại chi. Một loại chi có tổng 2 triệu gồm nhiều khoản nhỏ vẫn được tính trọn; chỉ khoản đơn lẻ vượt ngưỡng mới bị tách. Đổi ngưỡng ở `outsideBudgetThreshold` trong `src/config.js`.
 
-Không có ngoại lệ theo loại: nạp ví Grab, đổ xăng, sửa xe, cho mượn — tất cả đều theo đúng luật trên. Khoản nào dưới ngưỡng thì là chi tiêu, trên ngưỡng thì bị loại.
+Không có ngoại lệ theo loại: nạp ví Grab, đổ xăng, sửa xe, cho mượn — tất cả đều theo đúng luật trên. Khoản nào dưới ngưỡng thì là chi tiêu, trên ngưỡng thì bị loại. Báo cáo không liệt kê các khoản bị loại — chúng vẫn nằm trong `💰 TỔNG CHI TIÊU`, chỉ là không tính vào trần 5tr5.
 
 ### Thu nhập thật và tiền chạy qua
 
