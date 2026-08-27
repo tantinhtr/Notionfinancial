@@ -157,7 +157,14 @@ Chi phí thật của việc chạy Grab chỉ còn **xăng và sửa xe**. Thá
 
 Hai chỗ cố ý chọn từ khoá hẹp: bắt `code` chứ không bắt `ứng` vì `1 vỉ trứng gà` cũng chứa `ứng`; bắt `ví grap` chứ không bắt `nạp ví` vì `Nạp tiền vào ví telegram` là chi tiêu thật.
 
-Khoản nào dưới ngưỡng và không phải tiền ứng code thì là chi tiêu; ngược lại bị loại hẳn: không vào `🧾 NGOÀI NHÓM QUỸ`, cũng không vào `💰 TỔNG CHI TIÊU`, và báo cáo cũng không liệt kê chúng ra. `TỔNG CHI TIÊU` đúng bằng `nhóm quỹ + ngoài nhóm quỹ`.
+Khoản bị loại không vào `🧾 NGOÀI NHÓM QUỸ`, cũng không vào `💰 TỔNG CHI TIÊU` — `TỔNG CHI TIÊU` đúng bằng `nhóm quỹ + ngoài nhóm quỹ`. Nhưng tiền vẫn ra khỏi ví thật, nên ngay dưới có một dòng tóm tắt cho biết tổng đã loại là bao nhiêu và gồm mấy khoản:
+
+```
+💰 TỔNG CHI TIÊU: 7.599.844đ
+🚫 Không tính: 8.571.500đ · 18 khoản (nạp ví Grab, ứng code, lẻ ≥500k)
+```
+
+Chỉ một dòng, không liệt kê từng giao dịch.
 
 ### Thu nhập thật và tiền chạy qua
 

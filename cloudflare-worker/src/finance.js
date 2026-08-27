@@ -1244,6 +1244,15 @@ export function fundBudgetText_(data) {
 
   if (budget) {
     lines.push("", "💰 TỔNG CHI TIÊU: " + money_(budget.total));
+    // Tien nay van ra khoi vi that, chi la khong phai chi tieu ca nhan. Van phai
+    // nhin thay so, nhung khong liet ke tung khoan cho do dai bao cao.
+    const excluded = data.excluded;
+    if (excluded && excluded.total > 0) {
+      lines.push(
+        "🚫 Không tính: " + money_(excluded.total) +
+        " · " + excluded.rows.length + " khoản (nạp ví Grab, ứng code, lẻ ≥500k)"
+      );
+    }
   }
 
   const debts = collectDebts_(groups);
