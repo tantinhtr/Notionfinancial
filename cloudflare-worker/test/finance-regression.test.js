@@ -1469,6 +1469,60 @@ test("a jar keeps its children visible and honours old names in notes", () => {
   assert.doesNotMatch(text, /ỨNG TRƯỚC/);
 });
 
+test("a code advance is pass-through money, excluded at any size", () => {
+  const noted = (id, name, categoryId, amount, note = "") => ({
+    id,
+    properties: {
+      "Nội Dung Khoản Chi": { title: [{ plain_text: name }] },
+      "Ghi Chú": { rich_text: note ? [{ plain_text: note }] : [] },
+      "Số Tiền": { number: amount },
+      "Ngày": { date: { start: "2026-08-12" } },
+      "Loại Chi Phí": { relation: [{ id: categoryId }] },
+      "Phương Thức Thanh Toán": { relation: [{ id: "cash" }] }
+    }
+  });
+  const loose = (id, name) => ({
+    id,
+    properties: {
+      "Loại Chi Phí": { title: [{ plain_text: name }] },
+      "Ngân Sách Tháng": { number: 0 },
+      "Tính Trong 5,5 Triệu": { checkbox: false },
+      "Nhóm Quỹ": { relation: [] }
+    }
+  });
+
+  const data = buildAccountSpendingData_(
+    { y: 2026, m: 8, d: 25 },
+    [loose("grap", "Grap"), loose("market", "Siêu Thị")],
+    [
+      // Duoi nguong 500k nhung la tien ung mua ho khach -> van phai loai.
+      noted("advance", "Nạp ví grap ( trừ tiền ứng code )", "grap", 120000),
+      // Ghi chu o cot Ghi Chu cung tinh.
+      noted("advance2", "Nạp ví grap", "grap", 80000, "ứng code đơn hàng"),
+      noted("fuel", "Đổ xăng", "grap", 60000),
+      // "trứng" co chua chuoi "ứng" — khong duoc nham thanh tien ung code.
+      noted("eggs", "Đi chợ", "market", 29000, "1 vỉ trứng gà")
+    ],
+    [cashflowAccountRow("cash", "Grap Tiền Mặt")],
+    5500000,
+    [],
+    [],
+    { passThroughKeywords: ["code"], outsideThreshold: 500000 }
+  );
+
+  assert.equal(data.excluded.total, 200000);
+  assert.deepEqual(
+    data.excluded.rows.map((row) => row.amount).sort((a, b) => b - a),
+    [120000, 80000]
+  );
+  // Đổ xăng va vi trung ga van la chi tieu that.
+  assert.equal(data.monthlyBudget.looseSpending, 89000);
+  assert.deepEqual(
+    data.monthlyBudget.looseByCategory,
+    [{ category: "Grap", amount: 60000 }, { category: "Siêu Thị", amount: 29000 }]
+  );
+});
+
 test("spending splits into fund groups, loose spending and excluded one-offs", () => {
   const spend = (id, name, categoryId, accountId, amount) => ({
     id,

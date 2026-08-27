@@ -146,7 +146,9 @@ Bot chia mọi khoản chi làm đúng hai nhóm:
 
 Ngưỡng áp cho **từng giao dịch riêng lẻ**, không phải cho tổng của một loại chi. Một loại chi có tổng 2 triệu gồm nhiều khoản nhỏ vẫn được tính trọn; chỉ khoản đơn lẻ vượt ngưỡng mới bị tách. Đổi ngưỡng ở `outsideBudgetThreshold` trong `src/config.js`.
 
-Không có ngoại lệ theo loại: nạp ví Grab, đổ xăng, sửa xe, cho mượn — tất cả đều theo đúng luật trên. Khoản nào dưới ngưỡng thì là chi tiêu, trên ngưỡng thì bị loại hẳn: không vào `🧾 NGOÀI NHÓM QUỸ`, cũng không vào `💰 TỔNG CHI TIÊU`, và báo cáo cũng không liệt kê chúng ra. `TỔNG CHI TIÊU` đúng bằng `nhóm quỹ + ngoài nhóm quỹ`.
+Không có ngoại lệ theo loại: nạp ví Grab, đổ xăng, sửa xe, cho mượn — tất cả đều theo đúng luật trên. Ngoài ngưỡng tiền, còn một luật nữa: giao dịch nào **nhắc tới chữ `code`** trong tên hoặc ghi chú thì bị loại **dù to hay nhỏ** — đó là tiền ứng mua hộ khách, sẽ được hoàn lại, không phải chi tiêu. Ví dụ `Nạp ví grap ( trừ tiền ứng code )`. Danh sách từ khoá ở `passThroughKeywords` trong `src/config.js`. Cố ý chỉ bắt chữ `code` chứ không bắt chữ `ứng`, vì `1 vỉ trứng gà` cũng chứa `ứng`.
+
+Khoản nào dưới ngưỡng và không phải tiền ứng code thì là chi tiêu; ngược lại bị loại hẳn: không vào `🧾 NGOÀI NHÓM QUỸ`, cũng không vào `💰 TỔNG CHI TIÊU`, và báo cáo cũng không liệt kê chúng ra. `TỔNG CHI TIÊU` đúng bằng `nhóm quỹ + ngoài nhóm quỹ`.
 
 ### Thu nhập thật và tiền chạy qua
 

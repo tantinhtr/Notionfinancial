@@ -55,6 +55,10 @@ export function getConfig(env) {
     // Hai vi nay la NGUON dung de cap tien cho cac nhom quy. Nhom nao chi thang
     // bang chung thi coi nhu da duoc cap, khong sinh mon no phai tra lai.
     fundingSourceAccounts: ["Momo", "Grap Tiền Mặt"],
+    // Giao dich nhac toi mot trong may tu nay la tien chay qua, khong phai chi tieu:
+    // ung tien mua ho khach roi duoc hoan lai. Loai du to hay nho.
+    // Khong dung tu "ung" tran: "1 vi trung ga" cung khop.
+    passThroughKeywords: ["code"],
     timezone: "Asia/Ho_Chi_Minh",
     ...STABLE_IDS
   };

@@ -524,6 +524,14 @@ export function buildAccountSpendingData_(
   }
   const isFundingSource = (accountName) =>
     fundingSourceKeys[normalizeSearchText_(accountName)] === true;
+  const passThroughNeedles = (options.passThroughKeywords || [])
+    .map((word) => normalizeSearchText_(word))
+    .filter((word) => word !== "");
+  const isPassThrough = (text) => {
+    if (!passThroughNeedles.length) return false;
+    const haystack = normalizeSearchText_(text);
+    return passThroughNeedles.some((needle) => haystack.indexOf(needle) >= 0);
+  };
   const outsideThreshold = Number.isFinite(options.outsideThreshold)
     ? options.outsideThreshold
     : 500000;
@@ -666,14 +674,18 @@ export function buildAccountSpendingData_(
     }
 
     // Hai nhom duy nhat: trong nhom quy va ngoai nhom quy.
-    // Khoan trong nhom quy luon tinh, du to nho. Khoan ngoai nhom quy chi tinh khi
-    // tung giao dich duoi nguong — giao dich le qua lon la bat thuong, tach ra.
+    // Khoan trong nhom quy luon tinh, du to nho. Khoan ngoai nhom quy bi loai khi
+    // tung giao dich tu nguong tro len, HOAC khi ghi chu noi ro do la tien ung code
+    // mua ho khach — thu do se duoc hoan lai nen khong phai chi tieu, du to hay nho.
     const ownGroupId = fixedIdMap[categoryId] && groupIdSet[categoryGroupIds[categoryId]]
       ? categoryGroupIds[categoryId]
       : "";
     if (ownGroupId !== "" || assignedGroupId !== "") {
       tiers.groupSpending += amount;
-    } else if (amount >= outsideThreshold) {
+    } else if (
+      amount >= outsideThreshold ||
+      isPassThrough(rowInfo.name + " " + rowInfo.note)
+    ) {
       tiers.outsideLargeRows.push({
         name: rowInfo.name,
         amount,
