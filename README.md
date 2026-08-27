@@ -93,11 +93,38 @@ Ghi chú `( tính vào quỹ X )` nhận **cả tên lọ lẫn tên nhãn con**
 
 Tên trong ghi chú chỉ được tính khi nó đứng **sau chữ `quỹ`** và **kết thúc trọn vẹn**. Nhờ vậy `Gửi xe đi chợ` không bị kéo vào lọ Đi Chợ, và `( lấy từ quỹ đi chơi với em )` không bị cắt thành `quỹ Đi Chợ`.
 
-### Hai cột phụ trong Notion
+### Quỹ con trong tài khoản giữ quỹ
+
+Quỹ Momo là **một** tài khoản nhưng bên trong chia làm nhiều túi nhỏ: quỹ sửa xe, quỹ tích lũy, quỹ đi chơi với em, quỹ mua máy tính cho cháu. Notion không có dòng nào cho chúng — chúng chỉ tồn tại trong chữ bạn ghi ở tên giao dịch và ghi chú.
+
+Khai báo tên túi ở cột `Quỹ Con` của từng lọ, cách nhau bằng dấu phẩy. Bot dựng lại sổ của từng túi:
+
+| Giao dịch | Bot hiểu |
+|---|---|
+| Chuyển **đến** tài khoản giữ quỹ, ghi chú có tên túi | tiền vào túi |
+| Chuyển **đi** từ tài khoản giữ quỹ, ghi chú có tên túi | tiền ra khỏi túi |
+| Khoản chi trả bằng tài khoản giữ quỹ, tên/ghi chú có tên túi | tiền ra khỏi túi |
+
+Chuyển khoản đã gắn nhãn `Nhóm Quỹ` thì bỏ qua — đó là cấp quỹ cho lọ, không phải chuyển giữa các túi.
+
+```
+🏦 QUỸ CON
+Hưởng thụ
+• đi chơi với em: vào 500.000đ · ra 500.000đ · đã hết
+Tiết kiệm dài hạn
+• mua máy: vào 4.000.000đ · ra 3.000.000đ · còn 1.000.000đ
+• sửa xe: vào 1.150.000đ · ra 500.000đ · còn 650.000đ
+• tích lũy: vào 600.000đ · ra 554.444đ · còn 45.556đ
+```
+
+Túi chưa có giao dịch nào thì không in. Số của túi **không** cộng vào trần 5,5 triệu — đó là tiền tiết kiệm, không phải chi tiêu tháng.
+
+### Ba cột phụ trong Notion
 
 | Cột | Ở đâu | Để làm gì |
 |---|---|---|
 | `Tên Cũ` | Nhóm Quỹ Ngân Sách | Tên cũ của lọ, cách nhau bằng dấu phẩy. Đổi tên lọ mà ghi chú cũ vẫn khớp, không phải sửa lại giao dịch cũ |
+| `Quỹ Con` | Nhóm Quỹ Ngân Sách | Tên các túi nhỏ nằm trong tài khoản giữ quỹ, cách nhau bằng dấu phẩy. Đây cũng là chỗ quyết định túi nào thuộc lọ nào |
 | `Chi Thẳng Không Qua Quỹ` | Chi Phí Và Ngân Sách | Tick cho nhãn con trả thẳng bằng tiền mặt (như Đi Chợ). Phần ngân sách chưa tiêu của nhãn đó không bị đòi bơm vào tài khoản giữ quỹ |
 
 Mỗi món liệt kê tối đa 6 giao dịch rồi gộp phần còn lại thành `… và N khoản nữa`. Tên hiển thị được cắt bỏ chú thích quỹ trong ngoặc cho gọn, nhưng ngoặc mang ngữ cảnh thật như `( mua đồ cho em )` thì giữ nguyên.

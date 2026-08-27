@@ -1469,6 +1469,75 @@ test("a jar keeps its children visible and honours old names in notes", () => {
   assert.doesNotMatch(text, /ỨNG TRƯỚC/);
 });
 
+test("sub funds inside the holding account are tracked from note names", () => {
+  const jar = (id, name, subFunds) => ({
+    id,
+    properties: {
+      "Tên Nhóm Quỹ": { title: [{ plain_text: name }] },
+      "Quỹ Con": { rich_text: subFunds ? [{ plain_text: subFunds }] : [] },
+      "Tài Khoản Giữ Quỹ": { relation: [{ id: "fund" }] },
+      "Bắt Buộc Cấp Quỹ": { checkbox: true }
+    }
+  });
+  const spend = (id, name, categoryId, accountId, amount) => ({
+    id,
+    properties: {
+      "Nội Dung Khoản Chi": { title: [{ plain_text: name }] },
+      "Ghi Chú": { rich_text: [] },
+      "Số Tiền": { number: amount },
+      "Ngày": { date: { start: "2026-08-12" } },
+      "Loại Chi Phí": { relation: [{ id: categoryId }] },
+      "Phương Thức Thanh Toán": { relation: [{ id: accountId }] }
+    }
+  });
+  const loose = (id, name) => ({
+    id,
+    properties: {
+      "Loại Chi Phí": { title: [{ plain_text: name }] },
+      "Ngân Sách Tháng": { number: 0 },
+      "Tính Trong 5,5 Triệu": { checkbox: false },
+      "Nhóm Quỹ": { relation: [] }
+    }
+  });
+
+  const data = buildAccountSpendingData_(
+    { y: 2026, m: 8, d: 25 },
+    [trackedCategoryRow("rent", "Nhà Trọ", 2150000, "nec"), loose("grap", "Grap")],
+    [
+      // Loai chi "Grap" khong thuoc lo nao, nhung tra bang tai khoan giu quy va
+      // ghi chu goi ten mot tui nho -> phai tru vao tui do.
+      spend("tire", "Thay ruột xe ( quỹ sửa xe )", "grap", "fund", 100000),
+      spend("oil", "Thay nhớt ( lấy từ quxy sửa xe )", "grap", "fund", 150000),
+      // Tra bang tai khoan khac thi khong dung toi tui nao.
+      spend("fuel", "Đổ xăng", "grap", "cash", 50000)
+    ],
+    [cashflowAccountRow("fund", "Quỹ Momo"), cashflowAccountRow("cash", "Grap Tiền Mặt")],
+    5500000,
+    [
+      transferRow("in1", "Chuyển tiền vào quỹ sửa xe ( mỗi ngày 50k)", 200000, "cash", "fund"),
+      transferRow("in2", "Tiền vào quỹ sửa xe", 150000, "cash", "fund"),
+      // Chuyen co gan nhan Nhom Quy la cap quy cho lo, khong phai chuyen giua cac tui.
+      transferRow("cap", "Tiền phòng ( quỹ sửa xe )", 900000, "cash", "fund", "nec")
+    ],
+    [jar("nec", "Nhu cầu thiết yếu", ""), jar("ltss", "Tiết kiệm dài hạn", "sửa xe, tích lũy")]
+  );
+
+  assert.deepEqual(data.subFunds, [
+    {
+      jar: "Tiết kiệm dài hạn",
+      name: "sửa xe",
+      moneyIn: 350000,
+      moneyOut: 250000,
+      balance: 100000
+    }
+  ]);
+
+  const text = fundBudgetText_(data);
+  assert.match(text, /🏦 QUỸ CON\nTiết kiệm dài hạn\n• sửa xe: vào 350\.000đ · ra 250\.000đ · còn 100\.000đ/);
+  // Tui chua co giao dich nao thi khong in ra.
+  assert.doesNotMatch(text, /tích lũy/);
+});
+
 test("spending splits into fund groups, loose spending and excluded one-offs", () => {
   const spend = (id, name, categoryId, accountId, amount) => ({
     id,
