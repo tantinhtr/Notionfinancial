@@ -1500,6 +1500,10 @@ test("a code advance is pass-through money, excluded at any size", () => {
       // Ghi chu o cot Ghi Chu cung tinh.
       noted("advance2", "Nạp ví grap", "grap", 80000, "ứng code đơn hàng"),
       noted("fuel", "Đổ xăng", "grap", 60000),
+      // Nap vi Grab la tra chiet khau, ma thu nhap ghi trong Notion da la so RONG.
+      noted("wallet", "Nạp tiền ví grap", "grap", 175000),
+      // "Nạp tiền vào ví telegram" khong phai vi Grab — day la chi tieu that.
+      noted("tele", "Nạp tiền vào ví telegram", "market", 20000),
       // "trứng" co chua chuoi "ứng" — khong duoc nham thanh tien ung code.
       noted("eggs", "Đi chợ", "market", 29000, "1 vỉ trứng gà")
     ],
@@ -1507,19 +1511,19 @@ test("a code advance is pass-through money, excluded at any size", () => {
     5500000,
     [],
     [],
-    { passThroughKeywords: ["code"], outsideThreshold: 500000 }
+    { passThroughKeywords: ["code", "ví grap"], outsideThreshold: 500000 }
   );
 
-  assert.equal(data.excluded.total, 200000);
+  assert.equal(data.excluded.total, 375000);
   assert.deepEqual(
     data.excluded.rows.map((row) => row.amount).sort((a, b) => b - a),
-    [120000, 80000]
+    [175000, 120000, 80000]
   );
-  // Đổ xăng va vi trung ga van la chi tieu that.
-  assert.equal(data.monthlyBudget.looseSpending, 89000);
+  // Đổ xăng, vi trung ga va nap vi telegram van la chi tieu that.
+  assert.equal(data.monthlyBudget.looseSpending, 109000);
   assert.deepEqual(
     data.monthlyBudget.looseByCategory,
-    [{ category: "Grap", amount: 60000 }, { category: "Siêu Thị", amount: 29000 }]
+    [{ category: "Grap", amount: 60000 }, { category: "Siêu Thị", amount: 49000 }]
   );
 });
 

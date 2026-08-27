@@ -146,7 +146,16 @@ Bot chia mọi khoản chi làm đúng hai nhóm:
 
 Ngưỡng áp cho **từng giao dịch riêng lẻ**, không phải cho tổng của một loại chi. Một loại chi có tổng 2 triệu gồm nhiều khoản nhỏ vẫn được tính trọn; chỉ khoản đơn lẻ vượt ngưỡng mới bị tách. Đổi ngưỡng ở `outsideBudgetThreshold` trong `src/config.js`.
 
-Không có ngoại lệ theo loại: nạp ví Grab, đổ xăng, sửa xe, cho mượn — tất cả đều theo đúng luật trên. Ngoài ngưỡng tiền, còn một luật nữa: giao dịch nào **nhắc tới chữ `code`** trong tên hoặc ghi chú thì bị loại **dù to hay nhỏ** — đó là tiền ứng mua hộ khách, sẽ được hoàn lại, không phải chi tiêu. Ví dụ `Nạp ví grap ( trừ tiền ứng code )`. Danh sách từ khoá ở `passThroughKeywords` trong `src/config.js`. Cố ý chỉ bắt chữ `code` chứ không bắt chữ `ứng`, vì `1 vỉ trứng gà` cũng chứa `ứng`.
+Không có ngoại lệ theo loại: nạp ví Grab, đổ xăng, sửa xe, cho mượn — tất cả đều theo đúng luật trên. Ngoài ngưỡng tiền, còn một luật nữa: giao dịch nào nhắc tới một trong các từ khoá ở `passThroughKeywords` (`src/config.js`) thì bị loại **dù to hay nhỏ**:
+
+| Từ khoá | Vì sao không phải chi tiêu |
+|---|---|
+| `code` | Ứng tiền mua hộ khách rồi được hoàn lại. Ví dụ `Nạp ví grap ( trừ tiền ứng code )` |
+| `ví grap` · `ví grab` | Nạp ví Grab là trả chiết khấu, mà số ghi ở Báo Cáo Thu Nhập đã là **thu nhập ròng app** — tức đã trừ chiết khấu rồi. Tính thêm lần nữa là trừ hai lần |
+
+Chi phí thật của việc chạy Grab chỉ còn **xăng và sửa xe**. Tháng 8/2026: nạp ví 5.279.108đ (đã loại), xăng 1.340.000đ + sửa xe 375.000đ (giữ lại) trên thu nhập ròng 10.179.789đ.
+
+Hai chỗ cố ý chọn từ khoá hẹp: bắt `code` chứ không bắt `ứng` vì `1 vỉ trứng gà` cũng chứa `ứng`; bắt `ví grap` chứ không bắt `nạp ví` vì `Nạp tiền vào ví telegram` là chi tiêu thật.
 
 Khoản nào dưới ngưỡng và không phải tiền ứng code thì là chi tiêu; ngược lại bị loại hẳn: không vào `🧾 NGOÀI NHÓM QUỸ`, cũng không vào `💰 TỔNG CHI TIÊU`, và báo cáo cũng không liệt kê chúng ra. `TỔNG CHI TIÊU` đúng bằng `nhóm quỹ + ngoài nhóm quỹ`.
 
