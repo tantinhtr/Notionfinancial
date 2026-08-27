@@ -1250,7 +1250,7 @@ export function fundBudgetText_(data) {
     if (excluded && excluded.total > 0) {
       lines.push(
         "🚫 Không tính: " + money_(excluded.total) +
-        " · " + excluded.rows.length + " khoản (nạp ví Grab, ứng code, lẻ ≥500k)"
+        " · " + excluded.rows.length + " khoản (ứng code, giao dịch lẻ ≥500k)"
       );
     }
   }

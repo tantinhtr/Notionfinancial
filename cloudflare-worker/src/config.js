@@ -55,14 +55,13 @@ export function getConfig(env) {
     // Hai vi nay la NGUON dung de cap tien cho cac nhom quy. Nhom nao chi thang
     // bang chung thi coi nhu da duoc cap, khong sinh mon no phai tra lai.
     fundingSourceAccounts: ["Momo", "Grap Tiền Mặt"],
-    // Giao dich nhac toi mot trong may tu nay khong phai chi tieu, loai du to hay nho:
-    //   "code"    — ung tien mua ho khach roi duoc hoan lai.
-    //   "vi grap" — nap vi Grab la tra chiet khau, ma so ghi o Bao Cao Thu Nhap da la
-    //               "thu nhap rong app" tuc DA TRU chiet khau roi. Tinh them lan nua
-    //               la tru hai lan. Chi phi that cua chay Grab chi con xang va sua xe.
+    // Giao dich nhac toi mot trong may tu nay la tien di roi quay ve, khong phai chi
+    // tieu: ung tien mua ho khach roi duoc hoan lai. Loai du to hay nho.
     // Khong dung tu "ung" tran: "1 vi trung ga" cung khop.
-    // Dung "vi grap" chu khong phai "nap vi": "Nạp tiền vào ví telegram" la chi that.
-    passThroughKeywords: ["code", "ví grap", "ví grab"],
+    //
+    // Nap vi Grab CO tinh la chi tieu: do la tien that su ra khoi vi de chay xe.
+    // Bao cao nay do dong tien di ra, khong phai tinh lai lo, nen khong tru no di.
+    passThroughKeywords: ["code"],
     timezone: "Asia/Ho_Chi_Minh",
     ...STABLE_IDS
   };

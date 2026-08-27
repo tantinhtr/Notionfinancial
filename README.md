@@ -150,12 +150,11 @@ Không có ngoại lệ theo loại: nạp ví Grab, đổ xăng, sửa xe, cho 
 
 | Từ khoá | Vì sao không phải chi tiêu |
 |---|---|
-| `code` | Ứng tiền mua hộ khách rồi được hoàn lại. Ví dụ `Nạp ví grap ( trừ tiền ứng code )` |
-| `ví grap` · `ví grab` | Nạp ví Grab là trả chiết khấu, mà số ghi ở Báo Cáo Thu Nhập đã là **thu nhập ròng app** — tức đã trừ chiết khấu rồi. Tính thêm lần nữa là trừ hai lần |
+| `code` | Ứng tiền mua hộ khách rồi **được hoàn lại**. Ví dụ `Nạp ví grap ( trừ tiền ứng code )` |
 
-Chi phí thật của việc chạy Grab chỉ còn **xăng và sửa xe**. Tháng 8/2026: nạp ví 5.279.108đ (đã loại), xăng 1.340.000đ + sửa xe 375.000đ (giữ lại) trên thu nhập ròng 10.179.789đ.
+Cố ý bắt `code` chứ không bắt `ứng`, vì `1 vỉ trứng gà` cũng chứa `ứng`.
 
-Hai chỗ cố ý chọn từ khoá hẹp: bắt `code` chứ không bắt `ứng` vì `1 vỉ trứng gà` cũng chứa `ứng`; bắt `ví grap` chứ không bắt `nạp ví` vì `Nạp tiền vào ví telegram` là chi tiêu thật.
+**Nạp ví Grab thì vẫn tính là chi tiêu.** Đó là tiền thật ra khỏi ví để chạy xe, không quay về. Báo cáo này đo dòng tiền đi ra, không phải tính lãi lỗ, nên không trừ nó đi.
 
 Khoản bị loại không vào `🧾 NGOÀI NHÓM QUỸ`, cũng không vào `💰 TỔNG CHI TIÊU` — `TỔNG CHI TIÊU` đúng bằng `nhóm quỹ + ngoài nhóm quỹ`. Nhưng tiền vẫn ra khỏi ví thật, nên ngay dưới có một dòng tóm tắt cho biết tổng đã loại là bao nhiêu và gồm mấy khoản:
 
