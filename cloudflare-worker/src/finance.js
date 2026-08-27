@@ -459,69 +459,6 @@ function assignedFund_(expenseRow, assignmentKeys) {
   return best;
 }
 
-// Quy Momo la MOT tai khoan nhung ben trong chia lam nhieu tui nho: quy sua xe,
-// quy tich luy, quy di choi voi em... Notion khong luu so du tung tui, chi co ten
-// tui nam trong ghi chu giao dich. Ham nay dung lai so cua tung tui:
-//   chuyen DEN tai khoan giu quy  -> tien vao tui
-//   chuyen DI tu tai khoan giu quy -> tien ra khoi tui
-//   khoan chi tra bang tai khoan giu quy -> tien ra khoi tui
-// Ten tui khai bao o cot "Quy Con" cua tung lo, cach nhau bang dau phay.
-function buildSubFunds_(definitions, transferRows, expenseRows, expenseInfoById) {
-  if (!definitions.length) return [];
-  const ledger = {};
-  const match = (text, accountId) => {
-    const haystack = normalizeSearchText_(text);
-    let best = null;
-    for (const definition of definitions) {
-      if (definition.accountId !== accountId) continue;
-      if (haystack.indexOf(definition.needle) < 0) continue;
-      if (best === null || definition.needle.length > best.needle.length) best = definition;
-    }
-    return best;
-  };
-  const add = (definition, field, amount) => {
-    const key = definition.jar + "|" + definition.name;
-    if (!ledger[key]) {
-      ledger[key] = { jar: definition.jar, name: definition.name, moneyIn: 0, moneyOut: 0 };
-    }
-    ledger[key][field] += amount;
-  };
-
-  for (const transferRow of transferRows) {
-    const props = transferRow.properties || {};
-    // Chuyen co gan nhan Nhom Quy la cap quy cho lo, khong phai chuyen giua cac tui.
-    if (((props["Nhóm Quỹ"] && props["Nhóm Quỹ"].relation) || []).length) continue;
-    const amount = num_(props["Số Tiền"]);
-    if (amount <= 0) continue;
-    const text = plainText_(props["Ghi Chú"]);
-    const toRelation = (props["Đến Tài Khoản"] && props["Đến Tài Khoản"].relation) || [];
-    const fromRelation = (props["Từ Tài Khoản"] && props["Từ Tài Khoản"].relation) || [];
-    const toId = toRelation.length ? toRelation[0].id : "";
-    const fromId = fromRelation.length ? fromRelation[0].id : "";
-    const incoming = match(text, toId);
-    if (incoming) add(incoming, "moneyIn", amount);
-    const outgoing = match(text, fromId);
-    if (outgoing) add(outgoing, "moneyOut", amount);
-  }
-
-  for (const expenseRow of expenseRows) {
-    const info = expenseInfoById[expenseRow.id];
-    if (!info || info.amount <= 0) continue;
-    const props = expenseRow.properties || {};
-    const text = plainText_(props["Nội Dung Khoản Chi"]) + " " + plainText_(props["Ghi Chú"]);
-    const spent = match(text, info.accountId);
-    if (spent) add(spent, "moneyOut", info.amount);
-  }
-
-  return Object.keys(ledger)
-    .map((key) => {
-      const entry = ledger[key];
-      return { ...entry, balance: entry.moneyIn - entry.moneyOut };
-    })
-    .filter((entry) => entry.moneyIn > 0 || entry.moneyOut > 0)
-    .sort((a, b) => (a.jar === b.jar ? b.balance - a.balance : (a.jar < b.jar ? -1 : 1)));
-}
-
 function buildMonthlyBudget_(tiers, monthlyLimit) {
   const total = tiers.groupSpending + tiers.looseSpending;
   return {
@@ -598,7 +535,6 @@ export function buildAccountSpendingData_(
   // Doi ten lo thi ghi chu cu ("lấy từ quỹ thiết yếu") van phai khop. Cot "Tên Cũ"
   // trong Notion liet ke cac ten cu, cach nhau bang dau phay.
   const groupAliasKeys = {};
-  const subFundDefinitions = [];
   for (const fundGroupRow of fundGroupRows) {
     const props = fundGroupRow.properties || {};
     const title = (props["Tên Nhóm Quỹ"] && props["Tên Nhóm Quỹ"].title) || [];
@@ -611,18 +547,6 @@ export function buildAccountSpendingData_(
       if (key === "") continue;
       groupAliasKeys[fundGroupRow.id][key] = true;
       pendingAliases.push({ key, groupId: fundGroupRow.id });
-    }
-    const holdRelation = (props["Tài Khoản Giữ Quỹ"] && props["Tài Khoản Giữ Quỹ"].relation) || [];
-    const holdId = holdRelation.length ? holdRelation[0].id : "";
-    for (const raw of plainText_(props["Quỹ Con"]).split(",")) {
-      const name = raw.replace(/\s+/g, " ").trim();
-      if (name === "" || holdId === "") continue;
-      subFundDefinitions.push({
-        jar: title[0].plain_text,
-        name,
-        needle: normalizeSearchText_(name),
-        accountId: holdId
-      });
     }
   }
   const groupNameKeys = Object.keys(fundGroupIdByName);
@@ -834,13 +758,6 @@ export function buildAccountSpendingData_(
   }
   accounts.sort((a, b) => b.total - a.total);
 
-  const subFunds = buildSubFunds_(
-    subFundDefinitions,
-    transferRows,
-    expenseRows,
-    flowAnalysis.rowsById
-  );
-
   const fundGroups = [];
   const knownGroupIds = {};
   for (const row of fundGroupRows) knownGroupIds[row.id] = true;
@@ -1015,7 +932,6 @@ export function buildAccountSpendingData_(
 
   return {
     t,
-    subFunds,
     total: flowAnalysis.cashOutflowTotal,
     cashOutflowTotal: flowAnalysis.cashOutflowTotal,
     personalSpendingTotal: flowAnalysis.personalSpendingTotal,
@@ -1316,25 +1232,6 @@ export function fundBudgetText_(data) {
 
   if (budget) {
     lines.push("", "💰 TỔNG CHI TIÊU: " + money_(budget.total));
-  }
-
-  const subFunds = data.subFunds || [];
-  if (subFunds.length) {
-    lines.push("", "🏦 QUỸ CON");
-    let jar = "";
-    for (const fund of subFunds) {
-      if (fund.jar !== jar) {
-        jar = fund.jar;
-        lines.push(jar);
-      }
-      const state = fund.balance > 0
-        ? "còn " + money_(fund.balance)
-        : (fund.balance === 0 ? "đã hết" : "âm " + money_(-fund.balance));
-      lines.push(
-        "• " + fund.name + ": vào " + money_(fund.moneyIn) +
-        " · ra " + money_(fund.moneyOut) + " · " + state
-      );
-    }
   }
 
   const debts = collectDebts_(groups);
