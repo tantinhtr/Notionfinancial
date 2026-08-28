@@ -543,6 +543,10 @@ export function buildAccountSpendingData_(
   }
   const isFundingSource = (accountName) =>
     fundingSourceKeys[normalizeSearchText_(accountName)] === true;
+  const passThroughCategoryKeys = {};
+  for (const name of options.passThroughCategories || []) {
+    passThroughCategoryKeys[normalizeSearchText_(name)] = true;
+  }
   const passThroughNeedles = (options.passThroughKeywords || [])
     .map((word) => normalizeSearchText_(word))
     .filter((word) => word !== "");
@@ -703,6 +707,7 @@ export function buildAccountSpendingData_(
       tiers.groupSpending += amount;
     } else if (
       amount >= outsideThreshold ||
+      passThroughCategoryKeys[normalizeSearchText_(categoryName)] === true ||
       isPassThrough(rowInfo.name + " " + rowInfo.note)
     ) {
       tiers.outsideLargeRows.push({

@@ -154,6 +154,10 @@ Không có ngoại lệ theo loại: nạp ví Grab, đổ xăng, sửa xe, cho 
 |---|---|
 | `code` | Ứng tiền mua hộ khách rồi **được hoàn lại**. Ví dụ `Nạp ví grap ( trừ tiền ứng code )` |
 
+Ngoài ra cả nhãn `Vay Và Trả` bị loại (khai ở `passThroughCategories`): cho mượn rồi đòi lại, hoặc trả nợ cũ — tiền đi rồi về, không phải tiêu mất.
+
+Ngược lại, tiêu tiền của một **quỹ con** trong Quỹ Momo (quỹ sửa xe, quỹ đi chơi với em) **vẫn là chi tiêu**. Đó là tiền kiếm được trong tháng, để dành riêng cho việc đó; không dùng tới thì tốt, dùng tới thì đúng là đã tiêu.
+
 Cố ý bắt `code` chứ không bắt `ứng`, vì `1 vỉ trứng gà` cũng chứa `ứng`.
 
 **Nạp ví Grab thì vẫn tính là chi tiêu.** Đó là tiền thật ra khỏi ví để chạy xe, không quay về. Báo cáo này đo dòng tiền đi ra, không phải tính lãi lỗ, nên không trừ nó đi.

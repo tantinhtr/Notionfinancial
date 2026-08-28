@@ -1493,7 +1493,7 @@ test("a code advance is pass-through money, excluded at any size", () => {
 
   const data = buildAccountSpendingData_(
     { y: 2026, m: 8, d: 25 },
-    [loose("grap", "Grap"), loose("market", "Siêu Thị")],
+    [loose("grap", "Grap"), loose("market", "Siêu Thị"), loose("loan", "Vay Và Trả")],
     [
       // Duoi nguong 500k nhung la tien ung mua ho khach -> van phai loai.
       noted("advance", "Nạp ví grap ( trừ tiền ứng code )", "grap", 120000),
@@ -1503,19 +1503,25 @@ test("a code advance is pass-through money, excluded at any size", () => {
       // Nap vi Grab la tien that ra khoi vi de chay xe -> van la chi tieu.
       noted("wallet", "Nạp tiền ví grap", "grap", 175000),
       // "trứng" co chua chuoi "ứng" — khong duoc nham thanh tien ung code.
-      noted("eggs", "Đi chợ", "market", 29000, "1 vỉ trứng gà")
+      noted("eggs", "Đi chợ", "market", 29000, "1 vỉ trứng gà"),
+      // Cho muon roi doi lai: tien di roi ve, khong phai tieu mat.
+      noted("loan", "Cho Tuấn mượn", "loan", 150000)
     ],
     [cashflowAccountRow("cash", "Grap Tiền Mặt")],
     5500000,
     [],
     [],
-    { passThroughKeywords: ["code"], outsideThreshold: 500000 }
+    {
+      passThroughKeywords: ["code"],
+      passThroughCategories: ["Vay Và Trả"],
+      outsideThreshold: 500000
+    }
   );
 
-  assert.equal(data.excluded.total, 200000);
+  assert.equal(data.excluded.total, 350000);
   assert.deepEqual(
     data.excluded.rows.map((row) => row.amount).sort((a, b) => b - a),
-    [120000, 80000]
+    [150000, 120000, 80000]
   );
   // Đổ xăng, nap vi Grab va vi trung ga deu la chi tieu that.
   assert.equal(data.monthlyBudget.looseSpending, 264000);

@@ -210,7 +210,8 @@ export function createFinanceRepository({ notion, state, config, now = () => new
         otherIncomeRows,
         outsideThreshold: config.outsideBudgetThreshold,
         fundingSourceAccounts: config.fundingSourceAccounts,
-        passThroughKeywords: config.passThroughKeywords
+        passThroughKeywords: config.passThroughKeywords,
+        passThroughCategories: config.passThroughCategories
       }
     );
     try {

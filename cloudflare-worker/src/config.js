@@ -62,6 +62,9 @@ export function getConfig(env) {
     // Nap vi Grab CO tinh la chi tieu: do la tien that su ra khoi vi de chay xe.
     // Bao cao nay do dong tien di ra, khong phai tinh lai lo, nen khong tru no di.
     passThroughKeywords: ["code"],
+    // Nhan nay khong bao gio la chi tieu: cho muon roi doi lai, hoac tra no cu.
+    // Tien di roi ve, khong phai tieu mat.
+    passThroughCategories: ["Vay Và Trả"],
     timezone: "Asia/Ho_Chi_Minh",
     ...STABLE_IDS
   };
