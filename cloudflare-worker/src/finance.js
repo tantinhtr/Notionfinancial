@@ -1204,11 +1204,9 @@ const LOOSE_CATEGORIES_SHOWN = 12;
 // Tien DI VAO nhom quy: da cap bao nhieu, con lai bao nhieu trong tai khoan giu quy.
 function fundInflowLine_(group) {
   if (!group.requiresAllocation) return "";
-  // "Quy con" da nam o dong tren roi, day chi noi da bom vao bao nhieu.
-  const allocated = group.allocated || 0;
-  return "   ↳ " + (allocated > 0
-    ? "đã cấp " + money_(allocated) + " / " + money_(group.budget || 0)
-    : "chưa cấp");
+  // "Quy con" da nam o dong tren roi, day chi noi da bom vao bao nhieu. Luon in ca
+  // hai so, ke ca khi chua cap dong nao: "chưa cấp" khong noi duoc con thieu bao nhieu.
+  return "   ↳ đã cấp " + money_(group.allocated || 0) + " / " + money_(group.budget || 0);
 }
 
 function budgetHeadline_(budget, groups) {
