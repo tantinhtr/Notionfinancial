@@ -1674,7 +1674,9 @@ test("spending splits into fund groups, loose spending and excluded one-offs", (
   assert.deepEqual(data.income, { real: 7876709, grabGross: 1310000, other: 1000000 });
 
   const text = fundBudgetText_(data);
-  assert.match(text, /💵 Thu nhập thật: 7\.876\.709đ/);
+  // Thu nhap van duoc tinh de tach thu nhap that khoi tien chay qua, nhung bao cao
+  // quy khong in ra — con so do da co o nut khac.
+  assert.doesNotMatch(text, /Thu nhập thật/);
   assert.match(text, /📊 NHÓM QUỸ — 2\.000\.000đ \/ 2\.150\.000đ · ✅ còn 150\.000đ/);
   assert.match(text, /🧾 NGOÀI NHÓM QUỸ — 225\.000đ/);
   assert.match(text, /💰 TỔNG CHI TIÊU: 2\.225\.000đ/);

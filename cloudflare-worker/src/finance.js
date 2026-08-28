@@ -1223,10 +1223,6 @@ export function fundBudgetText_(data) {
   const groups = data.fundGroups || [];
   const lines = ["📦 QUỸ & NGÂN SÁCH — tháng " + t.m + "/" + t.y];
 
-  if (data.income && data.income.real > 0) {
-    lines.push("", "💵 Thu nhập thật: " + money_(data.income.real));
-  }
-
   const budget = data.monthlyBudget;
   if (groups.length) {
     lines.push("", budgetHeadline_(budget || { total: 0, limit: 0 }, groups));

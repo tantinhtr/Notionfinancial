@@ -179,6 +179,8 @@ Chỉ một dòng, không liệt kê từng giao dịch.
 
 Chỉ dòng đầu được cộng vào thu nhập tháng. Hai dòng sau là tiền chạy qua tài khoản.
 
+Báo cáo **Quỹ & ngân sách không in dòng thu nhập** — con số đó đã có ở nút Dòng tiền. Việc phân loại vẫn chạy, vì nó cần để tách thu nhập thật khỏi tiền chạy qua.
+
 ### Quy ước ghi chú
 
 Bot không chỉ nhìn cột `Loại Chi Phí` mà đọc cả tiêu đề và ô Ghi Chú của khoản chi. Hai động từ, hai việc khác nhau và độc lập với nhau:
