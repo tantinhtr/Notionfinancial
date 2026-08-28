@@ -543,6 +543,10 @@ export function buildAccountSpendingData_(
   }
   const isFundingSource = (accountName) =>
     fundingSourceKeys[normalizeSearchText_(accountName)] === true;
+  const spendableSubFundKeys = {};
+  for (const name of options.spendableSubFunds || []) {
+    spendableSubFundKeys[normalizeSearchText_(stripFundPrefix_(name))] = true;
+  }
   const passThroughCategoryKeys = {};
   for (const name of options.passThroughCategories || []) {
     passThroughCategoryKeys[normalizeSearchText_(name)] = true;
@@ -657,6 +661,16 @@ export function buildAccountSpendingData_(
     accountNames[accountRow.id] = title.length ? title[0].plain_text : "(chưa chọn tài khoản)";
   }
 
+  // Ghi chu "lay tu quy X" ma X khong phai mot lo, cung khong phai tui duoc nap tu
+  // thu nhap thang nay, thi do la tien de danh tu truoc — tieu no khong tinh vao
+  // chi tieu cua thang. Rieng quy sua xe thi co, vi thang nao nap thang do.
+  const spentFromSavedPot = (lender) => {
+    if (lender === "") return false;
+    const key = stripFundPrefix_(lender);
+    if (key === "" || fundGroupIdByName[key] !== undefined) return false;
+    return spendableSubFundKeys[normalizeSearchText_(key)] !== true;
+  };
+
   const flowAnalysis = analyzeExpenseRows_(expenseRows, categoryNames, fixedIdMap, accountNames);
   for (const expenseRow of expenseRows) {
     const rowInfo = flowAnalysis.rowsById[expenseRow.id];
@@ -708,7 +722,8 @@ export function buildAccountSpendingData_(
     } else if (
       amount >= outsideThreshold ||
       passThroughCategoryKeys[normalizeSearchText_(categoryName)] === true ||
-      isPassThrough(rowInfo.name + " " + rowInfo.note)
+      isPassThrough(rowInfo.name + " " + rowInfo.note) ||
+      spentFromSavedPot(lender)
     ) {
       tiers.outsideLargeRows.push({
         name: rowInfo.name,

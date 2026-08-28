@@ -156,7 +156,14 @@ Không có ngoại lệ theo loại: nạp ví Grab, đổ xăng, sửa xe, cho 
 
 Ngoài ra cả nhãn `Vay Và Trả` bị loại (khai ở `passThroughCategories`): cho mượn rồi đòi lại, hoặc trả nợ cũ — tiền đi rồi về, không phải tiêu mất.
 
-Ngược lại, tiêu tiền của một **quỹ con** trong Quỹ Momo (quỹ sửa xe, quỹ đi chơi với em) **vẫn là chi tiêu**. Đó là tiền kiếm được trong tháng, để dành riêng cho việc đó; không dùng tới thì tốt, dùng tới thì đúng là đã tiêu.
+**Quỹ con trong Quỹ Momo** thì tuỳ nguồn tiền. Khai ở `spendableSubFunds` những túi được nạp bằng thu nhập **của chính tháng này**:
+
+| Túi | Nguồn | Tiêu nó |
+|---|---|---|
+| `quỹ sửa xe` | nạp từ thu nhập tháng này, mỗi ngày 50k | **là chi tiêu** — không dùng tới thì tốt, dùng tới là đã tiêu thật |
+| `quỹ đi chơi với em`, `quỹ tích lũy`, `quỹ mua máy tính cho cháu` | để dành từ trước | **không tính** vào chi tiêu tháng này |
+
+Mặc định là **không tính**; túi nào là tiền của tháng thì phải khai tên vào `spendableSubFunds`. Luật này chỉ áp cho khoản **ngoài lọ** — khoản trong lọ vẫn tính bình thường, và món nợ với túi đó vẫn nằm ở mục ỨNG TRƯỚC.
 
 Cố ý bắt `code` chứ không bắt `ứng`, vì `1 vỉ trứng gà` cũng chứa `ứng`.
 

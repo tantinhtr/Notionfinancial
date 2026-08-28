@@ -65,6 +65,10 @@ export function getConfig(env) {
     // Nhan nay khong bao gio la chi tieu: cho muon roi doi lai, hoac tra no cu.
     // Tien di roi ve, khong phai tieu mat.
     passThroughCategories: ["Vay Và Trả"],
+    // Quy con nam trong Quy Momo ma tien LA cua thang nay. Tieu tui nay la chi tieu
+    // that. Cac tui khac (tich luy, di choi voi em, mua may tinh cho chau) la tien
+    // de danh tu truoc, tieu chung khong phai chi tieu cua thang nay.
+    spendableSubFunds: ["sửa xe"],
     timezone: "Asia/Ho_Chi_Minh",
     ...STABLE_IDS
   };

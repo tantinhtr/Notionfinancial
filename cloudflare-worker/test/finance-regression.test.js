@@ -1320,7 +1320,10 @@ test("a fund name only counts when it is written out in full after the word quy"
   const text = fundBudgetText_(data);
   assert.match(text, /✅ Đi Chợ: 60\.000đ \/ 1\.400\.000đ/);
   assert.match(text, /• Phí Gửi Xe: 2\.000đ/);
-  assert.match(text, /• Đà Nẵng: 220\.000đ/);
+  // Khong bi keo vao lo Đi Chợ, va cung khong tinh la chi tieu: "quỹ đi chơi với em"
+  // la tien de danh tu truoc, khong phai tien kiem duoc thang nay.
+  assert.doesNotMatch(text, /Đà Nẵng/);
+  assert.equal(data.excluded.total, 220000);
 });
 
 test("spending paid straight from a funding source counts as funded, not owed", () => {
@@ -1591,6 +1594,50 @@ test("tính vào works without the word quỹ, but a made-up name still matches 
   const text = fundBudgetText_(data);
   assert.match(text, /• Phát triển bản thân: 218\.392đ \/ 500\.000đ/);
   assert.match(text, /• TikTok Shop: 15\.000đ/);
+});
+
+test("only a sub fund funded this month counts as spending when drawn on", () => {
+  const noted = (id, name, categoryId, amount, note = "") => ({
+    id,
+    properties: {
+      "Nội Dung Khoản Chi": { title: [{ plain_text: name }] },
+      "Ghi Chú": { rich_text: note ? [{ plain_text: note }] : [] },
+      "Số Tiền": { number: amount },
+      "Ngày": { date: { start: "2026-08-12" } },
+      "Loại Chi Phí": { relation: [{ id: categoryId }] },
+      "Phương Thức Thanh Toán": { relation: [{ id: "fund" }] }
+    }
+  });
+  const loose = (id, name) => ({
+    id,
+    properties: {
+      "Loại Chi Phí": { title: [{ plain_text: name }] },
+      "Ngân Sách Tháng": { number: 0 },
+      "Tính Trong 5,5 Triệu": { checkbox: false },
+      "Nhóm Quỹ": { relation: [] }
+    }
+  });
+
+  const data = buildAccountSpendingData_(
+    { y: 2026, m: 8, d: 25 },
+    [loose("grap", "Grap"), loose("danang", "Đà Nẵng")],
+    [
+      // Quy sua xe duoc nap tu thu nhap thang nay -> tieu no la chi tieu that.
+      noted("tire", "Thay ruột xe", "grap", 100000, "( quỹ sửa xe )"),
+      // Quy di choi voi em la tien de danh tu truoc -> khong tinh vao thang nay.
+      noted("flower", "Mua hoa tặng em", "danang", 220000, "( lấy từ quỹ đi chơi với em )")
+    ],
+    [cashflowAccountRow("fund", "Quỹ Momo")],
+    5500000,
+    [],
+    [],
+    { spendableSubFunds: ["sửa xe"], outsideThreshold: 500000 }
+  );
+
+  assert.equal(data.monthlyBudget.looseSpending, 100000);
+  assert.deepEqual(data.monthlyBudget.looseByCategory, [{ category: "Grap", amount: 100000 }]);
+  assert.equal(data.excluded.total, 220000);
+  assert.equal(data.excluded.rows[0].name, "Mua hoa tặng em");
 });
 
 test("spending splits into fund groups, loose spending and excluded one-offs", () => {
