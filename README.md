@@ -117,12 +117,10 @@ Mỗi nhóm quỹ có hai chiều tiền, báo cáo hiện cả hai:
 ```
 ✅ Thiết Yếu: 2.298.400đ / 2.400.000đ · quỹ còn 31.600đ
    ↳ đã cấp 2.330.000đ / 2.400.000đ
-💵 Đã cấp vào quỹ: 2.330.000đ · quỹ đang giữ: 31.600đ
 ```
 
 - Dòng trên là **tiền ra**: đã tiêu bao nhiêu so với ngân sách, và trong quỹ còn **tiền thật** bao nhiêu.
 - Dòng `↳` là **tiền vào**: đã chuyển được bao nhiêu trên tổng ngân sách của lọ. Chưa cấp đồng nào thì ghi `đã cấp 0đ / 1.100.000đ` chứ không ghi trống "chưa cấp" — phải thấy được còn thiếu bao nhiêu.
-- Dòng `💵` là tổng của cả hai.
 
 `quỹ còn X` **không phải** là ngân sách trừ đã tiêu. Nó là `đã cấp − đã tiêu`, tức tiền đang thật sự nằm trong tài khoản giữ quỹ. Ví dụ trên: ngân sách còn dư 101.600 trên giấy, nhưng 70.000 tiền cắt tóc chưa hề được cấp vào quỹ nên không được tính là tiền của nhóm — trong quỹ chỉ có 31.600 (tiền trọ thừa 28.000 + wifi thừa 3.600). Khi nào cấp nốt 70.000 kia thì dòng này mới thành `quỹ còn 101.600đ`.
 

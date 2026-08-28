@@ -1923,7 +1923,6 @@ test("fund budget text preserves approved fund statuses and heading", () => {
       "⛔ Làm YouTube: 554.444đ / 500.000đ · vượt 54.444đ\n" +
       "   ↳ đã cấp 555.000đ / 500.000đ\n" +
       "✅ Chưa Ghép: 25.000đ / 100.000đ · còn 75.000đ · ⚠️ thiếu loại chi\n" +
-      "💵 Đã cấp vào quỹ: 2.955.000đ · quỹ đang giữ: 123.156đ\n" +
       "\n" +
       "💰 CẦN CẤP THÊM\n" +
       "• Phát Sinh → Quỹ Momo: 600.000đ"
