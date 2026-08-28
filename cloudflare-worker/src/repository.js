@@ -165,8 +165,20 @@ export function createFinanceRepository({ notion, state, config, now = () => new
     return model;
   }
 
-  async function getFundBudgetReport() {
+  async function getFundBudgetReport(forceRefresh = false) {
     const t = createDateParts(now, dateFormatter);
+    // Bao cao nay doc 7 bang Notion, va bang khoan chi vuot 100 dong tu giua thang
+    // nen phai phan trang — cang cuoi thang cang lau. Cache 60 giay giong het
+    // monthly-cashflow: bam lai trong vong mot phut la tra ve ngay.
+    const cacheKey = `fund-budget:${iso_(t.y, t.m, t.d)}`;
+    if (!forceRefresh) {
+      try {
+        const cached = await state.getReportCache(cacheKey);
+        if (cached !== null && cached !== undefined) return cached;
+      } catch {
+        // Cache is optional; a read failure must not block a live report.
+      }
+    }
     const filter = monthFilterFor(t);
     const [
       categoryRows,
@@ -185,7 +197,7 @@ export function createFinanceRepository({ notion, state, config, now = () => new
       notion.queryDatabase(config.incomeDb, filter),
       notion.queryDatabase(config.otherIncomeDb, filter)
     ]);
-    return buildAccountSpendingData_(
+    const model = buildAccountSpendingData_(
       t,
       categoryRows,
       expenseRows,
@@ -201,6 +213,12 @@ export function createFinanceRepository({ notion, state, config, now = () => new
         passThroughKeywords: config.passThroughKeywords
       }
     );
+    try {
+      await state.putReportCache(cacheKey, model, 60);
+    } catch {
+      // A live report remains valid when its optional cache write fails.
+    }
+    return model;
   }
 
   async function getGoalStatus() {
@@ -303,6 +321,7 @@ export function createFinanceRepository({ notion, state, config, now = () => new
     }
     try {
       await state.deleteReportCache(`monthly-cashflow:${dateISO}`);
+      await state.deleteReportCache(`fund-budget:${dateISO}`);
     } catch {
       // A successful Notion write must not be reported as failed due to cache invalidation.
     }

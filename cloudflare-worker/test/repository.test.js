@@ -309,6 +309,30 @@ test("goal status counts February 29 in a leap year", async () => {
   assert.equal(status.requiredPerDay, 14500);
 });
 
+test("fund report serves the cached model instead of re-querying Notion", async () => {
+  const cached = { t: { y: 2026, m: 7, d: 29 }, fundGroups: [] };
+  const { notion, repository, state } = createRepository({
+    rows: {
+      budgets: [], expenses: [], accounts: [], transfers: [], "fund-groups": [],
+      income: [], "other-income": []
+    },
+    stateOptions: { cached }
+  });
+
+  // Bam lai trong vong 60 giay thi khong duoc goi lai 7 truy van Notion.
+  assert.equal(await repository.getFundBudgetReport(), cached);
+  assert.equal(notion.calls.length, 0);
+  assert.deepEqual(state.calls, [["get", "fund-budget:2026-07-29"]]);
+
+  const fresh = await repository.getFundBudgetReport(true);
+  assert.deepEqual(fresh.t, { y: 2026, m: 7, d: 29 });
+  assert.equal(notion.calls.length, 7);
+  const put = state.calls.at(-1);
+  assert.equal(put[0], "put");
+  assert.equal(put[1], "fund-budget:2026-07-29");
+  assert.equal(put[3], 60);
+});
+
 test("fund report wires seven concurrent Notion queries into the finance builder", async () => {
   const { notion, repository } = createRepository({ rows: {
     budgets: [], expenses: [], accounts: [], transfers: [], "fund-groups": [],
@@ -375,7 +399,11 @@ test("new Grab income writes the approved properties and clears its daily cache"
     "Loại Khoản Thu": { relation: [{ id: "grab-goal" }] },
     "Telegram Update ID": { rich_text: [{ text: { content: "update-42" } }] }
   }]]);
-  assert.deepEqual(state.calls, [["delete", "monthly-cashflow:2026-07-29"]]);
+  // Thu nhap moi lam sai ca hai bao cao trong ngay, phai xoa ca hai cache.
+  assert.deepEqual(state.calls, [
+    ["delete", "monthly-cashflow:2026-07-29"],
+    ["delete", "fund-budget:2026-07-29"]
+  ]);
 });
 
 test("Notion create errors become redacted ambiguous income write errors", async () => {

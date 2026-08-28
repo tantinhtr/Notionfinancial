@@ -276,3 +276,16 @@ GET https://<worker>.workers.dev/health
 ```
 
 Trả về JSON liệt kê từng binding có mặt hay không.
+
+### Cache báo cáo
+
+Cả hai báo cáo nặng đều được cache **60 giây** trong KV, theo ngày:
+
+| Khoá | Báo cáo |
+|---|---|
+| `monthly-cashflow:YYYY-MM-DD` | Dòng tiền tháng |
+| `fund-budget:YYYY-MM-DD` | Quỹ & ngân sách |
+
+Quỹ & ngân sách đọc **7 bảng Notion**, và bảng Báo Cáo Khoản Chi vượt 100 dòng từ giữa tháng nên phải phân trang — càng cuối tháng càng lâu. Cache làm lần bấm thứ hai trở đi trả về ngay.
+
+Ghi một khoản thu Grab mới sẽ xoá **cả hai** khoá của ngày đó, vì cả hai báo cáo đều dùng số thu nhập.
