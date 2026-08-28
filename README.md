@@ -289,3 +289,14 @@ Cả hai báo cáo nặng đều được cache **60 giây** trong KV, theo ngà
 Quỹ & ngân sách đọc **7 bảng Notion**, và bảng Báo Cáo Khoản Chi vượt 100 dòng từ giữa tháng nên phải phân trang — càng cuối tháng càng lâu. Cache làm lần bấm thứ hai trở đi trả về ngay.
 
 Ghi một khoản thu Grab mới sẽ xoá **cả hai** khoá của ngày đó, vì cả hai báo cáo đều dùng số thu nhập.
+
+### Gọi Notion
+
+Notion cho trung bình **3 request/giây**. Báo cáo Quỹ & ngân sách bắn 7 truy vấn song song, và bảng Báo Cáo Khoản Chi vượt 100 dòng từ giữa tháng nên phải phân trang — dễ dính **429**.
+
+| | |
+|---|---|
+| **Hết giờ** | 12 giây mỗi request. Không có thì một request treo sẽ treo luôn nút bấm và người dùng không nhận được gì |
+| **Thử lại 429** | Tối đa 4 lượt, chờ theo `Retry-After` của Notion, không có thì lùi dần 0,4s → 4s |
+| **Không thử lại lệnh ghi** | `createPage` chỉ gọi một lần. Thử lại một lệnh ghi là tạo khoản thu trùng — đúng thứ `UpdateCoordinator` sinh ra để chống |
+| **5xx vẫn nổi lên trên** | Coordinator đánh dấu update là `retryable`, Telegram gửi lại, không mất giao dịch nào |

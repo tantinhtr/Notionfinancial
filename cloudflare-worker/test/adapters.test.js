@@ -67,6 +67,43 @@ test("Notion queryDatabase follows pagination and sends the next cursor", async 
   });
 });
 
+test("Notion waits out a 429 and retries the read", async () => {
+  let calls = 0;
+  const notion = createNotionClient(config, async () => {
+    calls += 1;
+    if (calls === 1) {
+      return new Response(JSON.stringify({ message: "rate limited" }), {
+        status: 429,
+        headers: { "Content-Type": "application/json", "Retry-After": "0" }
+      });
+    }
+    return new Response(JSON.stringify({ results: [{ id: "row" }], has_more: false }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" }
+    });
+  });
+
+  assert.deepEqual(await notion.queryDatabase("database-id"), [{ id: "row" }]);
+  assert.equal(calls, 2);
+});
+
+test("Notion never retries a write, so an income cannot be created twice", async () => {
+  let calls = 0;
+  const notion = createNotionClient(config, async () => {
+    calls += 1;
+    return new Response(JSON.stringify({ message: "rate limited" }), {
+      status: 429,
+      headers: { "Content-Type": "application/json", "Retry-After": "0" }
+    });
+  });
+
+  await assert.rejects(
+    () => notion.createPage("database-id", {}),
+    /Notion createPage failed: HTTP 429/
+  );
+  assert.equal(calls, 1);
+});
+
 test("Notion createPage sends the exact parent and properties", async () => {
   const calls = [];
   const notion = createNotionClient(config, async (url, options) => {

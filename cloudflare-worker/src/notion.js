@@ -29,16 +29,55 @@ export function createNotionClient(config, fetchImpl = fetch) {
     "Content-Type": "application/json"
   };
 
-  async function request(operation, path, payload) {
+  // Notion cho trung binh 3 request/giay. Bao cao quy ban 7 truy van cung luc nen
+  // dinh 429 la chuyen binh thuong — phai cho roi thu lai chu khong duoc bo cuoc.
+  // 5xx cung the. Va moi request phai co han gio: khong co thi mot request treo se
+  // treo luon nut bam, nguoi dung khong nhan duoc gi ca.
+  // Chi thu lai 429. Loi 5xx van de noi len tren cho coordinator xu ly nhu cu:
+  // no danh dau update la retryable roi Telegram gui lai, khong mat giao dich nao.
+  const RETRY_STATUS = 429;
+  const MAX_ATTEMPTS = 4;
+  const REQUEST_TIMEOUT_MS = 12000;
+
+  function retryDelayMs(response, attempt) {
+    // response co the la undefined khi luot truoc hong mang hoac het gio.
+    const header = Number(response?.headers?.get?.("Retry-After"));
+    if (Number.isFinite(header) && header > 0) return Math.min(header * 1000, 8000);
+    return Math.min(400 * 2 ** attempt, 4000);
+  }
+
+  // retryable chi bat cho lenh DOC. Khong bao gio thu lai lenh ghi: mot lan ghi
+  // lai la mot khoan thu trung, dung thu ma coordinator sinh ra de chong.
+  async function request(operation, path, payload, retryable = false) {
     let response;
-    try {
-      response = await fetchImpl(`https://api.notion.com/v1${path}`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload)
-      });
-    } catch {
-      throw notionError(operation, undefined, undefined, config.notionToken);
+    let lastStatus;
+    let lastMessage;
+    const attempts = retryable ? MAX_ATTEMPTS : 1;
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      if (attempt > 0) {
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs(response, attempt - 1)));
+      }
+      try {
+        response = await fetchImpl(`https://api.notion.com/v1${path}`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+        });
+      } catch {
+        // Het gio hoac loi mang: van con luot thi thu lai.
+        response = undefined;
+        lastStatus = undefined;
+        lastMessage = undefined;
+        continue;
+      }
+      if (response.status !== RETRY_STATUS) break;
+      lastStatus = response.status;
+      lastMessage = (await parseJson(response))?.message;
+      response = undefined;
+    }
+    if (response === undefined) {
+      throw notionError(operation, lastStatus, lastMessage, config.notionToken);
     }
 
     const body = await parseJson(response);
@@ -65,7 +104,12 @@ export function createNotionClient(config, fetchImpl = fetch) {
           payload.start_cursor = cursor;
         }
 
-        const body = await request("queryDatabase", `/databases/${databaseId}/query`, payload);
+        const body = await request(
+          "queryDatabase",
+          `/databases/${databaseId}/query`,
+          payload,
+          true
+        );
         if (!Array.isArray(body.results) || typeof body.has_more !== "boolean") {
           throw notionError("queryDatabase", undefined, "malformed success response");
         }
