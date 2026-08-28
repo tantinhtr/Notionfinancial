@@ -527,6 +527,22 @@ test("unauthorized messages and callbacks expose no data while callbacks are ack
   assert.deepEqual(harness.sent, []);
 });
 
+test("a failed callback acknowledgment must not swallow the report", async () => {
+  const harness = createHarness({
+    telegram: {
+      async answerCallbackQuery() {
+        throw new Error("Telegram answerCallbackQuery failed: HTTP 400");
+      }
+    }
+  });
+
+  await harness.bot.processUpdate(callbackUpdate(243, "cash_home"));
+
+  // Tat nut xoay hong khong duoc lam nguoi dung mat luon bao cao.
+  const sent = harness.events.filter(([kind]) => kind === "send");
+  assert.equal(sent.length, 1);
+});
+
 test("callback acknowledgment completes before any repository query", async () => {
   let releaseAck;
   const ackFinished = new Promise((resolve) => {

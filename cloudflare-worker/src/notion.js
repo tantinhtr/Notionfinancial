@@ -36,14 +36,17 @@ export function createNotionClient(config, fetchImpl = fetch) {
   // Chi thu lai 429. Loi 5xx van de noi len tren cho coordinator xu ly nhu cu:
   // no danh dau update la retryable roi Telegram gui lai, khong mat giao dich nao.
   const RETRY_STATUS = 429;
-  const MAX_ATTEMPTS = 4;
-  const REQUEST_TIMEOUT_MS = 12000;
+  // Tong thoi gian xau nhat phai nam gon trong han cho cua Telegram (~60 giay), khong
+  // thi nguoi dung khong nhan duoc gi ca. 3 luot, 8 giay moi luot, backoff 0,4s va
+  // 0,8s -> xau nhat khoang 25 giay.
+  const MAX_ATTEMPTS = 3;
+  const REQUEST_TIMEOUT_MS = 8000;
 
   function retryDelayMs(response, attempt) {
     // response co the la undefined khi luot truoc hong mang hoac het gio.
     const header = Number(response?.headers?.get?.("Retry-After"));
     if (Number.isFinite(header) && header > 0) return Math.min(header * 1000, 8000);
-    return Math.min(400 * 2 ** attempt, 4000);
+    return Math.min(400 * 2 ** attempt, 1600);
   }
 
   // retryable chi bat cho lenh DOC. Khong bao gio thu lai lenh ghi: mot lan ghi

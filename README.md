@@ -311,7 +311,7 @@ Notion cho trung bình **3 request/giây**. Báo cáo Quỹ & ngân sách bắn 
 
 | | |
 |---|---|
-| **Hết giờ** | 12 giây mỗi request. Không có thì một request treo sẽ treo luôn nút bấm và người dùng không nhận được gì |
-| **Thử lại 429** | Tối đa 4 lượt, chờ theo `Retry-After` của Notion, không có thì lùi dần 0,4s → 4s |
+| **Hết giờ** | 8 giây mỗi request, xấu nhất cả 3 lượt khoảng 25 giây — phải nằm gọn trong hạn chờ ~60 giây của Telegram. Không có thì một request treo sẽ treo luôn nút bấm và người dùng không nhận được gì |
+| **Thử lại 429** | Tối đa 3 lượt, chờ theo `Retry-After` của Notion, không có thì lùi 0,4s rồi 0,8s |
 | **Không thử lại lệnh ghi** | `createPage` chỉ gọi một lần. Thử lại một lệnh ghi là tạo khoản thu trùng — đúng thứ `UpdateCoordinator` sinh ra để chống |
 | **5xx vẫn nổi lên trên** | Coordinator đánh dấu update là `retryable`, Telegram gửi lại, không mất giao dịch nào |

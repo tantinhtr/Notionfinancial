@@ -296,7 +296,13 @@ export function createBot({
   }
 
   async function processCallback(callback) {
-    await telegram.answerCallbackQuery(callback.id);
+    // Tat nut xoay la viec phu. Hong o day thi van phai chay tiep, khong duoc de
+    // nguoi dung bam xong roi khong nhan duoc gi.
+    try {
+      await telegram.answerCallbackQuery(callback.id);
+    } catch {
+      // ignored on purpose
+    }
     const chatId = callback.message?.chat?.id;
     if (callback.from?.id !== config.allowedUserId || chatId === undefined || chatId === null) {
       return;
