@@ -137,6 +137,14 @@ async function forwardWebhook(update, env) {
       );
       return jsonResponse({ status: "processing_failed" }, 500);
     }
+    // Update bi coi la trung thi coordinator tra ve ngay ma khong lam gi — day la
+    // mot trong nhung duong dan toi "bam nut khong nhan duoc gi".
+    console.log(JSON.stringify({
+      event: "update_handled",
+      updateId: update.update_id,
+      status: result?.status ?? null,
+      duplicate: result?.duplicate === true
+    }));
     return jsonResponse({
       status: "ok",
       coordinator: coordinatorMetadata(result)

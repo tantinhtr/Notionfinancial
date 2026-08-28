@@ -304,12 +304,40 @@ export function createBot({
       // ignored on purpose
     }
     const chatId = callback.message?.chat?.id;
-    if (callback.from?.id !== config.allowedUserId || chatId === undefined || chatId === null) {
+    // Ba nhanh thoat im lang duoi day tung lam nguoi dung bam nut ma khong nhan duoc
+    // gi, con Cloudflare thi bao 0 error. Ghi log de lan sau biet ngay la nhanh nao.
+    if (callback.from?.id !== config.allowedUserId) {
+      console.log(JSON.stringify({
+        event: "callback_ignored",
+        reason: "user_not_allowed",
+        fromId: callback.from?.id ?? null,
+        data: callback.data ?? null
+      }));
       return;
     }
+    if (chatId === undefined || chatId === null) {
+      console.log(JSON.stringify({
+        event: "callback_ignored",
+        reason: "missing_chat_id",
+        data: callback.data ?? null
+      }));
+      return;
+    }
+    const startedAt = Date.now();
     try {
       await dispatchCallback(chatId, callback.data);
+      console.log(JSON.stringify({
+        event: "callback_done",
+        data: callback.data ?? null,
+        ms: Date.now() - startedAt
+      }));
     } catch (error) {
+      console.log(JSON.stringify({
+        event: "callback_failed",
+        data: callback.data ?? null,
+        ms: Date.now() - startedAt,
+        message: String(error?.message || error)
+      }));
       await telegram.sendMessage(chatId, callbackErrorText(error), HOME_KEYBOARD);
     }
   }
