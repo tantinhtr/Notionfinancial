@@ -401,7 +401,7 @@ function stripFundPrefix_(name) {
 // Uu tien doc phan trong ngoac, roi moi den ca cau. Chi nhan khi sau dong tu la
 // mot chu bat dau bang "qu", nho vay loi go "quxy sua xe" van ve "quy sua xe",
 // con "Tuan muon tien thi bang lai xe" khong de ra mot quy ma.
-function fundMentionedAfter_(expenseRow, verbPattern) {
+function fundMentionedAfter_(expenseRow, verbPattern, requireFundWord = true) {
   const props = expenseRow.properties || {};
   const text = plainText_(props["Nội Dung Khoản Chi"]) + " | " + plainText_(props["Ghi Chú"]);
   const candidates = [];
@@ -413,8 +413,10 @@ function fundMentionedAfter_(expenseRow, verbPattern) {
     const match = candidate.match(verbPattern);
     if (!match) continue;
     const cleaned = match[1].replace(/[()]/g, " ").replace(/\s+/g, " ").trim();
-    if (!/^qu\S*\s+/i.test(cleaned)) continue;
-    const name = cleaned.replace(/^qu\S*\s+/i, "").trim().slice(0, 40);
+    const hasFundWord = /^qu\S*\s+/i.test(cleaned);
+    if (requireFundWord && !hasFundWord) continue;
+    const name = (hasFundWord ? cleaned.replace(/^qu\S*\s+/i, "") : cleaned)
+      .trim().slice(0, 60);
     if (name !== "") return "quỹ " + name;
   }
   return "";
@@ -443,8 +445,25 @@ function mentionsFund_(normalizedText, key) {
 // ("quỹ phát sinh"). Ca hai deu hop le: nhan con thuoc lo nao thi khoan do ve lo do,
 // va con duoc ghi dung vao dong con — nho vay bao cao khong mat chi tiet.
 function assignedFund_(expenseRow, assignmentKeys) {
-  const explicit = stripFundPrefix_(fundMentionedAfter_(expenseRow, /tính\s+vào\s+(.+)$/i));
-  if (explicit !== "" && assignmentKeys[explicit]) return explicit;
+  // "tinh vao X" khong bat buoc phai co chu "quỹ": X da duoc doi chieu voi danh sach
+  // ten co that ngay duoi, ten bia ra thi khong khop nen khong can canh gac do nua.
+  // Viet "( tính vào phát triển bản thân )" phai an nhu "( tính vào quỹ phát sinh )".
+  const explicit = stripFundPrefix_(
+    fundMentionedAfter_(expenseRow, /tính\s+vào\s+(.+)$/i, false)
+  );
+  if (explicit !== "") {
+    if (assignmentKeys[explicit]) return explicit;
+    // Ghi chu con chu thua phia sau ("tính vào phát sinh nhé") thi lay ten dai nhat
+    // ma cau do bat dau bang.
+    const normalized = normalizeSearchText_(explicit);
+    let matched = "";
+    for (const key of Object.keys(assignmentKeys)) {
+      const candidate = normalizeSearchText_(key);
+      if (candidate === "" || !normalized.startsWith(candidate + " ")) continue;
+      if (candidate.length > matched.length) matched = key;
+    }
+    if (matched !== "") return matched;
+  }
   const props = expenseRow.properties || {};
   const text = normalizeSearchText_(
     plainText_(props["Nội Dung Khoản Chi"]) + " " + plainText_(props["Ghi Chú"])

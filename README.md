@@ -89,7 +89,11 @@ Sáu lọ trong Notion và phần 5,5 triệu chi tiêu hiện rơi vào:
 | Hưởng thụ (10%) | — (ứng với quỹ đi chơi với em) | 0 |
 | Cho đi (5%) | — | 0 |
 
-Ghi chú `( tính vào quỹ X )` nhận **cả tên lọ lẫn tên nhãn con**. Tên nhãn con thì khoản đó vào đúng dòng con ấy; tên lọ thì chỉ vào lọ. Thứ tự ưu tiên khi trùng tên: tên lọ → tên nhãn con → tên cũ.
+Ghi chú `( tính vào X )` nhận **cả tên lọ lẫn tên nhãn con**. Tên nhãn con thì khoản đó vào đúng dòng con ấy; tên lọ thì chỉ vào lọ. Thứ tự ưu tiên khi trùng tên: tên lọ → tên nhãn con → tên cũ.
+
+Với dạng `tính vào X`, chữ `quỹ` **không bắt buộc** — `( tính vào phát triển bản thân )` chạy y như `( tính vào quỹ phát sinh )`. Không cần canh gác ở đây vì X luôn được đối chiếu với danh sách tên có thật; viết `( tính vào quỹ du thuyền )` thì không khớp gì cả, khoản đó nằm nguyên ở nhãn của nó. Chữ thừa phía sau cũng không sao: `( tính vào phát triển bản thân nhé )` vẫn nhận ra.
+
+Riêng dạng `lấy từ / mượn X` thì **vẫn bắt buộc** chữ `quỹ`, vì nó tạo ra một món nợ với cái tên tự do không đối chiếu được — thiếu canh gác thì `Tuấn mượn tiền thi bằng lái xe` sẽ đẻ ra một quỹ ma.
 
 Tên trong ghi chú chỉ được tính khi nó đứng **sau chữ `quỹ`** và **kết thúc trọn vẹn**. Nhờ vậy `Gửi xe đi chợ` không bị kéo vào lọ Đi Chợ, và `( lấy từ quỹ đi chơi với em )` không bị cắt thành `quỹ Đi Chợ`.
 

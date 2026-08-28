@@ -1525,6 +1525,68 @@ test("a code advance is pass-through money, excluded at any size", () => {
   );
 });
 
+test("tính vào works without the word quỹ, but a made-up name still matches nothing", () => {
+  const noted = (id, name, categoryId, amount, note = "") => ({
+    id,
+    properties: {
+      "Nội Dung Khoản Chi": { title: [{ plain_text: name }] },
+      "Ghi Chú": { rich_text: note ? [{ plain_text: note }] : [] },
+      "Số Tiền": { number: amount },
+      "Ngày": { date: { start: "2026-08-26" } },
+      "Loại Chi Phí": { relation: [{ id: categoryId }] },
+      "Phương Thức Thanh Toán": { relation: [{ id: "momo" }] }
+    }
+  });
+  const loose = (id, name) => ({
+    id,
+    properties: {
+      "Loại Chi Phí": { title: [{ plain_text: name }] },
+      "Ngân Sách Tháng": { number: 0 },
+      "Tính Trong 5,5 Triệu": { checkbox: false },
+      "Nhóm Quỹ": { relation: [] }
+    }
+  });
+
+  const data = buildAccountSpendingData_(
+    { y: 2026, m: 8, d: 26 },
+    [
+      trackedCategoryRow("self", "Phát triển bản thân", 500000, "edu"),
+      trackedCategoryRow("affiliate", "Affiilate", 600000, "edu"),
+      loose("tiktok", "TikTok Shop")
+    ],
+    [
+      // Khong co chu "quỹ" — van phai ve dung nhan con Phát triển bản thân.
+      noted("order", "Thanh toán đơn hàng tiktok", "tiktok", 128392,
+        "tính vào phát triển bản thân"),
+      // Con chu thua phia sau van nhan ra.
+      noted("book", "Mua sách", "tiktok", 90000, "tính vào phát triển bản thân nhé"),
+      // Ten bia ra thi khong khop cai gi ca, nam nguyen o nhan cua no.
+      noted("ghost", "Mua linh tinh", "tiktok", 15000, "tính vào quỹ du thuyền")
+    ],
+    [cashflowAccountRow("momo", "Momo")],
+    5500000,
+    [],
+    [{
+      id: "edu",
+      properties: {
+        "Tên Nhóm Quỹ": { title: [{ plain_text: "Giáo dục phát triển" }] },
+        "Tài Khoản Giữ Quỹ": { relation: [{ id: "momo" }] },
+        "Bắt Buộc Cấp Quỹ": { checkbox: true }
+      }
+    }]
+  );
+
+  const edu = data.fundGroups[0];
+  assert.equal(edu.spent, 218392);
+  assert.deepEqual(edu.children, [
+    { name: "Affiilate", budget: 600000, spent: 0, over: 0 },
+    { name: "Phát triển bản thân", budget: 500000, spent: 218392, over: 0 }
+  ]);
+  const text = fundBudgetText_(data);
+  assert.match(text, /• Phát triển bản thân: 218\.392đ \/ 500\.000đ/);
+  assert.match(text, /• TikTok Shop: 15\.000đ/);
+});
+
 test("spending splits into fund groups, loose spending and excluded one-offs", () => {
   const spend = (id, name, categoryId, accountId, amount) => ({
     id,
