@@ -42,7 +42,7 @@ Tổng: 601.444đ
 
 - **NGÂN SÁCH** — đã tiêu bao nhiêu so với mức trần tự đặt. Đây là kế hoạch, không phải tiền thật.
 - **ỨNG TRƯỚC** — tiền người khác bỏ ra hộ, phải trả lại. Mỗi dòng đọc là: *nhóm nào → trả cho ai → bao nhiêu*, kèm luôn các giao dịch tạo ra nó.
-- **CẦN CẤP THÊM** — phần ngân sách **chưa dùng tới**, trừ đi số quỹ đang giữ. Tiền đã tiêu bằng túi khác **cũng coi như đã cấp rồi**: đáng lẽ nó phải đi qua quỹ, chỉ là chưa có giao dịch chuyển. Việc trả lại cho bên đã ứng nằm ở mục ỨNG TRƯỚC, không phải cấp lại lần hai. Nhóm nào tiêu vượt ngân sách thì không xuất hiện ở đây.
+- **CẦN CẤP THÊM** — phần ngân sách **chưa dùng tới**, trừ đi số quỹ đang giữ. Lọ có nhiều nhãn con thì in thêm dòng con nói rõ cục tiền đó dành cho nhãn nào, chia theo phần ngân sách còn lại, nhãn thiếu nhiều nhất trước. Các dòng con luôn cộng đúng bằng số của cả lọ. Tiền đã tiêu bằng túi khác **cũng coi như đã cấp rồi**: đáng lẽ nó phải đi qua quỹ, chỉ là chưa có giao dịch chuyển. Việc trả lại cho bên đã ứng nằm ở mục ỨNG TRƯỚC, không phải cấp lại lần hai. Nhóm nào tiêu vượt ngân sách thì không xuất hiện ở đây.
 
 Mỗi nhóm quỹ có một tài khoản giữ quỹ (`Tài Khoản Giữ Quỹ` trong Notion), và mọi khoản thuộc nhóm đó đáng lẽ phải thanh toán bằng tài khoản ấy. Khi một khoản lại được trả bằng thứ khác — tiền mặt, ví khác, hay quỹ khác:
 

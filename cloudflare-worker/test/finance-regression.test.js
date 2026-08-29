@@ -924,6 +924,7 @@ test("fund groups reconcile Notion transfers with spending paid outside the virt
       { name: "Internet", budget: 200000, spent: 176400, over: 0 }
     ],
     transferNeeded: 0,
+    transferPlan: [],
     requiresAllocation: true,
     unmatchedCategories: []
   });
@@ -1638,6 +1639,60 @@ test("only a sub fund funded this month counts as spending when drawn on", () =>
   assert.deepEqual(data.monthlyBudget.looseByCategory, [{ category: "Grap", amount: 100000 }]);
   assert.equal(data.excluded.total, 220000);
   assert.equal(data.excluded.rows[0].name, "Mua hoa tặng em");
+});
+
+test("the funding line says which child label the money is for", () => {
+  const noted = (id, name, categoryId, amount) => ({
+    id,
+    properties: {
+      "Nội Dung Khoản Chi": { title: [{ plain_text: name }] },
+      "Ghi Chú": { rich_text: [] },
+      "Số Tiền": { number: amount },
+      "Ngày": { date: { start: "2026-08-26" } },
+      "Loại Chi Phí": { relation: [{ id: categoryId }] },
+      "Phương Thức Thanh Toán": { relation: [{ id: "momo" }] }
+    }
+  });
+
+  const data = buildAccountSpendingData_(
+    { y: 2026, m: 8, d: 26 },
+    [
+      trackedCategoryRow("affiliate", "Affiilate", 600000, "edu"),
+      trackedCategoryRow("self", "Phát triển bản thân", 500000, "edu")
+    ],
+    [
+      noted("claude", "Claude Pro", "affiliate", 574444),
+      noted("order", "Đơn hàng tiktok", "self", 128392)
+    ],
+    [cashflowAccountRow("momo", "Momo"), cashflowAccountRow("fund", "Quỹ Momo")],
+    5500000,
+    [],
+    [{
+      id: "edu",
+      properties: {
+        "Tên Nhóm Quỹ": { title: [{ plain_text: "Giáo dục phát triển" }] },
+        "Tài Khoản Giữ Quỹ": { relation: [{ id: "fund" }] },
+        "Bắt Buộc Cấp Quỹ": { checkbox: true }
+      }
+    }],
+    { fundingSourceAccounts: ["Momo"] }
+  );
+
+  const edu = data.fundGroups[0];
+  assert.equal(edu.transferNeeded, 397164);
+  // Chia theo phan ngan sach con lai, nhan thieu nhieu nhat truoc. Tong cac dong
+  // con luon bang dung so cua ca lo.
+  assert.deepEqual(edu.transferPlan, [
+    { name: "Phát triển bản thân", amount: 371608 },
+    { name: "Affiilate", amount: 25556 }
+  ]);
+  assert.equal(
+    edu.transferPlan.reduce((sum, entry) => sum + entry.amount, 0),
+    edu.transferNeeded
+  );
+
+  const text = fundBudgetText_(data);
+  assert.match(text, /• Giáo dục phát triển → Quỹ Momo: 397\.164đ\n    Phát triển bản thân: 371\.608đ\n    Affiilate: 25\.556đ/);
 });
 
 test("spending splits into fund groups, loose spending and excluded one-offs", () => {

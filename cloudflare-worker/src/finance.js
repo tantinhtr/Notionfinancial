@@ -838,6 +838,7 @@ export function buildAccountSpendingData_(
       advances: [],
       children: [],
       transferNeeded: 0,
+      transferPlan: [],
       requiresAllocation,
       unmatchedCategories: []
     };
@@ -873,6 +874,7 @@ export function buildAccountSpendingData_(
     }
 
     const groupRows = [];
+    const fundedChildren = [];
     let unfundedBudget = 0;
     let unfundedSpent = 0;
     for (const fixed of fixedBudgets) {
@@ -890,6 +892,8 @@ export function buildAccountSpendingData_(
       if (fixed.skipsFund) {
         unfundedBudget += fixed.budget;
         unfundedSpent += fixed.spent;
+      } else if (fixed.budget > fixed.spent) {
+        fundedChildren.push({ name: fixed.name, remaining: fixed.budget - fixed.spent });
       }
       for (const spendRow of fixed.spendRows) groupRows.push(spendRow);
     }
@@ -966,6 +970,18 @@ export function buildAccountSpendingData_(
         remainingBudget - Math.max(group.fundBalance, 0),
         0
       );
+      // Tien chuyen vao quy la mot cuc, nhung phai noi ro cuc do danh cho nhan nao.
+      // Chia theo phan ngan sach con lai cua tung nhan, nhan thieu nhieu nhat truoc,
+      // nen cac dong con luon cong dung bang so cua ca lo.
+      let unplanned = group.transferNeeded;
+      fundedChildren.sort((a, b) => b.remaining - a.remaining);
+      for (const child of fundedChildren) {
+        if (unplanned <= 0) break;
+        const share = Math.min(unplanned, child.remaining);
+        if (share <= 0) continue;
+        group.transferPlan.push({ name: child.name, amount: share });
+        unplanned -= share;
+      }
     }
     group.children.sort((a, b) => b.budget - a.budget);
     // Lo chua dung toi — chua dat ngan sach, chua tieu, chua cap — thi khong in.
@@ -1296,6 +1312,13 @@ export function fundBudgetText_(data) {
         "• " + group.name + " → " + (group.destinationAccount || "Tài khoản giữ quỹ") +
         ": " + money_(group.transferNeeded)
       );
+      // Lo nao co nhieu nhan con thi noi ro cuc tien do danh cho nhan nao.
+      const plan = group.transferPlan || [];
+      if ((group.children || []).length > 1) {
+        for (const entry of plan) {
+          lines.push("    " + entry.name + ": " + money_(entry.amount));
+        }
+      }
     }
   }
 
