@@ -537,12 +537,6 @@ export function buildAccountSpendingData_(
   transferRows = transferRows || [];
   fundGroupRows = fundGroupRows || [];
   options = options || {};
-  const fundingSourceKeys = {};
-  for (const name of options.fundingSourceAccounts || []) {
-    fundingSourceKeys[normalizeSearchText_(name)] = true;
-  }
-  const isFundingSource = (accountName) =>
-    fundingSourceKeys[normalizeSearchText_(accountName)] === true;
   const spendableSubFundKeys = {};
   for (const name of options.spendableSubFunds || []) {
     spendableSubFundKeys[normalizeSearchText_(stripFundPrefix_(name))] = true;
@@ -835,14 +829,12 @@ export function buildAccountSpendingData_(
       fundRemaining: 0,
       fundDebt: 0,
       borrowedFunds: [],
-      advances: [],
       children: [],
       transferNeeded: 0,
       transferPlan: [],
       requiresAllocation,
       unmatchedCategories: []
     };
-    const advanceByAccount = {};
     const borrowByFund = {};
     const ownKeys = groupAliasKeys[fundGroupRow.id] || {};
     const addDebtRow = (bucket, key, spendRow, amount, partial) => {
@@ -904,11 +896,11 @@ export function buildAccountSpendingData_(
     }
     groupRows.sort((a, b) => (a.date < b.date ? -1 : (a.date > b.date ? 1 : 0)));
 
-    // Luot 1: xep moi khoan chi vao dung nguon tien da tra no.
-    const paidOutsideRows = [];
+    // Chi CO MOT truong hop sinh mon no: chi bang tai khoan giu quy ma ghi chu noi
+    // lay tu mot quy con khong thuoc lo nao. Tra bang tai khoan nao khac — Momo,
+    // Banking, Tien Mat... — deu la tien cua chinh minh, khong ai phai tra lai ai.
     for (const spendRow of groupRows) {
-      // Ghi chu chi ro muon quy nao thi do la tien cua tui khac, phai tra du
-      // ke ca khi con trong han muc. Ghi chu tro ve chinh nhom thi khong phai muon.
+      // Ghi chu tro ve chinh nhom thi khong phai muon.
       const lender = spendRow.lender !== "" && ownKeys[stripFundPrefix_(spendRow.lender)] !== true
         ? spendRow.lender
         : "";
@@ -916,20 +908,9 @@ export function buildAccountSpendingData_(
         addDebtRow(borrowByFund, lender, spendRow, spendRow.amount, false);
       } else if (spendRow.account === accountNames[destinationAccountId]) {
         group.paidFromFund += spendRow.amount;
-      } else if (isFundingSource(spendRow.account)) {
-        // Momo va Grap Tien Mat la NGUON cap quy. Chi thang bang chung thi coi nhu
-        // da cap cho nhom roi, khong ai phai tra lai ai — chi la bo qua buoc chuyen.
-        group.paidOutsideFund += spendRow.amount;
       } else {
         group.paidOutsideFund += spendRow.amount;
-        paidOutsideRows.push(spendRow);
       }
-    }
-
-    // Luot 2: con lai la tai khoan KHONG phai nguon cap quy da bo tien ra ho —
-    // tien cua tui khac, phai tra lai, khong phu thuoc quy da co tien hay chua.
-    for (const spendRow of paidOutsideRows) {
-      addDebtRow(advanceByAccount, spendRow.account, spendRow, spendRow.amount, false);
     }
 
     group.allocated = Math.max(netAllocated, 0);
@@ -953,11 +934,7 @@ export function buildAccountSpendingData_(
         .filter((entry) => entry.amount > 0)
         .sort((a, b) => b.amount - a.amount);
       group.borrowedFunds = bucketToList(borrowByFund, "fund");
-      group.advances = bucketToList(advanceByAccount, "account");
-      // So du quy con RANH: tru di phan da hen tra lai cho cac tai khoan da ung.
-      // Khong tru thi bot vua khoe "quy con X" vua doi tra dung X o muc UNG TRUOC.
-      const advancesTotal = group.advances.reduce((sum, entry) => sum + entry.amount, 0);
-      group.fundRemaining = Math.max(group.fundBalance - advancesTotal, 0);
+      group.fundRemaining = Math.max(group.fundBalance, 0);
       // Tien tieu bang tui khac CUNG COI NHU DA CAP: dang le no phai di qua quy,
       // chi la chua co giao dich chuyen thoi. Viec tra lai cho ben da ung nam o muc
       // UNG TRUOC, khong phai cap lai lan hai. Nen can cap them chi con la phan
@@ -1196,14 +1173,6 @@ function collectDebts_(groups) {
     if ((group.fundDebt || 0) > 0) {
       // Day la phan hut so du cua quy, khong gan voi giao dich cu the nao.
       debts.push({ group: group.name, account, amount: group.fundDebt, rows: [] });
-    }
-    for (const advance of group.advances || []) {
-      debts.push({
-        group: group.name,
-        account: advance.account,
-        amount: advance.amount,
-        rows: advance.rows || []
-      });
     }
   }
   return debts;

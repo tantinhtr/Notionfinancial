@@ -46,21 +46,22 @@ Tổng: 601.444đ
 
 Mỗi nhóm quỹ có một tài khoản giữ quỹ (`Tài Khoản Giữ Quỹ` trong Notion), và mọi khoản thuộc nhóm đó đáng lẽ phải thanh toán bằng tài khoản ấy. Khi một khoản lại được trả bằng thứ khác — tiền mặt, ví khác, hay quỹ khác:
 
-**Momo** và **Grap Tiền Mặt** là hai nguồn dùng để cấp tiền cho các nhóm quỹ (khai báo ở `fundingSourceAccounts` trong `config.js`). Chi thẳng bằng hai ví này thì **coi như đã cấp cho nhóm rồi** — chỉ là bỏ qua bước chuyển khoản — nên không ai phải trả lại ai.
+**Chỉ có một trường hợp sinh món nợ:** chi bằng chính tài khoản giữ quỹ (Quỹ Momo) mà ghi chú nói `lấy từ quỹ X`, với X không phải một lọ nào. Đó là tiền của quỹ con khác đang nằm chung trong Quỹ Momo, phải trả lại.
 
-| Tình huống | Bot làm gì |
+| Trả bằng | Bot làm gì |
 |---|---|
-| Trả bằng Momo / Grap Tiền Mặt | Coi như đã cấp. Không ghi nợ |
-| Trả bằng tài khoản khác (Banking, Paypal…) | Ghi vào ỨNG TRƯỚC → phải chuyển trả lại đúng chỗ đã ứng |
-| Trả bằng Quỹ Momo, ghi chú nói `lấy từ quỹ X` mà X **không** phải một nhóm quỹ | Trả đủ cho quỹ X — đó là tiền của quỹ con khác đang nằm chung trong Quỹ Momo |
+| Momo, Banking, Tiền Mặt, Grap Tiền Mặt… | Không ghi nợ. Đều là tiền của chính mình, không ai bỏ ra hộ |
+| Quỹ Momo, ghi chú `lấy từ quỹ X` mà X là một lọ | Không ghi nợ — tiền của chính lọ đó |
+| Quỹ Momo, ghi chú `lấy từ quỹ X` mà X **không** phải lọ nào | Ghi vào ỨNG TRƯỚC, trả đủ cho quỹ X |
+| Quỹ Momo, nhóm tiêu quá số đã được cấp | Ghi vào ỨNG TRƯỚC — nhóm đã ăn lấn tiền của túi khác trong cùng tài khoản |
 
 Ví dụ nhóm Làm YouTube (ngân sách 600.000đ) chưa cấp đồng nào mà đã tiêu 574.444đ: 554.444đ trả bằng Quỹ Momo với ghi chú `( lấy từ quỹ tích lũy )`, 20.000đ trả bằng Momo.
 
 - ỨNG TRƯỚC chỉ có **quỹ tích lũy 554.444đ** — quỹ tích lũy là một túi khác nằm chung trong Quỹ Momo, phải trả đủ.
-- 20.000đ Momo **không** vào ỨNG TRƯỚC: Momo là nguồn cấp quỹ, coi như đã cấp.
+- 20.000đ trả bằng Momo **không** vào ỨNG TRƯỚC: đó là tiền của chính mình, không ai bỏ ra hộ.
 - CẦN CẤP THÊM còn **25.556đ** = 600.000 − 574.444, vì phần đã tiêu coi như đã cấp rồi.
 
-Ví dụ nhóm Thiết Yếu gồm Nhà Trọ 2.150.000 + Internet 180.000 + Khác 70.000, tất cả trả bằng Quỹ Momo. Hôm cắt tóc lại trả bằng Banking thì báo cáo hiện `Thiết Yếu → Banking: 70.000đ` — Banking không phải nguồn cấp quỹ nên phải được trả lại.
+Ví dụ nhóm Thiết Yếu gồm Nhà Trọ 2.150.000 + Internet 180.000 + Khác 70.000. Hôm cắt tóc trả bằng Banking thì **không** sinh nợ gì cả — Banking là tiền của chính mình. Chỉ khi trả bằng Quỹ Momo kèm ghi chú `( lấy từ quỹ sửa xe )` mới thành món nợ với quỹ sửa xe.
 
 ### Lọ và nhãn con
 

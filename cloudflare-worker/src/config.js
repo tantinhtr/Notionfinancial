@@ -52,9 +52,6 @@ export function getConfig(env) {
     // Giao dich le ngoai nhom quy tu muc nay tro len khong tinh vao tran 5tr5:
     // no la khoan bat thuong, khong phai chi tieu dinh ky cua thang.
     outsideBudgetThreshold: 500000,
-    // Hai vi nay la NGUON dung de cap tien cho cac nhom quy. Nhom nao chi thang
-    // bang chung thi coi nhu da duoc cap, khong sinh mon no phai tra lai.
-    fundingSourceAccounts: ["Momo", "Grap Tiền Mặt"],
     // Giao dich nhac toi mot trong may tu nay la tien di roi quay ve, khong phai chi
     // tieu: ung tien mua ho khach roi duoc hoan lai. Loai du to hay nho.
     // Khong dung tu "ung" tran: "1 vi trung ga" cung khop.

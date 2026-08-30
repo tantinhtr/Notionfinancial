@@ -918,7 +918,6 @@ test("fund groups reconcile Notion transfers with spending paid outside the virt
     fundRemaining: 122600,
     fundDebt: 0,
     borrowedFunds: [],
-    advances: [],
     children: [
       { name: "Nhà Trọ", budget: 2200000, spent: 2101000, over: 0 },
       { name: "Internet", budget: 200000, spent: 176400, over: 0 }
@@ -989,11 +988,8 @@ test("a fund that spent from its holding account without any transfer reports th
   // 574.444 da tieu bang tui khac cung coi nhu da cap, ma con vuot ngan sach roi
   // nen khong con gi de cap them; viec phai lam la tra lai cho da ung.
   assert.equal(youtube.transferNeeded, 0);
-  // Quy chua co tien khong lam mon no bien mat: Grap tra ho 20.000 van phai tra lai.
-  assert.deepEqual(
-    youtube.advances.map((entry) => ({ account: entry.account, amount: entry.amount })),
-    [{ account: "Grap Tiền Mặt", amount: 20000 }]
-  );
+  // Grap Tien Mat la tien cua chinh minh — tra bang no khong sinh mon no nao.
+  assert.deepEqual(youtube.borrowedFunds, []);
 
   assert.equal(
     fundBudgetText_(data),
@@ -1007,9 +1003,7 @@ test("a fund that spent from its holding account without any transfer reports th
       "\n" +
       "💸 ỨNG TRƯỚC — cần trả lại\n" +
       "• Làm YouTube → Quỹ Momo: 554.444đ\n" +
-      "• Làm YouTube → Grap Tiền Mặt: 20.000đ\n" +
-      "    20/07 telegram-wallet: 20.000đ\n" +
-      "Tổng: 574.444đ"
+      "Tổng: 554.444đ"
   );
 });
 
@@ -1080,11 +1074,8 @@ test("spending notes name the fund that was borrowed from", () => {
 
   // "tính vào" chỉ là phân loại ngân sách, không phải mượn.
   assert.deepEqual(incidental.borrowedFunds, []);
-  // Quy chua duoc cap dong nao, nen 15.000 Grap tra ho van phai tra lai.
-  assert.deepEqual(
-    incidental.advances.map((entry) => ({ account: entry.account, amount: entry.amount })),
-    [{ account: "Grap Tiền Mặt", amount: 15000 }]
-  );
+  // Tra bang Grap Tien Mat khong sinh mon no: do la tien cua chinh minh.
+  assert.deepEqual(incidental.borrowedFunds, []);
 
   const text = fundBudgetText_(data);
   assert.match(text, /• Làm YouTube → quỹ tích lũy: 554\.444đ/);
@@ -1147,11 +1138,7 @@ test("a spending note assigns the expense to that fund even from another categor
   // và Tạp Hóa — những loại vốn nằm ngoài mọi nhóm quỹ.
   assert.equal(incidental.spent, 421000);
   assert.equal(incidental.over, 0);
-  // Quy chua duoc cap dong nao: toan bo 421.000 la tien tui khac bo ra, phai tra lai.
-  assert.deepEqual(
-    incidental.advances.map((entry) => ({ account: entry.account, amount: entry.amount })),
-    [{ account: "Momo", amount: 277000 }, { account: "Grap Tiền Mặt", amount: 144000 }]
-  );
+  assert.deepEqual(incidental.borrowedFunds, []);
   // 421.000 tieu bang tui khac coi nhu da cap; con 179.000 ngan sach chua dung toi.
   assert.equal(incidental.transferNeeded, 179000);
 
@@ -1162,59 +1149,7 @@ test("a spending note assigns the expense to that fund even from another categor
   assert.doesNotMatch(text, /quỹ còn/);
   // Ghi chu "tinh vao quy phat sinh" chi doi ngan sach, khong phai muon quy khac.
   assert.doesNotMatch(text, /→ quỹ /);
-  assert.match(text, /• Phát Sinh → Momo: 277\.000đ/);
-  assert.match(text, /• Phát Sinh → Grap Tiền Mặt: 144\.000đ/);
-});
-
-test("paying from the wrong account is settled by what the fund actually holds", () => {
-  const paid = (id, name, categoryId, accountId, amount) => ({
-    id,
-    properties: {
-      "Nội Dung Khoản Chi": { title: [{ plain_text: name }] },
-      "Ghi Chú": { rich_text: [] },
-      "Số Tiền": { number: amount },
-      "Ngày": { date: { start: "2026-08-12" } },
-      "Loại Chi Phí": { relation: [{ id: categoryId }] },
-      "Phương Thức Thanh Toán": { relation: [{ id: accountId }] }
-    }
-  });
-  // Thiết Yếu 2.400.000 gồm Nhà Trọ 2.150.000 + Internet 180.000 + Cắt Tóc 70.000,
-  // tất cả đáng lẽ phải thanh toán bằng Quỹ Momo. Hôm đó Cắt Tóc lại trả tiền mặt.
-  const build = (transfers) => buildAccountSpendingData_(
-    { y: 2026, m: 8, d: 22 },
-    [
-      trackedCategoryRow("rent", "Nhà Trọ", 2150000, "essential-fund"),
-      trackedCategoryRow("net", "Internet", 180000, "essential-fund"),
-      trackedCategoryRow("hair", "Cắt Tóc", 70000, "essential-fund")
-    ],
-    [paid("haircut", "Cắt tóc", "hair", "cash", 70000)],
-    [cashflowAccountRow("fund", "Quỹ Momo"), cashflowAccountRow("cash", "Tiền Mặt")],
-    5500000,
-    transfers,
-    [fundGroupRow("essential-fund", "Thiết Yếu", "fund", true)]
-  );
-
-  // Quỹ đã có sẵn tiền: phải chuyển 70.000 trả lại đúng chỗ đã ứng.
-  const funded = build([
-    transferRow("cap", "Cấp quỹ thiết yếu", 2400000, "cash", "fund", "essential-fund")
-  ]).fundGroups[0];
-  assert.deepEqual(
-    funded.advances.map((entry) => ({ account: entry.account, amount: entry.amount })),
-    [{ account: "Tiền Mặt", amount: 70000 }]
-  );
-  assert.equal(funded.advances[0].rows[0].partial, false);
-  assert.equal(funded.transferNeeded, 0);
-
-  // Quỹ chưa có tiền cũng không xoá được món nợ: 70.000 tiền mặt bỏ ra vẫn phải
-  // trả lại, và cả 2.400.000 ngân sách vẫn chưa được bơm vào quỹ.
-  const unfunded = build([]).fundGroups[0];
-  assert.deepEqual(
-    unfunded.advances.map((entry) => ({ account: entry.account, amount: entry.amount })),
-    [{ account: "Tiền Mặt", amount: 70000 }]
-  );
-  // 70.000 tieu bang tien mat coi nhu da cap roi, chi con 2.330.000 chua dung toi.
-  assert.equal(unfunded.transferNeeded, 2330000);
-  assert.match(fundBudgetText_(build([])), /• Thiết Yếu → Tiền Mặt: 70\.000đ/);
+  assert.doesNotMatch(text, /ỨNG TRƯỚC/);
 });
 
 test("a group only reports as spare the money actually sitting in its fund", () => {
@@ -1327,66 +1262,6 @@ test("a fund name only counts when it is written out in full after the word quy"
   assert.equal(data.excluded.total, 220000);
 });
 
-test("spending paid straight from a funding source counts as funded, not owed", () => {
-  const noted = (id, name, categoryId, accountId, amount, note = "") => ({
-    id,
-    properties: {
-      "Nội Dung Khoản Chi": { title: [{ plain_text: name }] },
-      "Ghi Chú": { rich_text: note ? [{ plain_text: note }] : [] },
-      "Số Tiền": { number: amount },
-      "Ngày": { date: { start: "2026-08-02" } },
-      "Loại Chi Phí": { relation: [{ id: categoryId }] },
-      "Phương Thức Thanh Toán": { relation: [{ id: accountId }] }
-    }
-  });
-  const build = (options) => buildAccountSpendingData_(
-    { y: 2026, m: 8, d: 25 },
-    [trackedCategoryRow("affiliate", "Affiilate", 600000, "youtube-fund")],
-    [
-      // Tra bang chinh tai khoan giu quy, nhung ghi chu noi lay cua mot quy con
-      // khong co trong danh sach nhom quy -> phai tra lai cho quy do.
-      noted("claude", "Claude Pro", "affiliate", "fund", 554444, "( lấy từ quỹ tích lũy )"),
-      // Tra thang bang Momo — mot trong hai nguon dung de cap quy.
-      noted("telegram", "Nạp ví telegram", "affiliate", "momo", 20000),
-      // Tai khoan khac han, khong phai nguon cap quy -> van la tien bo ra ho.
-      noted("bank", "Mua tài khoản", "affiliate", "bank", 5000)
-    ],
-    [
-      cashflowAccountRow("fund", "Quỹ Momo"),
-      cashflowAccountRow("momo", "Momo"),
-      cashflowAccountRow("bank", "Banking")
-    ],
-    5500000,
-    [],
-    [fundGroupRow("youtube-fund", "Làm YouTube", "fund", true)],
-    options
-  );
-
-  const withSources = build({ fundingSourceAccounts: ["Momo", "Grap Tiền Mặt"] });
-  const youtube = withSources.fundGroups[0];
-  assert.deepEqual(
-    youtube.borrowedFunds.map((entry) => ({ fund: entry.fund, amount: entry.amount })),
-    [{ fund: "quỹ tích lũy", amount: 554444 }]
-  );
-  // Momo la nguon cap quy nen 20.000 khong phai tra lai; Banking thi phai.
-  assert.deepEqual(
-    youtube.advances.map((entry) => ({ account: entry.account, amount: entry.amount })),
-    [{ account: "Banking", amount: 5000 }]
-  );
-
-  const text = fundBudgetText_(withSources);
-  assert.match(text, /• Làm YouTube → quỹ tích lũy: 554\.444đ/);
-  assert.match(text, /• Làm YouTube → Banking: 5\.000đ/);
-  assert.doesNotMatch(text, /→ Momo/);
-
-  // Khong khai bao nguon cap quy thi moi tai khoan la deu bi coi la tra ho.
-  const withoutSources = build({}).fundGroups[0];
-  assert.deepEqual(
-    withoutSources.advances.map((entry) => entry.account).sort(),
-    ["Banking", "Momo"]
-  );
-});
-
 test("a jar keeps its children visible and honours old names in notes", () => {
   const groupRow = (id, name, oldNames, accountId) => ({
     id,
@@ -1445,7 +1320,6 @@ test("a jar keeps its children visible and honours old names in notes", () => {
     5500000,
     [transferRow("cap", "Cấp quỹ", 2200000, "cash", "fund", "nec")],
     [groupRow("nec", "Nhu cầu thiết yếu", "Thiết Yếu, Phát Sinh", "fund")],
-    { fundingSourceAccounts: ["Momo", "Grap Tiền Mặt"] }
   );
 
   const nec = data.fundGroups[0];
@@ -1675,7 +1549,6 @@ test("the funding line says which child label the money is for", () => {
         "Bắt Buộc Cấp Quỹ": { checkbox: true }
       }
     }],
-    { fundingSourceAccounts: ["Momo"] }
   );
 
   const edu = data.fundGroups[0];
@@ -1693,6 +1566,59 @@ test("the funding line says which child label the money is for", () => {
 
   const text = fundBudgetText_(data);
   assert.match(text, /• Giáo dục phát triển → Quỹ Momo: 397\.164đ\n    Phát triển bản thân: 371\.608đ\n    Affiilate: 25\.556đ/);
+});
+
+test("only a named pot outside the jars creates a debt, never a plain account", () => {
+  const paid = (id, name, categoryId, accountId, amount, note = "") => ({
+    id,
+    properties: {
+      "Nội Dung Khoản Chi": { title: [{ plain_text: name }] },
+      "Ghi Chú": { rich_text: note ? [{ plain_text: note }] : [] },
+      "Số Tiền": { number: amount },
+      "Ngày": { date: { start: "2026-08-29" } },
+      "Loại Chi Phí": { relation: [{ id: categoryId }] },
+      "Phương Thức Thanh Toán": { relation: [{ id: accountId }] }
+    }
+  });
+
+  const data = buildAccountSpendingData_(
+    { y: 2026, m: 8, d: 30 },
+    [
+      trackedCategoryRow("rent", "Nhà Trọ", 2150000, "essential-fund"),
+      trackedCategoryRow("incidental", "Phát Sinh", 600000, "essential-fund")
+    ],
+    [
+      // Tra bang Banking, Tien Mat, Momo — deu la tien cua chinh minh, khong ai
+      // bo tien ra ho, nen khong sinh mon no nao.
+      paid("party", "Tiền đi thôi nôi con a Nguyện", "incidental", "bank", 300000),
+      paid("rent-aug", "Tiền phòng", "rent", "cash", 2122000),
+      // Chi bang chinh tai khoan giu quy va ghi chu noi lay tu mot quy con khong
+      // thuoc lo nao -> day moi la mon no.
+      paid("claude", "Claude Pro", "incidental", "fund", 100000, "( lấy từ quỹ tích lũy )")
+    ],
+    [
+      cashflowAccountRow("fund", "Quỹ Momo"),
+      cashflowAccountRow("bank", "Banking"),
+      cashflowAccountRow("cash", "Tiền Mặt")
+    ],
+    5500000,
+    [transferRow("cap", "Cấp quỹ", 2400000, "bank", "fund", "essential-fund")],
+    [fundGroupRow("essential-fund", "Nhu cầu thiết yếu", "fund", true)]
+  );
+
+  const essential = data.fundGroups[0];
+  assert.deepEqual(
+    essential.borrowedFunds.map((entry) => ({ fund: entry.fund, amount: entry.amount })),
+    [{ fund: "quỹ tích lũy", amount: 100000 }]
+  );
+  // Quy da cap 2.400.000, chua tieu dong nao tu chinh no -> con nguyen.
+  assert.equal(essential.fundBalance, 2400000);
+  assert.equal(essential.fundRemaining, 2400000);
+
+  const text = fundBudgetText_(data);
+  assert.match(text, /• Nhu cầu thiết yếu → quỹ tích lũy: 100\.000đ/);
+  assert.doesNotMatch(text, /→ Banking/);
+  assert.doesNotMatch(text, /→ Tiền Mặt/);
 });
 
 test("spending splits into fund groups, loose spending and excluded one-offs", () => {
@@ -1836,55 +1762,6 @@ test("a note pointing at another fund pulls the expense out of its own label", (
 
   const rent = data.fixedBudgets.find((fixed) => fixed.name === "Nhà Trọ");
   assert.equal(rent.spent, 2000000);
-});
-
-test("a fund balance already promised back is not shown as spare money", () => {
-  const spend = (id, name, categoryId, accountId, amount, date) => ({
-    id,
-    properties: {
-      "Nội Dung Khoản Chi": { title: [{ plain_text: name }] },
-      "Ghi Chú": { rich_text: [] },
-      "Số Tiền": { number: amount },
-      "Ngày": { date: { start: date } },
-      "Loại Chi Phí": { relation: [{ id: categoryId }] },
-      "Phương Thức Thanh Toán": { relation: [{ id: accountId }] }
-    }
-  });
-
-  const data = buildAccountSpendingData_(
-    { y: 2026, m: 8, d: 22 },
-    [
-      trackedCategoryRow("rent", "Nhà Trọ", 2150000, "essential-fund"),
-      trackedCategoryRow("net", "Internet", 250000, "essential-fund")
-    ],
-    [
-      spend("a", "Tiền phòng", "rent", "fund", 2098400, "2026-08-01"),
-      // Tra bang Momo chu khong phai tai khoan giu quy: quy dang no lai Momo.
-      spend("b", "Đăng ký 4g", "net", "momo", 196000, "2026-08-19")
-    ],
-    [
-      cashflowAccountRow("fund", "Quỹ Momo"),
-      cashflowAccountRow("momo", "Momo")
-    ],
-    5500000,
-    [transferRow("cap", "Cấp quỹ thiết yếu", 2130000, "momo", "fund", "essential-fund")],
-    [fundGroupRow("essential-fund", "Thiết Yếu", "fund", true)]
-  );
-
-  const essential = data.fundGroups[0];
-  assert.equal(essential.fundBalance, 31600);
-  // Momo bo ra ca 196.000 nen phai tra lai ca 196.000; 31.600 quy dang giu da bi
-  // hen tra het cho Momo nen khong con la tien ranh.
-  assert.deepEqual(
-    essential.advances.map((entry) => ({ account: entry.account, amount: entry.amount })),
-    [{ account: "Momo", amount: 196000 }]
-  );
-  assert.equal(essential.fundRemaining, 0);
-
-  const text = fundBudgetText_(data);
-  assert.match(text, /↳ đã cấp 2\.130\.000đ \/ 2\.400\.000đ\n/);
-  assert.doesNotMatch(text, /quỹ còn/);
-  assert.match(text, /• Thiết Yếu → Momo: 196\.000đ/);
 });
 
 test("a fund that does not require allocation never asks for a transfer", () => {
