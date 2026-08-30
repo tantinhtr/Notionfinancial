@@ -1204,8 +1204,6 @@ function debtRowLines_(rows) {
   return lines;
 }
 
-const LOOSE_CATEGORIES_SHOWN = 12;
-
 // Tien DI VAO nhom quy: da cap bao nhieu, con lai bao nhieu trong tai khoan giu quy.
 function fundInflowLine_(group) {
   if (!group.requiresAllocation) return "";
@@ -1236,28 +1234,6 @@ export function fundBudgetText_(data) {
       for (const childLine of childLines_(group)) lines.push(childLine);
       const inflow = fundInflowLine_(group);
       if (inflow !== "") lines.push(inflow);
-    }
-  }
-
-  if (budget && budget.looseByCategory.length) {
-    lines.push("", "🧾 NGOÀI NHÓM QUỸ — " + money_(budget.looseSpending));
-    for (const entry of budget.looseByCategory.slice(0, LOOSE_CATEGORIES_SHOWN)) {
-      lines.push("• " + entry.category + ": " + money_(entry.amount));
-    }
-    const hidden = budget.looseByCategory.length - LOOSE_CATEGORIES_SHOWN;
-    if (hidden > 0) lines.push("• … và " + hidden + " loại nữa");
-  }
-
-  if (budget) {
-    lines.push("", "💰 TỔNG CHI TIÊU: " + money_(budget.total));
-    // Tien nay van ra khoi vi that, chi la khong phai chi tieu ca nhan. Van phai
-    // nhin thay so, nhung khong liet ke tung khoan cho do dai bao cao.
-    const excluded = data.excluded;
-    if (excluded && excluded.total > 0) {
-      lines.push(
-        "🚫 Không tính: " + money_(excluded.total) +
-        " · " + excluded.rows.length + " khoản (ứng code, giao dịch lẻ ≥500k)"
-      );
     }
   }
 

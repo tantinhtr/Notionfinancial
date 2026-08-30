@@ -999,8 +999,6 @@ test("a fund that spent from its holding account without any transfer reports th
       "⛔ Làm YouTube: 574.444đ / 500.000đ · vượt 74.444đ\n" +
       "   ↳ đã cấp 0đ / 500.000đ\n" +
       "\n" +
-      "💰 TỔNG CHI TIÊU: 574.444đ\n" +
-      "\n" +
       "💸 ỨNG TRƯỚC — cần trả lại\n" +
       "• Làm YouTube → Quỹ Momo: 554.444đ\n" +
       "Tổng: 554.444đ"
@@ -1255,7 +1253,8 @@ test("a fund name only counts when it is written out in full after the word quy"
   assert.equal(data.fundGroups[0].spent, 60000);
   const text = fundBudgetText_(data);
   assert.match(text, /✅ Đi Chợ: 60\.000đ \/ 1\.400\.000đ/);
-  assert.match(text, /• Phí Gửi Xe: 2\.000đ/);
+  // Bao cao quy khong con liet ke chi tieu ngoai lo — do la viec cua nut Dong tien.
+  assert.equal(data.monthlyBudget.looseByCategory.find((e) => e.category === "Phí Gửi Xe").amount, 2000);
   // Khong bi keo vao lo Đi Chợ, va cung khong tinh la chi tieu: "quỹ đi chơi với em"
   // la tien de danh tu truoc, khong phai tien kiem duoc thang nay.
   assert.doesNotMatch(text, /Đà Nẵng/);
@@ -1468,7 +1467,8 @@ test("tính vào works without the word quỹ, but a made-up name still matches 
   ]);
   const text = fundBudgetText_(data);
   assert.match(text, /• Phát triển bản thân: 218\.392đ \/ 500\.000đ/);
-  assert.match(text, /• TikTok Shop: 15\.000đ/);
+  assert.equal(data.monthlyBudget.looseByCategory[0].category, "TikTok Shop");
+  assert.equal(data.monthlyBudget.looseByCategory[0].amount, 15000);
 });
 
 test("only a sub fund funded this month counts as spending when drawn on", () => {
@@ -1712,11 +1712,11 @@ test("spending splits into fund groups, loose spending and excluded one-offs", (
   // quy khong in ra — con so do da co o nut khac.
   assert.doesNotMatch(text, /Thu nhập thật/);
   assert.match(text, /📊 NHÓM QUỸ — 2\.000\.000đ \/ 2\.150\.000đ · ✅ còn 150\.000đ/);
-  assert.match(text, /🧾 NGOÀI NHÓM QUỸ — 225\.000đ/);
-  assert.match(text, /💰 TỔNG CHI TIÊU: 2\.225\.000đ/);
-  // Giao dich le >=500.000 van bi loai khoi 5tr5, chi la khong liet ke ra cho gon.
-  assert.doesNotMatch(text, /KHÔNG TÍNH/);
-  assert.doesNotMatch(text, /Đi ăn với em/);
+  // Bao cao quy chi noi ve quy. Chi tieu ngoai lo va tong chi tieu da co o nut
+  // Dong tien roi, in lai o day la thua.
+  assert.doesNotMatch(text, /NGOÀI NHÓM QUỸ/);
+  assert.doesNotMatch(text, /TỔNG CHI TIÊU/);
+  assert.doesNotMatch(text, /Không tính/);
 });
 
 test("a note pointing at another fund pulls the expense out of its own label", () => {

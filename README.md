@@ -170,14 +170,7 @@ Cố ý bắt `code` chứ không bắt `ứng`, vì `1 vỉ trứng gà` cũng 
 
 **Nạp ví Grab thì vẫn tính là chi tiêu.** Đó là tiền thật ra khỏi ví để chạy xe, không quay về. Báo cáo này đo dòng tiền đi ra, không phải tính lãi lỗ, nên không trừ nó đi.
 
-Khoản bị loại không vào `🧾 NGOÀI NHÓM QUỸ`, cũng không vào `💰 TỔNG CHI TIÊU` — `TỔNG CHI TIÊU` đúng bằng `nhóm quỹ + ngoài nhóm quỹ`. Nhưng tiền vẫn ra khỏi ví thật, nên ngay dưới có một dòng tóm tắt cho biết tổng đã loại là bao nhiêu và gồm mấy khoản:
-
-```
-💰 TỔNG CHI TIÊU: 7.599.844đ
-🚫 Không tính: 8.571.500đ · 18 khoản (nạp ví Grab, ứng code, lẻ ≥500k)
-```
-
-Chỉ một dòng, không liệt kê từng giao dịch.
+Cách chia này vẫn được tính bên trong, nhưng **báo cáo Quỹ & ngân sách không in ra** — nút Dòng tiền đã có sẵn chi tiêu theo từng loại rồi, in lại là thừa. Nút quỹ chỉ nói về quỹ: từng lọ và nhãn con, món nợ, và số cần cấp thêm.
 
 ### Thu nhập thật và tiền chạy qua
 
