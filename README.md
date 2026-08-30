@@ -309,3 +309,15 @@ Notion cho trung bình **3 request/giây**. Báo cáo Quỹ & ngân sách bắn 
 | **Thử lại 429** | Tối đa 3 lượt, chờ theo `Retry-After` của Notion, không có thì lùi 0,4s rồi 0,8s |
 | **Không thử lại lệnh ghi** | `createPage` chỉ gọi một lần. Thử lại một lệnh ghi là tạo khoản thu trùng — đúng thứ `UpdateCoordinator` sinh ra để chống |
 | **5xx vẫn nổi lên trên** | Coordinator đánh dấu update là `retryable`, Telegram gửi lại, không mất giao dịch nào |
+
+### CI
+
+`.github/workflows/ci.yml` chạy mỗi lần push lên `main` và mỗi pull request: `npm ci`, kiểm tra cú pháp, rồi 150 bài test. Kết quả hiện thành dấu ✓ hoặc ✗ ngay cạnh commit trên GitHub.
+
+**CI không chặn được deploy.** GitHub Actions và Cloudflare Workers Builds chạy song song, độc lập nhau — test đỏ thì Cloudflare vẫn đẩy code lên. Muốn chặn thật thì đổi deploy command trong Cloudflare dashboard thành:
+
+```
+npm test && npx wrangler deploy
+```
+
+Lúc đó test đỏ sẽ làm build fail, và bot giữ nguyên bản cũ đang chạy.

@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Token cua CI chi duoc doc repo, khong sua duoc gi.
+permissions:
+  contents: read
+
+# Push lien tiep thi huy lan chay cu, chi giu lan moi nhat.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Kiểm tra bot
+    runs-on: ubuntu-latest
+    # Code cua bot nam trong thu muc con; goc repo la du an Python cu.
+    defaults:
+      run:
+        working-directory: cloudflare-worker
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: cloudflare-worker/package-lock.json
+
+      # npm ci cai dung theo lock file, khong tu nang phien ban.
+      - run: npm ci
+
+      - name: Cú pháp
+        run: npm run check
+
+      - name: 150 bài test
+        run: npm test
