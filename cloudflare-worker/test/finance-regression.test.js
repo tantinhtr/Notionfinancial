@@ -917,6 +917,8 @@ test("fund groups reconcile Notion transfers with spending paid outside the virt
     fundBalance: 122600,
     fundRemaining: 122600,
     fundDebt: 0,
+    fundingShortfall: 0,
+    explicitDebts: [],
     borrowedFunds: [],
     children: [
       { name: "Nhà Trọ", budget: 2200000, spent: 2101000, over: 0 },
@@ -963,7 +965,7 @@ test("a managed fund with no transfer or outside spending warns the amount to tr
   assert.match(accountSpendingText_(data), /⚠️ Phát Sinh: 0đ \/ 600\.000đ \| cần cấp 600\.000đ/);
 });
 
-test("a fund that spent from its holding account without any transfer reports the debt", () => {
+test("a fund that spent without identified funding reports a shortfall instead of debt", () => {
   const data = buildAccountSpendingData_(
     { y: 2026, m: 8, d: 17 },
     [trackedCategoryRow("affiliate", "Affiilate", 500000, "youtube-fund")],
@@ -984,7 +986,9 @@ test("a fund that spent from its holding account without any transfer reports th
   // Quỹ đã chi hộ 554.444đ mà chưa được cấp đồng nào, nên nó đang âm đúng số đó.
   assert.equal(youtube.fundBalance, -554444);
   assert.equal(youtube.over, 74444);
-  assert.equal(youtube.fundDebt, 554444);
+  assert.equal(youtube.fundDebt, 0);
+  assert.equal(youtube.fundingShortfall, 554444);
+  assert.equal(data.explicitLedger.unmatched.find((row) => row.fundGroupId === "youtube-fund").unmatchedAmount, 554444);
   // 574.444 da tieu bang tui khac cung coi nhu da cap, ma con vuot ngan sach roi
   // nen khong con gi de cap them; viec phai lam la tra lai cho da ung.
   assert.equal(youtube.transferNeeded, 0);
@@ -997,12 +1001,34 @@ test("a fund that spent from its holding account without any transfer reports th
       "\n" +
       "📊 NHÓM QUỸ — 574.444đ / 500.000đ · ⛔ vượt 74.444đ\n" +
       "⛔ Làm YouTube: 574.444đ / 500.000đ · vượt 74.444đ\n" +
-      "   ↳ đã cấp 0đ / 500.000đ\n" +
-      "\n" +
-      "💸 ỨNG TRƯỚC — cần trả lại\n" +
-      "• Làm YouTube → Quỹ Momo: 554.444đ\n" +
-      "Tổng: 554.444đ"
+      "   ↳ đã cấp 0đ / 500.000đ"
   );
+});
+
+test("750000 internal loan adds allocation once and keeps debt despite the 133004 balance", () => {
+  const data = buildAccountSpendingData_(
+    { y: 2026, m: 9, d: 10 },
+    [trackedCategoryRow("rent", "Nhà Trọ", 2150000, "essential")],
+    [expenseRow("rent-paid", "rent", "fund", 2017000)],
+    [cashflowAccountRow("fund", "Quỹ Momo", 133004), cashflowAccountRow("bank", "Banking"), cashflowAccountRow("momo", "Momo", 999999)],
+    5500000,
+    [
+      transferRow("bank-allocation", "Tiền phòng", 1400004, "bank", "fund", "essential"),
+      transferRow("borrow-750", "Mượn tiền của quỹ tiết kiệm chuyển sang tiền phòng quỹ thiết yếu", 750000, "fund", "fund", "essential")
+    ],
+    [fundGroupRow("essential", "Nhu cầu thiết yếu", "fund", true), fundGroupRow("savings", "Tiết kiệm dài hạn", "fund", true)],
+    { incomeRows: [cashflowIncomeRow("grab-income", "Grab thu nhập ròng", "net", "momo", 999999)] }
+  );
+  const essential = data.fundGroups.find((group) => group.name === "Nhu cầu thiết yếu");
+  assert.equal(essential.allocated, 2150004);
+  assert.equal(essential.paidFromFund, 2017000);
+  assert.equal(essential.fundBalance, 133004);
+  assert.equal(essential.fundRemaining, 133004);
+  assert.equal(essential.fundDebt, 0);
+  assert.equal(essential.explicitDebts[0].outstanding, 750000);
+  assert.equal(essential.explicitDebts[0].lender, "Tiết kiệm dài hạn");
+  assert.equal(data.openingPlan, data.explicitLedger.openingPlan);
+  assert.equal(data.explicitLedger.rows.find((row) => row.id === "grab-income").amount, 999999);
 });
 
 test("spending notes name the fund that was borrowed from", () => {

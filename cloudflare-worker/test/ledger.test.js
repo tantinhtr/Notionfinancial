@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildOpeningPlan_,
+  buildFundLoanLedger_,
+  buildFinanceLedger_,
   buildPersonalLoanLedger_,
   buildPreviousMonthAdvanceLedger_,
   readFinanceRows_
@@ -12,6 +14,111 @@ const OPENING_OPTIONS = {
   rentReserveAmount: 2150000,
   rolloverFundNames: ["Tiết kiệm dài hạn", "Đầu tư tài chính", "Hưởng thụ"]
 };
+
+function fundGroup(id, name, aliases = "") {
+  return { id, properties: {
+    "Tên Nhóm Quỹ": { title: [{ plain_text: name }] },
+    "Tên Cũ": { rich_text: [{ plain_text: aliases }] },
+    "Tài Khoản Giữ Quỹ": { relation: [{ id: "fund-account" }] }
+  } };
+}
+
+const loanFunds = [
+  fundGroup("essential", "Nhu cầu thiết yếu", "Thiết yếu"),
+  fundGroup("savings", "Tiết kiệm dài hạn")
+];
+
+function fundTransfer(id, title, amount, groupId = "essential", date = "2026-09-01") {
+  const page = transfer(id, title, "fund-account", "fund-account", amount, date, "");
+  page.properties["Nhóm Quỹ"] = { relation: groupId ? [{ id: groupId }] : [] };
+  return page;
+}
+
+test("same-account savings loan funds rent and remains a separate 750000 debt", () => {
+  const result = buildFundLoanLedger_(readFinanceRows_({ transferRows: [
+    fundTransfer("borrow-750", "Mượn tiền của quỹ tiết kiệm chuyển sang tiền phòng quỹ thiết yếu", 750000)
+  ] }), loanFunds);
+  assert.deepEqual(result.allocationAdjustments, { essential: 750000 });
+  assert.deepEqual(result.loans, [{
+    borrowerGroupId: "essential", borrowerGroupName: "Nhu cầu thiết yếu",
+    lender: "Tiết kiệm dài hạn", principal: 750000, repaid: 0,
+    outstanding: 750000, openedBy: "borrow-750", repaymentRows: []
+  }]);
+  assert.deepEqual(result.unmatched, []);
+});
+
+test("finance ledger passes opening sources and loan category names to its component ledgers", () => {
+  const result = buildFinanceLedger_({
+    accountRows: [account("bank", "Banking", 100000, 9999999)],
+    categoryRows: [{ id: "loan", properties: { "Loại Chi Phí": { title: [{ plain_text: "Vay Và Trả" }] } } }],
+    expenseRows: [expense("lend", "Cho cháu Tuấn mượn", "loan", "bank", 100000, "2026-09-01")],
+    // The current caller supplies expense-category names only. Keep this distinct ID visible.
+    otherIncomeRows: [income("grab", "Grab thu nhập", "other-income-category", "bank", 900000, "2026-09-02")],
+    options: { sourceAccountNames: ["Banking"], rentReserveAmount: 0 }
+  });
+  assert.equal(result.openingPlan.sourceTotal, 100000);
+  assert.equal(result.personalLoans.receivables[0].sourceAccountName, "Banking");
+  assert.equal(result.personalLoans.receivables[0].outstanding, 100000);
+  assert.equal(result.previousMonthAdvances.totalOutstanding, 100000);
+  assert.equal(result.rows.find((row) => row.id === "grab").categoryId, "other-income-category");
+});
+
+test("same-account savings loan ignores unrelated income and balances", () => {
+  const result = buildFundLoanLedger_(readFinanceRows_({
+    transferRows: [fundTransfer("borrow", "Lấy từ quỹ tiết kiệm để trả tiền phòng", 750000)],
+    incomeRows: [income("grab", "Grab thu nhập ròng", "net", "momo", 900000, "2026-09-02")],
+    otherIncomeRows: [income("momo", "Momo nhận tiền", "other", "momo", 800000, "2026-09-03")]
+  }), loanFunds);
+  assert.equal(result.loans[0].outstanding, 750000);
+});
+
+test("explicit later lender repayment reduces only that fund loan", () => {
+  const result = buildFundLoanLedger_(readFinanceRows_({ transferRows: [
+    fundTransfer("borrow", "Mượn quỹ tiết kiệm chuyển sang tiền phòng", 750000),
+    fundTransfer("repay", "Trả lại 200.000 cho quỹ tiết kiệm", 200000, "savings", "2026-09-02")
+  ] }), loanFunds);
+  assert.equal(result.loans[0].outstanding, 550000);
+  assert.equal(result.loans[0].repaid, 200000);
+  assert.deepEqual(result.loans[0].repaymentRows, ["repay"]);
+  assert.deepEqual(result.allocationAdjustments, { essential: 750000 });
+});
+
+test("fund lender resolution accepts full aliases and rejects ambiguous or unknown prefixes", () => {
+  for (const [label, groups, expected] of [
+    ["quỹ dự phòng", [...loanFunds, fundGroup("reserve", "Dự trữ", "Dự phòng")], "Dự trữ"],
+    ["quỹ tiết kiệm", [...loanFunds, fundGroup("short", "Tiết kiệm ngắn hạn")], null],
+    ["quỹ tiết k", loanFunds, null],
+    ["quỹ lạ", loanFunds, null]
+  ]) {
+    const result = buildFundLoanLedger_(readFinanceRows_({ transferRows: [
+      fundTransfer("borrow", `Mượn tiền của ${label} chuyển sang tiền phòng`, 750000)
+    ] }), groups);
+    if (expected) assert.equal(result.loans[0].lender, expected);
+    else {
+      assert.deepEqual(result.loans, []);
+      assert.deepEqual(result.allocationAdjustments, {});
+      assert.equal(result.unmatched[0].id, "borrow");
+    }
+  }
+});
+
+test("explicit pair repays FIFO while ambiguous missing or conflicting identities stay unmatched", () => {
+  const groups = [...loanFunds, fundGroup("education", "Giáo dục")];
+  const result = buildFundLoanLedger_(readFinanceRows_({ transferRows: [
+    fundTransfer("early", "Trả nợ cho quỹ tiết kiệm", 10000, "savings", "2026-08-31"),
+    fundTransfer("a", "Mượn quỹ tiết kiệm", 100000),
+    fundTransfer("b", "Mượn quỹ tiết kiệm", 200000, "essential", "2026-09-02"),
+    fundTransfer("c", "Mượn quỹ tiết kiệm", 300000, "education", "2026-09-03"),
+    fundTransfer("ambiguous", "Trả lại cho quỹ tiết kiệm", 100000, "savings", "2026-09-04"),
+    fundTransfer("conflict", "Nhu cầu thiết yếu trả nợ cho quỹ tiết kiệm", 100000, "education", "2026-09-05"),
+    fundTransfer("pair", "Nhu cầu thiết yếu hoàn lại 150.000 cho quỹ tiết kiệm", 150000, "savings", "2026-09-06"),
+    fundTransfer("missing", "Trả lại tiền", 100000, "savings", "2026-09-07"),
+    fundTransfer("unknown-borrower", "Quỹ lạ trả nợ cho quỹ tiết kiệm", 100000, "savings", "2026-09-08")
+  ] }), groups);
+  assert.deepEqual(result.loans.map((loan) => loan.outstanding), [0, 150000, 300000]);
+  assert.deepEqual(result.loans.slice(0, 2).map((loan) => loan.repaymentRows), [["pair"], ["pair"]]);
+  assert.deepEqual(result.unmatched.map((row) => row.id), ["early", "ambiguous", "conflict", "missing", "unknown-borrower"]);
+});
 
 function account(id, name, opening, current) {
   return {

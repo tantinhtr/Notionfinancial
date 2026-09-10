@@ -23,6 +23,111 @@ function numericProperty_(property) {
   return Number.isFinite(value) ? value : 0;
 }
 
+function fundNameKey_(name) {
+  return normalizeSearchText_(name).replace(/^quy\s+/, "").trim();
+}
+
+function resolveFund_(phrase, groups) {
+  const key = fundNameKey_(phrase);
+  if (!key) return null;
+  const exact = groups.filter((group) => group.keys.includes(key));
+  if (exact.length) return exact.length === 1 ? exact[0] : null;
+  const prefixes = groups.filter((group) => group.keys.some((alias) => alias.startsWith(key + " ")));
+  return prefixes.length === 1 ? prefixes[0] : null;
+}
+
+export function buildFundLoanLedger_(rows = [], fundGroups = []) {
+  const groups = fundGroups.map((group) => {
+    const props = group.properties || {};
+    const name = propertyText_(props["Tên Nhóm Quỹ"]);
+    return {
+      id: group.id, name,
+      accountId: relationId_(props["Tài Khoản Giữ Quỹ"]),
+      keys: [name, ...propertyText_(props["Tên Cũ"]).split(",")].map(fundNameKey_).filter(Boolean)
+    };
+  });
+  const loans = [];
+  const allocationAdjustments = {};
+  const unmatched = [];
+  const orderedRows = rows.slice().sort((a, b) =>
+    (a.date || "").localeCompare(b.date || "")
+      || (a.createdTime || "").localeCompare(b.createdTime || "")
+      || a.id.localeCompare(b.id));
+
+  for (const row of orderedRows) {
+    if (row.kind !== "transfer" || row.amount <= 0) continue;
+    const text = row.normalizedText;
+    const repayment = /\b(tra lai|hoan lai|tra no)\b/.exec(text);
+    if (repayment) {
+      // A relation on a repayment names its receiving lender, never its borrower.
+      const before = text.slice(0, repayment.index).trim().replace(/^tu\s+/, "");
+      const after = text.slice(repayment.index + repayment[0].length).trim();
+      const parts = after.replace(/^(?:[\d.,]+\s*(?:d|dong)?\s*)?(?:tien\s+)?(?:cho\s+)?/, "").split(/\s+tu\s+/);
+      const lender = resolveFund_(parts[0], groups);
+      const borrowerPhrase = before || parts[1] || "";
+      const borrower = borrowerPhrase ? resolveFund_(borrowerPhrase, groups) : null;
+      if (!lender || (row.fundGroupId && row.fundGroupId !== lender.id)
+        || (borrowerPhrase && !borrower)) {
+        unmatched.push({ ...row, unmatchedAmount: row.amount, reason: "unidentified-fund-repayment" });
+        continue;
+      }
+      const candidates = loans.filter((loan) => loan.lender === lender.name && loan.outstanding > 0
+        && (!borrower || loan.borrowerGroupId === borrower.id));
+      if (!candidates.length || (!borrower && candidates.length !== 1)) {
+        unmatched.push({ ...row, unmatchedAmount: row.amount, reason: "ambiguous-fund-repayment" });
+        continue;
+      }
+      let remaining = row.amount;
+      for (const loan of candidates) {
+        if (remaining <= 0) break;
+        const applied = Math.min(remaining, loan.outstanding);
+        loan.repaid += applied;
+        loan.outstanding -= applied;
+        loan.repaymentRows.push(row.id);
+        remaining -= applied;
+      }
+      if (remaining > 0) unmatched.push({ ...row, unmatchedAmount: remaining, reason: "excess-fund-repayment" });
+      continue;
+    }
+
+    const opening = /\b(?:muon(?:\s+tien)?(?:\s+cua)?|lay tu)\s+(.+?)(?=\s+(?:chuyen|sang|cho|de)\b|$)/.exec(text);
+    if (!opening) continue;
+    const borrower = groups.find((group) => group.id === row.fundGroupId);
+    const lender = resolveFund_(opening[1], groups);
+    const sameAccount = row.fromAccountId && row.fromAccountId === row.toAccountId;
+    if (!borrower || !lender || borrower.id === lender.id
+      || (sameAccount && (borrower.accountId !== row.toAccountId || lender.accountId !== row.fromAccountId))) {
+      unmatched.push({ ...row, unmatchedAmount: row.amount, reason: "unidentified-fund-loan" });
+      continue;
+    }
+    loans.push({
+      borrowerGroupId: borrower.id, borrowerGroupName: borrower.name, lender: lender.name,
+      principal: row.amount, repaid: 0, outstanding: row.amount,
+      openedBy: row.id, repaymentRows: []
+    });
+    if (sameAccount) allocationAdjustments[borrower.id] = (allocationAdjustments[borrower.id] || 0) + row.amount;
+  }
+  return { loans, allocationAdjustments, unmatched };
+}
+
+export function buildFinanceLedger_({
+  accountRows = [], incomeRows = [], otherIncomeRows = [], expenseRows = [],
+  transferRows = [], categoryRows = [], fundGroupRows = [], options = {}
+} = {}) {
+  const rows = readFinanceRows_({ incomeRows, otherIncomeRows, expenseRows, transferRows });
+  const accountNamesById = new Map(accountRows.map((row) => [row.id, propertyText_(row.properties?.["Phương Thức Thanh Toán"])]));
+  const categoryNamesById = new Map(categoryRows.map((row) => [row.id, propertyText_(row.properties?.["Loại Chi Phí"])]));
+  const loanCategoryIds = new Set([...categoryNamesById].filter(([, name]) => normalizeSearchText_(name) === "vay va tra").map(([id]) => id));
+  const openingPlan = buildOpeningPlan_(accountRows, options);
+  const personalLoans = buildPersonalLoanLedger_(rows, { loanCategoryIds, accountNamesById });
+  const previousMonthAdvances = buildPreviousMonthAdvanceLedger_({ openingPlan, rows, accountNamesById, categoryNamesById, personalLoans });
+  const fundLoans = buildFundLoanLedger_(rows, fundGroupRows);
+  return {
+    rows, openingPlan, personalLoans, previousMonthAdvances, fundLoans,
+    unmatched: [...personalLoans.unmatched, ...previousMonthAdvances.unmatchedSources, ...fundLoans.unmatched]
+  };
+}
+
 export function buildOpeningPlan_(accountRows = [], options = {}) {
   const sourceAccountNames = options.sourceAccountNames || [];
   const sourceNameKeys = new Set(sourceAccountNames.map(normalizeSearchText_));

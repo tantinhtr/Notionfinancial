@@ -1,4 +1,4 @@
-import { buildOpeningPlan_ } from "./ledger.js";
+import { buildFinanceLedger_ } from "./ledger.js";
 
 function num_(prop) {
   return (prop && prop.number) || 0;
@@ -539,6 +539,16 @@ export function buildAccountSpendingData_(
   transferRows = transferRows || [];
   fundGroupRows = fundGroupRows || [];
   options = options || {};
+  const explicitLedger = buildFinanceLedger_({
+    accountRows,
+    incomeRows: options.incomeRows,
+    otherIncomeRows: options.otherIncomeRows,
+    expenseRows,
+    transferRows,
+    categoryRows,
+    fundGroupRows,
+    options
+  });
   const spendableSubFundKeys = {};
   for (const name of options.spendableSubFunds || []) {
     spendableSubFundKeys[normalizeSearchText_(stripFundPrefix_(name))] = true;
@@ -830,6 +840,8 @@ export function buildAccountSpendingData_(
       fundBalance: 0,
       fundRemaining: 0,
       fundDebt: 0,
+      fundingShortfall: 0,
+      explicitDebts: [],
       borrowedFunds: [],
       children: [],
       transferNeeded: 0,
@@ -850,7 +862,7 @@ export function buildAccountSpendingData_(
       });
     };
 
-    let netAllocated = 0;
+    let netAllocated = explicitLedger.fundLoans.allocationAdjustments[fundGroupRow.id] || 0;
     for (const transferRow of transferRows) {
       const transferProps = transferRow.properties || {};
       const groupRelation =
@@ -863,6 +875,7 @@ export function buildAccountSpendingData_(
         (transferProps["Từ Tài Khoản"] && transferProps["Từ Tài Khoản"].relation) || [];
       const toId = toRelation.length ? toRelation[0].id : "";
       const fromId = fromRelation.length ? fromRelation[0].id : "";
+      if (toId === fromId) continue;
       if (toId === destinationAccountId) netAllocated += amount;
       if (fromId === destinationAccountId) netAllocated -= amount;
     }
@@ -917,16 +930,21 @@ export function buildAccountSpendingData_(
 
     group.allocated = Math.max(netAllocated, 0);
     group.over = Math.max(group.spent - group.budget, 0);
-    // Tiền của nhóm còn nằm thật trong tài khoản giữ quỹ: đã cấp trừ phần đã chi từ
-    // chính tài khoản đó. Âm nghĩa là quỹ đã ứng tiền của nhóm khác để chi hộ.
+    // A negative balance is an unexplained funding shortfall, not a named debt.
     group.fundBalance = netAllocated - group.paidFromFund;
     // Hai khoản này khác bản chất, không được cộng chung:
-    //   fundDebt      — quỹ đã ứng tiền chi hộ, phải TRẢ LẠI. Tiền đã tiêu rồi.
+    //   explicitDebts — only obligations with an explicitly identified lender.
     //   transferNeeded— phần ngân sách CHƯA tiêu, phải CẤP vào quỹ trước khi chi.
     // Đã ứng trước rồi thì thôi không cần cấp nữa, nên transferNeeded chỉ tính
     // trên số dư dương của quỹ.
     if (requiresAllocation) {
-      group.fundDebt = Math.max(-group.fundBalance, 0);
+      group.fundingShortfall = Math.max(-group.fundBalance, 0);
+      if (group.fundingShortfall > 0) explicitLedger.unmatched.push({
+        fundGroupId: fundGroupRow.id,
+        fundGroupName: group.name,
+        unmatchedAmount: group.fundingShortfall,
+        reason: "funding-shortfall"
+      });
       const bucketToList = (bucket, key) => Object.keys(bucket)
         .map((name) => ({
           [key]: name,
@@ -936,6 +954,15 @@ export function buildAccountSpendingData_(
         .filter((entry) => entry.amount > 0)
         .sort((a, b) => b.amount - a.amount);
       group.borrowedFunds = bucketToList(borrowByFund, "fund");
+      group.explicitDebts = group.borrowedFunds.map((debt) => ({
+        borrowerGroupId: fundGroupRow.id,
+        borrowerGroupName: group.name,
+        lender: debt.fund,
+        principal: debt.amount,
+        repaid: 0,
+        outstanding: debt.amount,
+        rows: debt.rows
+      }));
       group.fundRemaining = Math.max(group.fundBalance, 0);
       // Tien tieu bang tui khac CUNG COI NHU DA CAP: dang le no phai di qua quy,
       // chi la chua co giao dich chuyen thoi. Viec tra lai cho ben da ung nam o muc
@@ -962,6 +989,7 @@ export function buildAccountSpendingData_(
         unplanned -= share;
       }
     }
+    group.explicitDebts.push(...explicitLedger.fundLoans.loans.filter((loan) => loan.borrowerGroupId === fundGroupRow.id));
     group.children.sort((a, b) => b.budget - a.budget);
     // Lo chua dung toi — chua dat ngan sach, chua tieu, chua cap — thi khong in.
     // Nho vay dung du 6 lo trong Notion ma bao cao van chi noi nhung lo dang chay.
@@ -993,7 +1021,8 @@ export function buildAccountSpendingData_(
     monthlyBudget: buildMonthlyBudget_(tiers, monthlyLimit),
     excluded: attachThreshold_(buildExcluded_(tiers), outsideThreshold),
     income: buildIncomeSplit_(options.incomeRows, options.otherIncomeRows),
-    openingPlan: buildOpeningPlan_(accountRows, options)
+    openingPlan: explicitLedger.openingPlan,
+    explicitLedger
   };
 }
 
