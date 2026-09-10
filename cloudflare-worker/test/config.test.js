@@ -31,6 +31,18 @@ test("getConfig parses the allowed user and stable defaults", () => {
   });
   assert.equal(config.allowedUserId, 42);
   assert.equal(config.monthlyExpenseLimit, 5500000);
+  assert.deepEqual(config.sourceAccountNames, [
+    "Tiền Mặt",
+    "Banking",
+    "Grap Tiền Mặt",
+    "Momo"
+  ]);
+  assert.equal(config.rentReserveAmount, 2150000);
+  assert.deepEqual(config.rolloverFundNames, [
+    "Tiết kiệm dài hạn",
+    "Đầu tư tài chính",
+    "Hưởng thụ"
+  ]);
   assert.equal(config.timezone, "Asia/Ho_Chi_Minh");
   assert.equal(config.updateCoordinator, updateCoordinator);
 });

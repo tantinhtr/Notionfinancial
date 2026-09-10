@@ -1,3 +1,5 @@
+import { buildOpeningPlan_ } from "./ledger.js";
+
 function num_(prop) {
   return (prop && prop.number) || 0;
 }
@@ -990,7 +992,8 @@ export function buildAccountSpendingData_(
     fundGroups,
     monthlyBudget: buildMonthlyBudget_(tiers, monthlyLimit),
     excluded: attachThreshold_(buildExcluded_(tiers), outsideThreshold),
-    income: buildIncomeSplit_(options.incomeRows, options.otherIncomeRows)
+    income: buildIncomeSplit_(options.incomeRows, options.otherIncomeRows),
+    openingPlan: buildOpeningPlan_(accountRows, options)
   };
 }
 

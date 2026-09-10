@@ -1,6 +1,75 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFinanceRows_ } from "../src/ledger.js";
+import { buildOpeningPlan_, readFinanceRows_ } from "../src/ledger.js";
+
+const OPENING_OPTIONS = {
+  sourceAccountNames: ["Tiền Mặt", "Banking", "Grap Tiền Mặt", "Momo"],
+  rentReserveAmount: 2150000,
+  rolloverFundNames: ["Tiết kiệm dài hạn", "Đầu tư tài chính", "Hưởng thụ"]
+};
+
+function account(id, name, opening, current) {
+  return {
+    id,
+    properties: {
+      "Phương Thức Thanh Toán": { title: [{ plain_text: name }] },
+      "Số Dư Ban Đầu": { number: opening },
+      "Số Dư Hiện Tại": { number: current }
+    }
+  };
+}
+
+test("builds the September opening plan once from four free sources", () => {
+  const accounts = [
+    account("cash", "Tiền Mặt", 2021000, 665000),
+    account("bank", "Banking", 1670004, 0),
+    account("grab-cash", "Grap Tiền Mặt", 0, 9000),
+    account("momo", "Momo", 158706, 100000),
+    account("fund", "Quỹ Momo", 706166, 247876)
+  ];
+  const expected = {
+    sourceTotal: 3849710,
+    rentReserve: 2150000,
+    rentShortfall: 0,
+    remainder: 1699710,
+    sourceAccounts: [
+      { id: "cash", name: "Tiền Mặt", opening: 2021000 },
+      { id: "bank", name: "Banking", opening: 1670004 },
+      { id: "grab-cash", name: "Grap Tiền Mặt", opening: 0 },
+      { id: "momo", name: "Momo", opening: 158706 }
+    ],
+    allocations: [
+      { fund: "Tiết kiệm dài hạn", amount: 566570 },
+      { fund: "Đầu tư tài chính", amount: 566570 },
+      { fund: "Hưởng thụ", amount: 566570 }
+    ]
+  };
+
+  assert.deepEqual(buildOpeningPlan_(accounts, OPENING_OPTIONS), expected);
+
+  accounts[0].properties["Số Dư Hiện Tại"].number = 123456789;
+  assert.deepEqual(buildOpeningPlan_(accounts, OPENING_OPTIONS), expected);
+});
+
+test("opening plan reads number formula and rollup opening balances", () => {
+  const accounts = [
+    account("cash", "Tiền Mặt", 10, 999),
+    account("bank", "Banking", null, 999),
+    account("grab-cash", "Grap Tiền Mặt", null, 999),
+    account("momo", "Momo", 0, 999)
+  ];
+  accounts[1].properties["Số Dư Ban Đầu"] = { formula: { number: 20 } };
+  accounts[2].properties["Số Dư Ban Đầu"] = { rollup: { number: 31 } };
+
+  assert.deepEqual(buildOpeningPlan_(accounts, {
+    ...OPENING_OPTIONS,
+    rentReserveAmount: 0
+  }).allocations, [
+    { fund: "Tiết kiệm dài hạn", amount: 21 },
+    { fund: "Đầu tư tài chính", amount: 20 },
+    { fund: "Hưởng thụ", amount: 20 }
+  ]);
+});
 
 test("reads title note type account and fund fields from every finance database", () => {
   const income = {

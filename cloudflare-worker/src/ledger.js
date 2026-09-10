@@ -1,4 +1,4 @@
-function normalizeLedgerText_(value) {
+function normalizeSearchText_(value) {
   let text = String(value || "").toLowerCase();
   if (text.normalize) text = text.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   return text.replace(/đ/g, "d").replace(/\s+/g, " ").trim();
@@ -18,6 +18,54 @@ function amount_(property) {
   return Number(property?.number) || 0;
 }
 
+function numericProperty_(property) {
+  const value = property?.number ?? property?.formula?.number ?? property?.rollup?.number;
+  return Number.isFinite(value) ? value : 0;
+}
+
+export function buildOpeningPlan_(accountRows = [], options = {}) {
+  const sourceAccountNames = options.sourceAccountNames || [];
+  const sourceNameKeys = new Set(sourceAccountNames.map(normalizeSearchText_));
+  const sourceAccounts = [];
+
+  for (const accountRow of accountRows) {
+    const props = accountRow.properties || {};
+    const name = propertyText_(props["Phương Thức Thanh Toán"]);
+    if (!sourceNameKeys.has(normalizeSearchText_(name))) continue;
+    sourceAccounts.push({
+      id: accountRow.id,
+      name,
+      opening: numericProperty_(props["Số Dư Ban Đầu"])
+    });
+  }
+
+  const sourceTotal = sourceAccounts.reduce((total, account) => total + account.opening, 0);
+  const rentReserveAmount = Number.isFinite(options.rentReserveAmount)
+    ? options.rentReserveAmount
+    : 0;
+  const rentReserve = Math.min(sourceTotal, rentReserveAmount);
+  const rentShortfall = Math.max(rentReserveAmount - sourceTotal, 0);
+  const remainder = Math.max(sourceTotal - rentReserve, 0);
+  const rolloverFundNames = options.rolloverFundNames || [];
+  const equalShare = rolloverFundNames.length
+    ? Math.floor(remainder / rolloverFundNames.length)
+    : 0;
+  const indivisibleRemainder = remainder - equalShare * rolloverFundNames.length;
+  const allocations = rolloverFundNames.map((fund, index) => ({
+    fund,
+    amount: equalShare + (index === 0 ? indivisibleRemainder : 0)
+  }));
+
+  return {
+    sourceTotal,
+    rentReserve,
+    rentShortfall,
+    remainder,
+    sourceAccounts,
+    allocations
+  };
+}
+
 function row_(kind, page, titleProperty) {
   const props = page.properties || {};
   const title = propertyText_(props[titleProperty]);
@@ -29,7 +77,7 @@ function row_(kind, page, titleProperty) {
     title,
     note,
     text,
-    normalizedText: normalizeLedgerText_(text),
+    normalizedText: normalizeSearchText_(text),
     amount: amount_(props["Số Tiền"]),
     date: props["Ngày"]?.date?.start || "",
     createdTime: page.created_time || "",

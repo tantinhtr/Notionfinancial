@@ -20,7 +20,10 @@ const config = Object.freeze({
   transferDb: "transfers",
   fundGroupDb: "fund-groups",
   goalRelationPageId: "grab-goal",
-  monthlyExpenseLimit: 5500000
+  monthlyExpenseLimit: 5500000,
+  sourceAccountNames: ["Tiền Mặt", "Banking", "Grap Tiền Mặt", "Momo"],
+  rentReserveAmount: 2150000,
+  rolloverFundNames: ["Tiết kiệm dài hạn", "Đầu tư tài chính", "Hưởng thụ"]
 });
 
 const monthFilter = {
@@ -113,6 +116,21 @@ function monthlyRows() {
       "Đến Tài Khoản": { relation: [{ id: "account-2" }] }
     })]
   };
+}
+
+function openingAccountRows() {
+  const account = (id, name, opening, current) => row(id, {
+    "Phương Thức Thanh Toán": { title: [{ plain_text: name }] },
+    "Số Dư Ban Đầu": { number: opening },
+    "Số Dư Hiện Tại": { number: current }
+  });
+  return [
+    account("cash", "Tiền Mặt", 2021000, 665000),
+    account("bank", "Banking", 1670004, 0),
+    account("grab-cash", "Grap Tiền Mặt", 0, 9000),
+    account("momo", "Momo", 158706, 100000),
+    account("fund", "Quỹ Momo", 706166, 247876)
+  ];
 }
 
 function createRepository(options = {}) {
@@ -335,13 +353,30 @@ test("fund report serves the cached model instead of re-querying Notion", async 
 
 test("fund report wires seven concurrent Notion queries into the finance builder", async () => {
   const { notion, repository } = createRepository({ rows: {
-    budgets: [], expenses: [], accounts: [], transfers: [], "fund-groups": [],
+    budgets: [], expenses: [], accounts: openingAccountRows(), transfers: [], "fund-groups": [],
     income: [], "other-income": []
   } });
 
   const model = await repository.getFundBudgetReport();
 
   assert.deepEqual(model.t, { y: 2026, m: 7, d: 29 });
+  assert.deepEqual(model.openingPlan, {
+    sourceTotal: 3849710,
+    rentReserve: 2150000,
+    rentShortfall: 0,
+    remainder: 1699710,
+    sourceAccounts: [
+      { id: "cash", name: "Tiền Mặt", opening: 2021000 },
+      { id: "bank", name: "Banking", opening: 1670004 },
+      { id: "grab-cash", name: "Grap Tiền Mặt", opening: 0 },
+      { id: "momo", name: "Momo", opening: 158706 }
+    ],
+    allocations: [
+      { fund: "Tiết kiệm dài hạn", amount: 566570 },
+      { fund: "Đầu tư tài chính", amount: 566570 },
+      { fund: "Hưởng thụ", amount: 566570 }
+    ]
+  });
   // Bao cao can ca thu nhap de tach thu nhap that khoi tien chay qua.
   assert.deepEqual(notion.calls, [
     ["budgets", undefined],
