@@ -116,13 +116,17 @@ const PERSONAL_LOAN_DISPLAY_PATTERNS = {
 };
 
 function personalLoanParty_(row, patternName) {
-  const normalizedMatch = normalizeSearchText_(row.title).match(PERSONAL_LOAN_PATTERNS[patternName]);
-  if (!normalizedMatch) return null;
+  for (const value of [row.title, row.note]) {
+    const normalizedMatch = normalizeSearchText_(value).match(PERSONAL_LOAN_PATTERNS[patternName]);
+    if (!normalizedMatch) continue;
 
-  const displayText = String(row.title || "").toLowerCase().replace(/\s+/g, " ").trim();
-  const displayMatch = displayText.match(PERSONAL_LOAN_DISPLAY_PATTERNS[patternName]);
-  const party = (displayMatch?.[1] || normalizedMatch[1]).replace(/\s+/g, " ").trim();
-  return { party, key: normalizeSearchText_(party) };
+    const displayText = String(value || "").toLowerCase().replace(/\s+/g, " ").trim();
+    const displayMatch = displayText.match(PERSONAL_LOAN_DISPLAY_PATTERNS[patternName]);
+    const party = (displayMatch?.[1] || normalizedMatch[1]).replace(/\s+/g, " ").trim();
+    return { party, key: normalizeSearchText_(party) };
+  }
+
+  return null;
 }
 
 function accountName_(accountNamesById, accountId) {

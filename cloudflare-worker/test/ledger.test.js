@@ -23,11 +23,12 @@ function account(id, name, opening, current) {
   };
 }
 
-function expense(id, title, categoryId, accountId, amount, date) {
+function expense(id, title, categoryId, accountId, amount, date, note = "") {
   return {
     id,
     properties: {
       "Nội Dung Khoản Chi": { title: [{ plain_text: title }] },
+      "Ghi Chú": { rich_text: note ? [{ plain_text: note }] : [] },
       "Số Tiền": { number: amount },
       "Ngày": { date: { start: date } },
       "Loại Chi Phí": { relation: [{ id: categoryId }] },
@@ -36,11 +37,12 @@ function expense(id, title, categoryId, accountId, amount, date) {
   };
 }
 
-function income(id, title, categoryId, accountId, amount, date) {
+function income(id, title, categoryId, accountId, amount, date, note = "") {
   return {
     id,
     properties: {
       "Tên Khoản Thu": { title: [{ plain_text: title }] },
+      "Ghi Chú": { rich_text: note ? [{ plain_text: note }] : [] },
       "Số Tiền": { number: amount },
       "Ngày": { date: { start: date } },
       "Loại Khoản Thu": { relation: [{ id: categoryId }] },
@@ -252,4 +254,25 @@ test("repays Tuấn receivables partially in FIFO order", () => {
       sourceAccountId: "cash", sourceAccountName: "Tiền Mặt"
     }
   ]);
+});
+
+test("reads explicit loan opening and repayment phrases from Ghi Chú", () => {
+  const ledger = buildPersonalLoanLedger_(readFinanceRows_({
+    expenseRows: [
+      expense("lend-lan-note", "Chi hộ", "loan", "bank", 150000, "2026-09-01", "Cho cô Lan mượn tiền")
+    ],
+    otherIncomeRows: [
+      income("lan-return-note", "Khoản thu khác", "loan", "momo", 50000, "2026-09-02", "Cô Lan trả nợ")
+    ]
+  }), {
+    loanCategoryIds: new Set(["loan"]),
+    accountNamesById: { bank: "Banking" }
+  });
+
+  assert.deepEqual(ledger.receivables, [{
+    party: "cô lan", principal: 150000, repaid: 50000, outstanding: 100000,
+    openedBy: "lend-lan-note", repaymentRows: ["lan-return-note"],
+    sourceAccountId: "bank", sourceAccountName: "Banking"
+  }]);
+  assert.deepEqual(ledger.unmatched, []);
 });
