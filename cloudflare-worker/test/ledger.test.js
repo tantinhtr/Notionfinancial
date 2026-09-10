@@ -63,6 +63,64 @@ test("finance ledger passes opening sources and loan category names to its compo
   assert.equal(result.rows.find((row) => row.id === "grab").categoryId, "other-income-category");
 });
 
+test("integrated unknown income categories use explicit personal-loan wording", () => {
+  const result = buildFinanceLedger_({
+    categoryRows: [{ id: "expense-loan", properties: { "Loại Chi Phí": { title: [{ plain_text: "Vay Và Trả" }] } } }],
+    expenseRows: [expense("lend-tuan", "Cho cháu Tuấn mượn", "expense-loan", "bank", 100000, "2026-09-01")],
+    otherIncomeRows: [
+      income("borrow-em", "Em cho mượn tiền", "income-loan", "bank", 500000, "2026-09-02", "Cháu Tuấn trả nợ"),
+      income("return-tuan", "Cháu Tuấn trả nợ", "income-return", "momo", 100000, "2026-09-03"),
+      income("generic", "Khoản thu khác", "income-loan", "bank", 500000, "2026-09-04"),
+      income("note-lan", "Khoản thu khác", "income-loan", "bank", 200000, "2026-09-05", "Cô Lan cho mượn tiền"),
+      income("ambiguous-shared-category", "Em cho mượn tiền và Tố trả nợ", "income-loan", "bank", 500000, "2026-09-06")
+    ]
+  });
+  assert.deepEqual(result.personalLoans.liabilities.map(({ party, outstanding }) => ({ party, outstanding })), [
+    { party: "em", outstanding: 500000 }, { party: "cô lan", outstanding: 200000 }
+  ]);
+  assert.equal(result.personalLoans.receivables[0].outstanding, 0);
+  assert.deepEqual(result.personalLoans.receivables[0].repaymentRows, ["return-tuan"]);
+  assert.equal(result.personalLoans.repayments.length, 1);
+  assert.deepEqual(result.personalLoans.unmatched.map((row) => row.id), ["ambiguous-shared-category"]);
+});
+
+test("integrated unknown income fallback keeps unresolved wording unmatched and known categories authoritative", () => {
+  const result = buildFinanceLedger_({
+    categoryRows: [{ id: "known-other", properties: { "Loại Chi Phí": { title: [{ plain_text: "Khác" }] } } }],
+    otherIncomeRows: [
+      income("known", "Em cho mượn tiền", "known-other", "bank", 500000, "2026-09-01"),
+      income("generic", "Khoản thu khác", "unknown", "bank", 500000, "2026-09-02"),
+      income("missing-party", "Tiền mượn", "unknown", "bank", 500000, "2026-09-03"),
+      income("ambiguous", "Em cho mượn tiền và Tố trả nợ", "unknown", "bank", 500000, "2026-09-04")
+    ]
+  });
+  assert.deepEqual(result.personalLoans.liabilities, []);
+  assert.deepEqual(result.personalLoans.receivables, []);
+  assert.deepEqual(result.personalLoans.repayments, []);
+  assert.deepEqual(result.personalLoans.unmatched.map((row) => row.id), ["missing-party", "ambiguous"]);
+  assert.deepEqual(result.unmatched.map((row) => row.id), ["missing-party", "ambiguous"]);
+});
+
+test("fund repayment rejects conflicting borrower identities before and after the action", () => {
+  const result = buildFundLoanLedger_(readFinanceRows_({ transferRows: [
+    fundTransfer("borrow", "Mượn quỹ tiết kiệm", 750000),
+    fundTransfer("conflicting-pair", "Nhu cầu thiết yếu trả lại 200.000 cho quỹ tiết kiệm từ Giáo dục", 200000, "savings", "2026-09-02")
+  ] }), [...loanFunds, fundGroup("education", "Giáo dục")]);
+  assert.equal(result.loans[0].outstanding, 750000);
+  assert.equal(result.loans[0].repaid, 0);
+  assert.deepEqual(result.loans[0].repaymentRows, []);
+  assert.equal(result.unmatched[0].id, "conflicting-pair");
+});
+
+test("fund repayment accepts two borrower identities only when their resolved aliases agree", () => {
+  const result = buildFundLoanLedger_(readFinanceRows_({ transferRows: [
+    fundTransfer("borrow", "Mượn quỹ tiết kiệm", 750000),
+    fundTransfer("same-pair", "Nhu cầu thiết yếu trả lại 200.000 cho quỹ tiết kiệm từ quỹ thiết yếu", 200000, "savings", "2026-09-02")
+  ] }), loanFunds);
+  assert.equal(result.loans[0].outstanding, 550000);
+  assert.deepEqual(result.unmatched, []);
+});
+
 test("same-account savings loan ignores unrelated income and balances", () => {
   const result = buildFundLoanLedger_(readFinanceRows_({
     transferRows: [fundTransfer("borrow", "Lấy từ quỹ tiết kiệm để trả tiền phòng", 750000)],

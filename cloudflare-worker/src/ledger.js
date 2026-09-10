@@ -64,10 +64,11 @@ export function buildFundLoanLedger_(rows = [], fundGroups = []) {
       const after = text.slice(repayment.index + repayment[0].length).trim();
       const parts = after.replace(/^(?:[\d.,]+\s*(?:d|dong)?\s*)?(?:tien\s+)?(?:cho\s+)?/, "").split(/\s+tu\s+/);
       const lender = resolveFund_(parts[0], groups);
-      const borrowerPhrase = before || parts[1] || "";
-      const borrower = borrowerPhrase ? resolveFund_(borrowerPhrase, groups) : null;
+      const borrowerPhrases = [before, ...parts.slice(1)].filter(Boolean);
+      const borrowers = borrowerPhrases.map((phrase) => resolveFund_(phrase, groups));
+      const borrower = borrowers[0] || null;
       if (!lender || (row.fundGroupId && row.fundGroupId !== lender.id)
-        || (borrowerPhrase && !borrower)) {
+        || borrowers.some((resolved) => !resolved || resolved.id !== borrower?.id)) {
         unmatched.push({ ...row, unmatchedAmount: row.amount, reason: "unidentified-fund-repayment" });
         continue;
       }
@@ -118,8 +119,25 @@ export function buildFinanceLedger_({
   const accountNamesById = new Map(accountRows.map((row) => [row.id, propertyText_(row.properties?.["Phương Thức Thanh Toán"])]));
   const categoryNamesById = new Map(categoryRows.map((row) => [row.id, propertyText_(row.properties?.["Loại Chi Phí"])]));
   const loanCategoryIds = new Set([...categoryNamesById].filter(([, name]) => normalizeSearchText_(name) === "vay va tra").map(([id]) => id));
+  const unresolvedPersonalRows = [];
+  const personalRows = [];
+  for (const row of rows) {
+    if (row.kind !== "otherIncome" || categoryNamesById.get(row.categoryId)) {
+      personalRows.push(row);
+      continue;
+    }
+    const fallback = row.categoryId && row.amount > 0 ? personalIncomeFallback_(row) : null;
+    if (fallback) {
+      // This is row-specific evidence, not a classification of every row with this category ID.
+      loanCategoryIds.add(row.categoryId);
+      personalRows.push(fallback);
+    } else if (row.amount > 0 && /\b(?:muon|tra no|tra lai|hoan lai)\b/.test(row.normalizedText)) {
+      unresolvedPersonalRows.push({ ...row, unmatchedAmount: row.amount, reason: "unidentified-personal-income" });
+    }
+  }
   const openingPlan = buildOpeningPlan_(accountRows, options);
-  const personalLoans = buildPersonalLoanLedger_(rows, { loanCategoryIds, accountNamesById });
+  const personalLoans = buildPersonalLoanLedger_(personalRows, { loanCategoryIds, accountNamesById });
+  personalLoans.unmatched.push(...unresolvedPersonalRows);
   const previousMonthAdvances = buildPreviousMonthAdvanceLedger_({ openingPlan, rows, accountNamesById, categoryNamesById, personalLoans });
   const fundLoans = buildFundLoanLedger_(rows, fundGroupRows);
   return {
@@ -231,6 +249,18 @@ function personalLoanParty_(row, patternName) {
     return { party, key: normalizeSearchText_(party) };
   }
 
+  return null;
+}
+
+function personalIncomeFallback_(row) {
+  for (const value of [row.title, row.note]) {
+    const text = normalizeSearchText_(value);
+    const matches = ["borrowerReturn", "borrow"].map((pattern) => text.match(PERSONAL_LOAN_PATTERNS[pattern]))
+      .filter((match) => match && match[0].length === text.length
+        && !/\b(?:va|hoac|cho|muon|tra|no)\b/.test(match[1]));
+    if (matches.length === 1) return { ...row, title: value, note: "" };
+    if (/\b(?:muon|tra no|tra lai|hoan lai)\b/.test(text)) return null;
+  }
   return null;
 }
 
