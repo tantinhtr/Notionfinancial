@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   buildOpeningPlan_,
   buildPersonalLoanLedger_,
+  buildPreviousMonthAdvanceLedger_,
   readFinanceRows_
 } from "../src/ledger.js";
 
@@ -48,6 +49,84 @@ function income(id, title, categoryId, accountId, amount, date, note = "") {
       "Loại Khoản Thu": { relation: [{ id: categoryId }] },
       "Phương Thức Thanh Toán": { relation: [{ id: accountId }] }
     }
+  };
+}
+
+function transfer(id, title, fromAccountId, toAccountId, amount, date, createdTime) {
+  return {
+    id,
+    created_time: createdTime,
+    properties: {
+      "Ghi Chú": { title: [{ plain_text: title }] },
+      "Số Tiền": { number: amount },
+      "Ngày": { date: { start: date } },
+      "Loại Chuyển Đổi": { select: { name: "Giao Dịch Giữa Các Tài Khoản" } },
+      "Từ Tài Khoản": { relation: [{ id: fromAccountId }] },
+      "Đến Tài Khoản": { relation: [{ id: toAccountId }] }
+    }
+  };
+}
+
+function timed(page, createdTime) {
+  return { ...page, created_time: createdTime };
+}
+
+function septemberLedgerInput() {
+  const accountNamesById = new Map([
+    ["cash", "Tiền Mặt"],
+    ["bank", "Banking"],
+    ["grab-cash", "Grap Tiền Mặt"],
+    ["momo", "Momo"],
+    ["fund", "Quỹ Momo"]
+  ]);
+  const rows = readFinanceRows_({
+    incomeRows: [
+      timed(income("grab-net", "Grap thu nhập ròng", "net-income", "momo", 286581, "2026-09-08"), "2026-09-08T08:00:00.000Z")
+    ],
+    otherIncomeRows: [
+      timed(income("grab-qr", "Grab QR", "grab-receipt", "momo", 208000, "2026-09-01"), "2026-09-01T03:00:00.000Z"),
+      timed(income("grab-cash-income", "Grab tiền mặt", "grab-receipt", "grab-cash", 394000, "2026-09-01"), "2026-09-01T03:30:00.000Z"),
+      timed(income("borrow-em", "Em cho mượn tiền", "loan", "bank", 500000, "2026-09-06"), "2026-09-06T08:00:00.000Z"),
+      timed(income("tuan-return", "Cháu Tuấn trả nợ", "loan", "momo", 100000, "2026-09-08"), "2026-09-08T07:00:00.000Z")
+    ],
+    expenseRows: [
+      timed(expense("momo-opening-expense", "Chi Momo đầu tháng", "other", "momo", 100000, "2026-09-01"), "2026-09-01T01:00:00.000Z"),
+      timed(expense("cash-day-1", "Chi tiền mặt ngày 1", "other", "cash", 277000, "2026-09-01"), "2026-09-01T02:00:00.000Z"),
+      timed(expense("cash-day-2", "Chi tiền mặt ngày 2", "other", "cash", 535000, "2026-09-02"), "2026-09-02T02:00:00.000Z"),
+      timed(expense("lend-tuan", "Cho cháu Tuấn mượn", "loan", "bank", 100000, "2026-09-03"), "2026-09-03T08:00:00.000Z"),
+      timed(expense("cash-day-6", "Chi tiền mặt ngày 6", "other", "cash", 544000, "2026-09-06"), "2026-09-06T09:00:00.000Z"),
+      timed(expense("pay-to", "Trả tiền mượn tố tháng trước (còn nợ 500)", "loan", "bank", 500000, "2026-09-07"), "2026-09-07T07:00:00.000Z"),
+      timed(expense("wallet-topup", "Mượn tiền nạp ví grap", "grap", "bank", 170000, "2026-09-07"), "2026-09-07T08:00:00.000Z"),
+      timed(expense("momo-current-expense", "Chi Momo từ tiền Grab", "other", "momo", 108000, "2026-09-07"), "2026-09-07T09:00:00.000Z"),
+      timed(expense("grab-cash-expense", "Chi Grap tiền mặt", "other", "grab-cash", 385000, "2026-09-07"), "2026-09-07T10:00:00.000Z")
+    ],
+    transferRows: [
+      transfer("rent-reserve", "Chuyển tiền vào quỹ Nhà Trọ", "bank", "fund", 1400004, "2026-09-01", "2026-09-01T00:00:00.000Z"),
+      transfer("savings-allocation", "Chuyển tiền vào quỹ tích lũy", "momo", "fund", 158706, "2026-09-01", "2026-09-01T04:00:00.000Z")
+    ]
+  });
+  const personalLoans = buildPersonalLoanLedger_(rows, {
+    loanCategoryIds: new Set(["loan"]),
+    accountNamesById
+  });
+
+  return {
+    openingPlan: {
+      rentReserve: 2150000,
+      sourceAccounts: [
+        { id: "cash", name: "Tiền Mặt", opening: 2021000 },
+        { id: "bank", name: "Banking", opening: 1670004 },
+        { id: "grab-cash", name: "Grap Tiền Mặt", opening: 0 },
+        { id: "momo", name: "Momo", opening: 158706 }
+      ]
+    },
+    rows,
+    accountNamesById,
+    categoryNamesById: new Map([["loan", "Vay Và Trả"]]),
+    personalLoans,
+    currentBalancesById: new Map([
+      ["cash", 665000], ["bank", 9999999], ["grab-cash", 9000], ["momo", 9999999]
+    ])
   };
 }
 
@@ -275,4 +354,132 @@ test("reads explicit loan opening and repayment phrases from Ghi Chú", () => {
     sourceAccountId: "bank", sourceAccountName: "Banking"
   }]);
   assert.deepEqual(ledger.unmatched, []);
+});
+
+test("keeps cash expenses as spending and as unpaid previous-month advances", () => {
+  const result = buildPreviousMonthAdvanceLedger_(septemberLedgerInput());
+  const cash = result.accounts.find((item) => item.accountName === "Tiền Mặt");
+  assert.equal(cash.principal, 1356000);
+  assert.equal(cash.repaid, 0);
+  assert.equal(cash.outstanding, 1356000);
+  assert.deepEqual(cash.rows.map((row) => row.amount), [277000, 535000, 544000]);
+});
+
+test("only the explicit Tuấn return repays the 270000 Banking advance", () => {
+  const result = buildPreviousMonthAdvanceLedger_(septemberLedgerInput());
+  const bank = result.accounts.find((item) => item.accountName === "Banking");
+  assert.equal(bank.principal, 270000);
+  assert.equal(bank.repaid, 100000);
+  assert.equal(bank.outstanding, 170000);
+  assert.equal(bank.rows.find((row) => row.amount === 170000).title, "Mượn tiền nạp ví grap");
+});
+
+test("keeps the Momo previous-month advance despite income and current balances", () => {
+  const result = buildPreviousMonthAdvanceLedger_(septemberLedgerInput());
+  const momo = result.accounts.find((item) => item.accountName === "Momo");
+  const grabCash = result.accounts.find((item) => item.accountName === "Grap Tiền Mặt");
+  assert.equal(momo.principal, 100000);
+  assert.equal(momo.repaid, 0);
+  assert.equal(momo.outstanding, 100000);
+  assert.equal(grabCash.outstanding, 0);
+  assert.equal(result.totalOutstanding, 1626000);
+});
+
+test("orders previous-month cohorts by date then createdTime then id", () => {
+  const openingPlan = {
+    rentReserve: 0,
+    sourceAccounts: [{ id: "bank", name: "Banking", opening: 100 }]
+  };
+  const accountNamesById = { bank: "Banking" };
+  const cases = [
+    [
+      { id: "income", kind: "income", amount: 100, accountId: "bank", date: "2026-09-02", createdTime: "2026-09-01T00:00:00.000Z", normalizedText: "income" },
+      { id: "expense", kind: "expense", amount: 100, accountId: "bank", date: "2026-09-01", createdTime: "2026-09-02T00:00:00.000Z", normalizedText: "expense" }
+    ],
+    [
+      { id: "income", kind: "income", amount: 100, accountId: "bank", date: "2026-09-01", createdTime: "2026-09-01T02:00:00.000Z", normalizedText: "income" },
+      { id: "expense", kind: "expense", amount: 100, accountId: "bank", date: "2026-09-01", createdTime: "2026-09-01T01:00:00.000Z", normalizedText: "expense" }
+    ],
+    [
+      { id: "z-income", kind: "income", amount: 100, accountId: "bank", date: "2026-09-01", createdTime: "2026-09-01T01:00:00.000Z", normalizedText: "income" },
+      { id: "a-expense", kind: "expense", amount: 100, accountId: "bank", date: "2026-09-01", createdTime: "2026-09-01T01:00:00.000Z", normalizedText: "expense" }
+    ]
+  ];
+
+  for (const rows of cases) {
+    const result = buildPreviousMonthAdvanceLedger_({
+      openingPlan, rows, accountNamesById, personalLoans: { receivables: [], liabilities: [], repayments: [], unmatched: [] }
+    });
+    assert.equal(result.accounts[0].principal, 100);
+  }
+});
+
+test("applies an explicit reimbursement to its named source account", () => {
+  const result = buildPreviousMonthAdvanceLedger_({
+    openingPlan: {
+      rentReserve: 0,
+      sourceAccounts: [
+        { id: "bank", name: "Banking", opening: 100000 },
+        { id: "momo", name: "Momo", opening: 0 }
+      ]
+    },
+    rows: [
+      { id: "advance", kind: "expense", title: "Chi đầu tháng", normalizedText: "chi dau thang", amount: 100000, accountId: "bank", date: "2026-09-01", createdTime: "" },
+      { id: "reimburse", kind: "otherIncome", title: "Cấp bù cho Banking", normalizedText: "cap bu cho banking", amount: 100000, accountId: "momo", date: "2026-09-02", createdTime: "" }
+    ],
+    personalLoans: { receivables: [], liabilities: [], repayments: [], unmatched: [] }
+  });
+
+  const bank = result.accounts.find((item) => item.accountId === "bank");
+  const momo = result.accounts.find((item) => item.accountId === "momo");
+  assert.equal(bank.repaid, 100000);
+  assert.equal(bank.outstanding, 0);
+  assert.equal(momo.repaid, 0);
+  assert.deepEqual(result.unmatchedSources, []);
+});
+
+test("keeps minimum forced previous-month money at account level when a row mixes cohorts", () => {
+  const result = buildPreviousMonthAdvanceLedger_({
+    openingPlan: {
+      rentReserve: 0,
+      sourceAccounts: [{ id: "bank", name: "Banking", opening: 100000 }]
+    },
+    rows: [
+      { id: "earned", kind: "income", normalizedText: "earned", amount: 50000, accountId: "bank", date: "2026-09-01", createdTime: "2026-09-01T01:00:00.000Z" },
+      { id: "mixed", kind: "expense", title: "Chi hỗn hợp", normalizedText: "chi hon hop", amount: 100000, accountId: "bank", date: "2026-09-01", createdTime: "2026-09-01T02:00:00.000Z" }
+    ],
+    personalLoans: { receivables: [], liabilities: [], repayments: [], unmatched: [] }
+  });
+  const bank = result.accounts[0];
+
+  assert.equal(bank.principal, 50000);
+  assert.deepEqual(bank.rows, []);
+  assert.equal(bank.ambiguousRows.length, 1);
+  assert.equal(bank.ambiguousRows[0].id, "mixed");
+  assert.equal(bank.ambiguousRows[0].advanceAmount, 50000);
+});
+
+test("tracks a transfer explicitly using previous-month money as an advance", () => {
+  const result = buildPreviousMonthAdvanceLedger_({
+    openingPlan: {
+      rentReserve: 0,
+      sourceAccounts: [{ id: "bank", name: "Banking", opening: 100000 }]
+    },
+    rows: [{
+      id: "explicit-transfer",
+      kind: "transfer",
+      title: "Mượn tiền tháng trước nạp quỹ sửa xe",
+      normalizedText: "muon tien thang truoc nap quy sua xe",
+      amount: 100000,
+      fromAccountId: "bank",
+      toAccountId: "fund",
+      date: "2026-09-01",
+      createdTime: ""
+    }],
+    personalLoans: { receivables: [], liabilities: [], repayments: [], unmatched: [] }
+  });
+
+  assert.equal(result.accounts[0].principal, 100000);
+  assert.equal(result.accounts[0].outstanding, 100000);
+  assert.deepEqual(result.accounts[0].rows.map((row) => row.id), ["explicit-transfer"]);
 });

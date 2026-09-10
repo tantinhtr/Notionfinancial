@@ -224,3 +224,237 @@ export function buildPersonalLoanLedger_(rows = [], options = {}) {
 
   return { receivables, liabilities, repayments, unmatched };
 }
+
+function orderedFinanceRows_(rows) {
+  return rows.map((row, index) => ({ row, index })).sort((a, b) => {
+    const first = String(a.row.date || "").localeCompare(String(b.row.date || ""))
+      || String(a.row.createdTime || "").localeCompare(String(b.row.createdTime || ""))
+      || String(a.row.id || "").localeCompare(String(b.row.id || ""));
+    return first || a.index - b.index;
+  }).map((entry) => entry.row);
+}
+
+function addCohort_(state, cohort, amount) {
+  if (amount > 0) state.cohorts[cohort] += amount;
+}
+
+function consumeNonOpening_(state, amount) {
+  let remaining = amount;
+  const consumed = { earned: 0, passThrough: 0, borrowed: 0, returned: 0 };
+
+  for (const cohort of Object.keys(consumed)) {
+    const used = Math.min(state.cohorts[cohort], remaining);
+    state.cohorts[cohort] -= used;
+    consumed[cohort] = used;
+    remaining -= used;
+    if (remaining <= 0) break;
+  }
+
+  return { consumed, remaining };
+}
+
+function consumeOpening_(state, amount) {
+  const used = Math.min(state.openingAvailable, amount);
+  state.openingAvailable -= used;
+  return used;
+}
+
+function recordAdvance_(state, row, amount, ambiguous = false) {
+  if (amount <= 0) return;
+  state.account.principal += amount;
+  state.obligations.push({ rowId: row.id, principal: amount, repaid: 0 });
+  if (ambiguous) {
+    state.account.ambiguousRows.push({ ...row, advanceAmount: amount });
+  } else {
+    state.account.rows.push(row);
+  }
+}
+
+function applyAdvanceRepayment_(state, amount, openedBy = "") {
+  let remaining = amount;
+  for (const obligation of state.obligations) {
+    if (remaining <= 0) break;
+    if (openedBy && obligation.rowId !== openedBy) continue;
+    const outstanding = obligation.principal - obligation.repaid;
+    if (outstanding <= 0) continue;
+    const applied = Math.min(outstanding, remaining);
+    obligation.repaid += applied;
+    state.account.repaid += applied;
+    remaining -= applied;
+  }
+  return remaining;
+}
+
+function isExplicitPreviousMonthUse_(row) {
+  const text = row.normalizedText || normalizeSearchText_(row.text || [row.title, row.note].filter(Boolean).join(" | "));
+  return /\b(?:lay|muon)(?:\s+tien)?(?:\s+(?:tu|cua))?\s+(?:tien\s+)?thang\s+truoc\b/.test(text);
+}
+
+function isExplicitReimbursement_(row) {
+  const text = row.normalizedText || normalizeSearchText_(row.text || [row.title, row.note].filter(Boolean).join(" | "));
+  return /\b(?:tra lai|hoan lai|cap bu)\b/.test(text);
+}
+
+function isRentReserveTransfer_(row, categoryNamesById) {
+  if (row.kind !== "transfer") return false;
+  const category = normalizeSearchText_(accountName_(categoryNamesById, row.categoryId));
+  const text = row.normalizedText || normalizeSearchText_(row.text || row.title);
+  return category === "nha tro" || /\b(?:nha tro|tien phong)\b/.test(text);
+}
+
+function matchingSourceStates_(row, states) {
+  const text = row.normalizedText || normalizeSearchText_(row.text || [row.title, row.note].filter(Boolean).join(" | "));
+  const matches = [...states.values()].filter((state) => {
+    const key = normalizeSearchText_(state.account.accountName);
+    if (!key) return false;
+    const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`(?:^|[^a-z0-9])${escaped}(?:$|[^a-z0-9])`).test(text);
+  });
+
+  return matches.filter((candidate) => {
+    const key = normalizeSearchText_(candidate.account.accountName);
+    return !matches.some((other) => {
+      const otherKey = normalizeSearchText_(other.account.accountName);
+      return other !== candidate && otherKey.length > key.length && otherKey.includes(key);
+    });
+  });
+}
+
+export function buildPreviousMonthAdvanceLedger_({
+  openingPlan = {},
+  rows = [],
+  accountNamesById = {},
+  categoryNamesById = {},
+  personalLoans = {}
+} = {}) {
+  const accounts = (openingPlan.sourceAccounts || []).map((source) => ({
+    accountId: source.id,
+    accountName: source.name || accountName_(accountNamesById, source.id),
+    principal: 0,
+    repaid: 0,
+    outstanding: 0,
+    rows: [],
+    ambiguousRows: []
+  }));
+  const states = new Map(accounts.map((account, index) => [account.accountId, {
+    account,
+    openingAvailable: Math.max(Number(openingPlan.sourceAccounts[index].opening) || 0, 0),
+    cohorts: { earned: 0, passThrough: 0, borrowed: 0, returned: 0 },
+    obligations: []
+  }]));
+  const unmatchedSources = [];
+  const liabilityOpeningIds = new Set((personalLoans.liabilities || []).map((item) => item.openedBy));
+  const returnedReceivableRowIds = new Set(
+    (personalLoans.receivables || []).flatMap((item) => item.repaymentRows || [])
+  );
+  const liabilityRepaymentRowIds = new Set(
+    (personalLoans.liabilities || []).flatMap((item) => item.repaymentRows || [])
+  );
+  const personalRepaymentRowIds = new Set(
+    (personalLoans.receivables || []).flatMap((item) => item.repaymentRows || [])
+  );
+  let rentExemptRemaining = Math.max(Number(openingPlan.rentReserve) || 0, 0);
+
+  for (const row of orderedFinanceRows_(rows)) {
+    if (!(row.amount > 0)) continue;
+
+    if (row.kind === "income" || row.kind === "otherIncome") {
+      const state = states.get(row.accountId);
+      if (!state) continue;
+      const cohort = row.kind === "income"
+        ? "earned"
+        : liabilityOpeningIds.has(row.id)
+          ? "borrowed"
+          : returnedReceivableRowIds.has(row.id)
+            ? "returned"
+            : "passThrough";
+      addCohort_(state, cohort, row.amount);
+      continue;
+    }
+
+    if (row.kind === "transfer") {
+      const fromState = states.get(row.fromAccountId);
+      const toState = states.get(row.toAccountId);
+      if (!fromState) {
+        if (toState) addCohort_(toState, "passThrough", row.amount);
+        continue;
+      }
+
+      const openingUsed = consumeOpening_(fromState, row.amount);
+      const currentUse = consumeNonOpening_(fromState, row.amount - openingUsed);
+      if (toState && toState !== fromState) {
+        toState.openingAvailable += openingUsed;
+        for (const [cohort, amount] of Object.entries(currentUse.consumed)) {
+          addCohort_(toState, cohort, amount);
+        }
+      }
+
+      if (isRentReserveTransfer_(row, categoryNamesById)) {
+        const exempt = Math.min(openingUsed, rentExemptRemaining);
+        rentExemptRemaining -= exempt;
+        const advanceAmount = openingUsed - exempt;
+        recordAdvance_(fromState, row, advanceAmount, advanceAmount !== row.amount);
+      } else if (isExplicitPreviousMonthUse_(row)) {
+        recordAdvance_(fromState, row, row.amount);
+      }
+      if (currentUse.remaining > 0) {
+        unmatchedSources.push({ ...row, unmatchedAmount: currentUse.remaining });
+      }
+      continue;
+    }
+
+    if (row.kind !== "expense") continue;
+    const state = states.get(row.accountId);
+    if (!state) continue;
+
+    if (isExplicitPreviousMonthUse_(row)) {
+      consumeOpening_(state, row.amount);
+      recordAdvance_(state, row, row.amount);
+      continue;
+    }
+
+    const currentUse = consumeNonOpening_(state, row.amount);
+    const openingUsed = consumeOpening_(state, currentUse.remaining);
+    if (!liabilityRepaymentRowIds.has(row.id)) {
+      recordAdvance_(state, row, openingUsed, openingUsed !== row.amount);
+    }
+    if (currentUse.remaining - openingUsed > 0) {
+      unmatchedSources.push({ ...row, unmatchedAmount: currentUse.remaining - openingUsed });
+    }
+  }
+
+  for (const receivable of personalLoans.receivables || []) {
+    if (!(receivable.repaid > 0)) continue;
+    const sourceState = states.get(receivable.sourceAccountId);
+    if (!sourceState) {
+      unmatchedSources.push({
+        openedBy: receivable.openedBy,
+        sourceAccountId: receivable.sourceAccountId,
+        unmatchedAmount: receivable.repaid
+      });
+      continue;
+    }
+    applyAdvanceRepayment_(sourceState, receivable.repaid, receivable.openedBy);
+  }
+
+  for (const row of orderedFinanceRows_(rows)) {
+    if (!(row.amount > 0) || personalRepaymentRowIds.has(row.id) || !isExplicitReimbursement_(row)) continue;
+    const matches = matchingSourceStates_(row, states);
+    if (matches.length !== 1) {
+      unmatchedSources.push({ ...row, unmatchedAmount: row.amount });
+      continue;
+    }
+    const remaining = applyAdvanceRepayment_(matches[0], row.amount);
+    if (remaining > 0) unmatchedSources.push({ ...row, unmatchedAmount: remaining });
+  }
+
+  for (const account of accounts) {
+    account.outstanding = account.principal - account.repaid;
+  }
+
+  return {
+    totalOutstanding: accounts.reduce((total, account) => total + account.outstanding, 0),
+    accounts,
+    unmatchedSources
+  };
+}
