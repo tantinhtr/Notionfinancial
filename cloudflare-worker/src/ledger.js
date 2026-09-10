@@ -287,7 +287,7 @@ function applyAdvanceRepayment_(state, amount, openedBy = "") {
 
 function isExplicitPreviousMonthUse_(row) {
   const text = row.normalizedText || normalizeSearchText_(row.text || [row.title, row.note].filter(Boolean).join(" | "));
-  return /\b(?:lay|muon)(?:\s+tien)?(?:\s+(?:tu|cua))?\s+(?:tien\s+)?thang\s+truoc\b/.test(text);
+  return /\b(?:lay|muon|dung|su dung)(?:\s+tien)?(?:\s+(?:tu|cua))?\s+(?:tien\s+)?thang\s+truoc\b/.test(text);
 }
 
 function isExplicitReimbursement_(row) {
@@ -357,6 +357,16 @@ export function buildPreviousMonthAdvanceLedger_({
 
   for (const row of orderedFinanceRows_(rows)) {
     if (!(row.amount > 0)) continue;
+
+    if (!personalRepaymentRowIds.has(row.id) && isExplicitReimbursement_(row)) {
+      const matches = matchingSourceStates_(row, states);
+      if (matches.length !== 1) {
+        unmatchedSources.push({ ...row, unmatchedAmount: row.amount });
+      } else {
+        const remaining = applyAdvanceRepayment_(matches[0], row.amount);
+        if (remaining > 0) unmatchedSources.push({ ...row, unmatchedAmount: remaining });
+      }
+    }
 
     if (row.kind === "income" || row.kind === "otherIncome") {
       const state = states.get(row.accountId);
@@ -435,17 +445,6 @@ export function buildPreviousMonthAdvanceLedger_({
       continue;
     }
     applyAdvanceRepayment_(sourceState, receivable.repaid, receivable.openedBy);
-  }
-
-  for (const row of orderedFinanceRows_(rows)) {
-    if (!(row.amount > 0) || personalRepaymentRowIds.has(row.id) || !isExplicitReimbursement_(row)) continue;
-    const matches = matchingSourceStates_(row, states);
-    if (matches.length !== 1) {
-      unmatchedSources.push({ ...row, unmatchedAmount: row.amount });
-      continue;
-    }
-    const remaining = applyAdvanceRepayment_(matches[0], row.amount);
-    if (remaining > 0) unmatchedSources.push({ ...row, unmatchedAmount: remaining });
   }
 
   for (const account of accounts) {

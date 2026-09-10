@@ -483,3 +483,44 @@ test("tracks a transfer explicitly using previous-month money as an advance", ()
   assert.equal(result.accounts[0].outstanding, 100000);
   assert.deepEqual(result.accounts[0].rows.map((row) => row.id), ["explicit-transfer"]);
 });
+
+test("does not let reimbursement before an advance repay that future obligation", () => {
+  const result = buildPreviousMonthAdvanceLedger_({
+    openingPlan: {
+      rentReserve: 0,
+      sourceAccounts: [
+        { id: "bank", name: "Banking", opening: 100000 },
+        { id: "momo", name: "Momo", opening: 0 }
+      ]
+    },
+    rows: [
+      { id: "early-reimburse", kind: "otherIncome", title: "Cấp bù cho Banking", normalizedText: "cap bu cho banking", amount: 100000, accountId: "momo", date: "2026-09-01", createdTime: "" },
+      { id: "later-advance", kind: "expense", title: "Mượn tiền tháng trước", normalizedText: "muon tien thang truoc", amount: 100000, accountId: "bank", date: "2026-09-02", createdTime: "" }
+    ],
+    personalLoans: { receivables: [], liabilities: [], repayments: [], unmatched: [] }
+  });
+  const bank = result.accounts.find((item) => item.accountId === "bank");
+
+  assert.equal(bank.principal, 100000);
+  assert.equal(bank.repaid, 0);
+  assert.equal(bank.outstanding, 100000);
+  assert.equal(result.unmatchedSources[0].id, "early-reimburse");
+});
+
+test("recognizes using previous-month money even when a current cohort is available", () => {
+  const result = buildPreviousMonthAdvanceLedger_({
+    openingPlan: {
+      rentReserve: 0,
+      sourceAccounts: [{ id: "bank", name: "Banking", opening: 100000 }]
+    },
+    rows: [
+      { id: "earned", kind: "income", normalizedText: "earned", amount: 100000, accountId: "bank", date: "2026-09-01", createdTime: "2026-09-01T01:00:00.000Z" },
+      { id: "using-opening", kind: "expense", title: "Sử dụng tiền tháng trước", normalizedText: "su dung tien thang truoc", amount: 100000, accountId: "bank", date: "2026-09-01", createdTime: "2026-09-01T02:00:00.000Z" }
+    ],
+    personalLoans: { receivables: [], liabilities: [], repayments: [], unmatched: [] }
+  });
+
+  assert.equal(result.accounts[0].principal, 100000);
+  assert.equal(result.accounts[0].outstanding, 100000);
+  assert.deepEqual(result.accounts[0].rows.map((row) => row.id), ["using-opening"]);
+});
