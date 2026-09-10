@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildOpeningPlan_, readFinanceRows_ } from "../src/ledger.js";
+import {
+  buildOpeningPlan_,
+  buildPersonalLoanLedger_,
+  readFinanceRows_
+} from "../src/ledger.js";
 
 const OPENING_OPTIONS = {
   sourceAccountNames: ["Tiền Mặt", "Banking", "Grap Tiền Mặt", "Momo"],
@@ -15,6 +19,32 @@ function account(id, name, opening, current) {
       "Phương Thức Thanh Toán": { title: [{ plain_text: name }] },
       "Số Dư Ban Đầu": { number: opening },
       "Số Dư Hiện Tại": { number: current }
+    }
+  };
+}
+
+function expense(id, title, categoryId, accountId, amount, date) {
+  return {
+    id,
+    properties: {
+      "Nội Dung Khoản Chi": { title: [{ plain_text: title }] },
+      "Số Tiền": { number: amount },
+      "Ngày": { date: { start: date } },
+      "Loại Chi Phí": { relation: [{ id: categoryId }] },
+      "Phương Thức Thanh Toán": { relation: [{ id: accountId }] }
+    }
+  };
+}
+
+function income(id, title, categoryId, accountId, amount, date) {
+  return {
+    id,
+    properties: {
+      "Tên Khoản Thu": { title: [{ plain_text: title }] },
+      "Số Tiền": { number: amount },
+      "Ngày": { date: { start: date } },
+      "Loại Khoản Thu": { relation: [{ id: categoryId }] },
+      "Phương Thức Thanh Toán": { relation: [{ id: accountId }] }
     }
   };
 }
@@ -148,6 +178,78 @@ test("reads title note type account and fund fields from every finance database"
       text: "Mượn tiền của quỹ tiết kiệm chuyển sang tiền phòng quỹ thiết yếu", normalizedText: "muon tien cua quy tiet kiem chuyen sang tien phong quy thiet yeu",
       amount: 750000, date: "2026-09-08", createdTime: "2026-09-08T05:00:00.000Z",
       categoryId: "", accountId: "", fromAccountId: "fund-account", toAccountId: "fund-account", fundGroupId: "essential", transferType: "Giao Dịch Giữa Các Tài Khoản"
+    }
+  ]);
+});
+
+test("repays Tuấn across accounts but never links Em's loan to Tố's payment", () => {
+  const ledger = buildPersonalLoanLedger_(readFinanceRows_({
+    expenseRows: [
+      expense("lend-tuan", "Cho cháu Tuấn mượn", "loan", "bank", 100000, "2026-09-03"),
+      expense("pay-to", "Trả tiền mượn tố tháng trước (còn nợ 500)", "loan", "bank", 500000, "2026-09-07")
+    ],
+    otherIncomeRows: [
+      income("tuan-return", "Cháu Tuấn trả nợ", "loan", "momo", 100000, "2026-09-05"),
+      income("borrow-em", "Em cho mượn tiền", "loan", "bank", 500000, "2026-09-06")
+    ]
+  }), {
+    loanCategoryIds: new Set(["loan"]),
+    accountNamesById: new Map([["bank", "Banking"], ["momo", "Momo"]])
+  });
+
+  assert.deepEqual(ledger.receivables[0], {
+    party: "cháu tuấn", principal: 100000, repaid: 100000, outstanding: 0,
+    openedBy: "lend-tuan", repaymentRows: ["tuan-return"],
+    sourceAccountId: "bank", sourceAccountName: "Banking"
+  });
+  assert.deepEqual(ledger.liabilities.find((item) => item.party === "em"), {
+    party: "em", principal: 500000, repaid: 0, outstanding: 500000,
+    openedBy: "borrow-em", repaymentRows: []
+  });
+  assert.equal(ledger.repayments.find((row) => row.id === "pay-to").party, "tố");
+  assert.equal(ledger.liabilities.find((item) => item.party === "em").repaid, 0);
+  assert.equal(ledger.unmatched.find((row) => row.id === "pay-to").party, "tố");
+});
+
+test("generic 500000 income and expense never match", () => {
+  const ledger = buildPersonalLoanLedger_(readFinanceRows_({
+    expenseRows: [
+      expense("generic-expense", "Chi khác", "loan", "bank", 500000, "2026-09-08")
+    ],
+    otherIncomeRows: [
+      income("generic-income", "Khoản thu khác", "loan", "bank", 500000, "2026-09-08")
+    ]
+  }), { loanCategoryIds: new Set(["loan"]) });
+
+  assert.deepEqual(ledger, {
+    receivables: [], liabilities: [], repayments: [], unmatched: []
+  });
+});
+
+test("repays Tuấn receivables partially in FIFO order", () => {
+  const ledger = buildPersonalLoanLedger_(readFinanceRows_({
+    expenseRows: [
+      expense("lend-tuan-old", "Cho Tuấn mượn", "loan", "bank", 70000, "2026-09-01"),
+      expense("lend-tuan-new", "Cho Tuấn mượn tiền", "loan", "cash", 50000, "2026-09-02")
+    ],
+    otherIncomeRows: [
+      income("tuan-partial-return", "Tuấn trả lại", "loan", "momo", 90000, "2026-09-03")
+    ]
+  }), {
+    loanCategoryIds: new Set(["loan"]),
+    accountNamesById: { bank: "Banking", cash: "Tiền Mặt" }
+  });
+
+  assert.deepEqual(ledger.receivables, [
+    {
+      party: "tuấn", principal: 70000, repaid: 70000, outstanding: 0,
+      openedBy: "lend-tuan-old", repaymentRows: ["tuan-partial-return"],
+      sourceAccountId: "bank", sourceAccountName: "Banking"
+    },
+    {
+      party: "tuấn", principal: 50000, repaid: 20000, outstanding: 30000,
+      openedBy: "lend-tuan-new", repaymentRows: ["tuan-partial-return"],
+      sourceAccountId: "cash", sourceAccountName: "Tiền Mặt"
     }
   ]);
 });
