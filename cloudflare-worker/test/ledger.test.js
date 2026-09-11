@@ -500,6 +500,23 @@ test("repays Tuấn receivables partially in FIFO order", () => {
   ]);
 });
 
+test("final review receivable repayments retain exact per-row amounts and original sources", () => {
+  const ledger = buildPersonalLoanLedger_(readFinanceRows_({
+    expenseRows: [
+      expense("bank-lend", "Cho Tuấn mượn", "loan", "bank", 70000, "2026-09-01"),
+      expense("cash-lend", "Cho Tuấn mượn", "loan", "cash", 50000, "2026-09-02")
+    ],
+    otherIncomeRows: [
+      income("return-first", "Tuấn trả lại", "loan", "momo", 90000, "2026-09-03"),
+      income("return-second", "Tuấn trả lại", "loan", "momo", 30000, "2026-09-04")
+    ]
+  }), { loanCategoryIds: new Set(["loan"]) });
+  assert.deepEqual(ledger.repayments.map((row) => row.applications), [
+    [{ openedBy: "bank-lend", sourceAccountId: "bank", amount: 70000 }, { openedBy: "cash-lend", sourceAccountId: "cash", amount: 20000 }],
+    [{ openedBy: "cash-lend", sourceAccountId: "cash", amount: 30000 }]
+  ]);
+});
+
 test("reads explicit loan opening and repayment phrases from Ghi Chú", () => {
   const ledger = buildPersonalLoanLedger_(readFinanceRows_({
     expenseRows: [

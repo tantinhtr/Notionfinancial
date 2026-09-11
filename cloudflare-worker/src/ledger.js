@@ -48,6 +48,11 @@ export function buildFundLoanLedger_(rows = [], fundGroups = []) {
   });
   const loans = [];
   const allocationAdjustments = {};
+  const balanceAdjustments = {};
+  const moveBalance = (fromId, toId, amount) => {
+    balanceAdjustments[fromId] = (balanceAdjustments[fromId] || 0) - amount;
+    balanceAdjustments[toId] = (balanceAdjustments[toId] || 0) + amount;
+  };
   const unmatched = [];
   const orderedRows = rows.slice().sort((a, b) =>
     (a.date || "").localeCompare(b.date || "")
@@ -85,6 +90,7 @@ export function buildFundLoanLedger_(rows = [], fundGroups = []) {
         loan.repaid += applied;
         loan.outstanding -= applied;
         loan.repaymentRows.push(row.id);
+        moveBalance(loan.borrowerGroupId, lender.id, applied);
         remaining -= applied;
       }
       if (remaining > 0) unmatched.push({ ...row, unmatchedAmount: remaining, reason: "excess-fund-repayment" });
@@ -106,9 +112,10 @@ export function buildFundLoanLedger_(rows = [], fundGroups = []) {
       principal: row.amount, repaid: 0, outstanding: row.amount,
       openedBy: row.id, repaymentRows: []
     });
-    if (sameAccount) allocationAdjustments[borrower.id] = (allocationAdjustments[borrower.id] || 0) + row.amount;
+    allocationAdjustments[borrower.id] = (allocationAdjustments[borrower.id] || 0) + row.amount;
+    moveBalance(lender.id, borrower.id, row.amount);
   }
-  return { loans, allocationAdjustments, unmatched };
+  return { loans, allocationAdjustments, balanceAdjustments, unmatched };
 }
 
 export function buildFinanceLedger_({
@@ -138,8 +145,8 @@ export function buildFinanceLedger_({
   const openingPlan = buildOpeningPlan_(accountRows, options);
   const personalLoans = buildPersonalLoanLedger_(personalRows, { loanCategoryIds, accountNamesById });
   personalLoans.unmatched.push(...unresolvedPersonalRows);
-  const previousMonthAdvances = buildPreviousMonthAdvanceLedger_({ openingPlan, rows, accountNamesById, categoryNamesById, personalLoans });
   const fundLoans = buildFundLoanLedger_(rows, fundGroupRows);
+  const previousMonthAdvances = buildPreviousMonthAdvanceLedger_({ openingPlan, rows, accountNamesById, categoryNamesById, personalLoans, fundLoans });
   return {
     rows, openingPlan, personalLoans, previousMonthAdvances, fundLoans,
     unmatched: [...personalLoans.unmatched, ...previousMonthAdvances.unmatchedSources, ...fundLoans.unmatched]
@@ -280,6 +287,11 @@ function applyPersonalRepayment_(openItems, repaymentRow, partyInfo) {
     entry.item.repaid += applied;
     entry.item.outstanding -= applied;
     entry.item.repaymentRows.push(repaymentRow.id);
+    repaymentRow.applications.push({
+      openedBy: entry.item.openedBy,
+      ...(entry.item.sourceAccountId ? { sourceAccountId: entry.item.sourceAccountId } : {}),
+      amount: applied
+    });
     remaining -= applied;
   }
 
@@ -325,9 +337,9 @@ export function buildPersonalLoanLedger_(rows = [], options = {}) {
 
       const payment = personalLoanParty_(row, "liabilityPayment");
       if (!payment) continue;
-      const repayment = { ...row, party: payment.party };
+      const repayment = { ...row, party: payment.party, direction: "liability", applications: [] };
       repayments.push(repayment);
-      const remaining = applyPersonalRepayment_(openLiabilities, row, payment);
+      const remaining = applyPersonalRepayment_(openLiabilities, repayment, payment);
       if (remaining > 0) unmatched.push({ ...repayment, unmatchedAmount: remaining });
       continue;
     }
@@ -336,9 +348,9 @@ export function buildPersonalLoanLedger_(rows = [], options = {}) {
 
     const borrowerReturn = personalLoanParty_(row, "borrowerReturn");
     if (borrowerReturn) {
-      const repayment = { ...row, party: borrowerReturn.party };
+      const repayment = { ...row, party: borrowerReturn.party, direction: "receivable", applications: [] };
       repayments.push(repayment);
-      const remaining = applyPersonalRepayment_(openReceivables, row, borrowerReturn);
+      const remaining = applyPersonalRepayment_(openReceivables, repayment, borrowerReturn);
       if (remaining > 0) unmatched.push({ ...repayment, unmatchedAmount: remaining });
       continue;
     }
@@ -439,20 +451,9 @@ function isRentReserveTransfer_(row, categoryNamesById) {
 
 function matchingSourceStates_(row, states) {
   const text = row.normalizedText || normalizeSearchText_(row.text || [row.title, row.note].filter(Boolean).join(" | "));
-  const matches = [...states.values()].filter((state) => {
-    const key = normalizeSearchText_(state.account.accountName);
-    if (!key) return false;
-    const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    return new RegExp(`(?:^|[^a-z0-9])${escaped}(?:$|[^a-z0-9])`).test(text);
-  });
-
-  return matches.filter((candidate) => {
-    const key = normalizeSearchText_(candidate.account.accountName);
-    return !matches.some((other) => {
-      const otherKey = normalizeSearchText_(other.account.accountName);
-      return other !== candidate && otherKey.length > key.length && otherKey.includes(key);
-    });
-  });
+  const beneficiaries = [...text.matchAll(/\b(?:tra lai|hoan lai|cap bu)\s+(?:[\d.,]+\s*(?:d|dong)?\s*)?(?:tien\s+)?(?:cho\s+)?(.+?)(?=\s+(?:tu|bang|thanh toan)\s+|[|;]|$)/g)]
+    .map((match) => match[1].trim().replace(/[.,]+$/, ""));
+  return [...states.values()].filter((state) => beneficiaries.includes(normalizeSearchText_(state.account.accountName)));
 }
 
 export function buildPreviousMonthAdvanceLedger_({
@@ -460,7 +461,8 @@ export function buildPreviousMonthAdvanceLedger_({
   rows = [],
   accountNamesById = {},
   categoryNamesById = {},
-  personalLoans = {}
+  personalLoans = {},
+  fundLoans = {}
 } = {}) {
   const accounts = (openingPlan.sourceAccounts || []).map((source) => ({
     accountId: source.id,
@@ -483,17 +485,26 @@ export function buildPreviousMonthAdvanceLedger_({
     (personalLoans.receivables || []).flatMap((item) => item.repaymentRows || [])
   );
   const liabilityRepaymentRowIds = new Set(
-    (personalLoans.liabilities || []).flatMap((item) => item.repaymentRows || [])
+    (personalLoans.repayments || []).filter((row) => row.direction === "liability").map((row) => row.id)
   );
-  const personalRepaymentRowIds = new Set(
-    (personalLoans.receivables || []).flatMap((item) => item.repaymentRows || [])
+  const personalRepaymentsById = new Map((personalLoans.repayments || []).map((row) => [row.id, row]));
+  const fundRepaymentRowIds = new Set(
+    (fundLoans.loans || []).flatMap((item) => item.repaymentRows || [])
   );
   let rentExemptRemaining = Math.max(Number(openingPlan.rentReserve) || 0, 0);
 
   for (const row of orderedFinanceRows_(rows)) {
     if (!(row.amount > 0)) continue;
 
-    if (!personalRepaymentRowIds.has(row.id) && isExplicitReimbursement_(row)) {
+    const personalRepayment = personalRepaymentsById.get(row.id);
+    if (personalRepayment?.direction === "receivable") {
+      for (const application of personalRepayment.applications) {
+        const sourceState = states.get(application.sourceAccountId);
+        if (sourceState) applyAdvanceRepayment_(sourceState, application.amount, application.openedBy);
+        else unmatchedSources.push({ ...row, ...application, unmatchedAmount: application.amount });
+      }
+    }
+    if (!personalRepayment && !fundRepaymentRowIds.has(row.id) && isExplicitReimbursement_(row)) {
       const matches = matchingSourceStates_(row, states);
       if (matches.length !== 1) {
         unmatchedSources.push({ ...row, unmatchedAmount: row.amount });
@@ -566,20 +577,6 @@ export function buildPreviousMonthAdvanceLedger_({
     if (currentUse.remaining - openingUsed > 0) {
       unmatchedSources.push({ ...row, unmatchedAmount: currentUse.remaining - openingUsed });
     }
-  }
-
-  for (const receivable of personalLoans.receivables || []) {
-    if (!(receivable.repaid > 0)) continue;
-    const sourceState = states.get(receivable.sourceAccountId);
-    if (!sourceState) {
-      unmatchedSources.push({
-        openedBy: receivable.openedBy,
-        sourceAccountId: receivable.sourceAccountId,
-        unmatchedAmount: receivable.repaid
-      });
-      continue;
-    }
-    applyAdvanceRepayment_(sourceState, receivable.repaid, receivable.openedBy);
   }
 
   for (const account of accounts) {

@@ -1034,6 +1034,107 @@ test("750000 internal loan adds allocation once and keeps debt despite the 13300
   assert.equal(data.explicitLedger.rows.find((row) => row.id === "grab-income").amount, 999999);
 });
 
+function finalReviewDatedRow(page, day) {
+  const date = `2026-09-${String(day).padStart(2, "0")}`;
+  return { ...page, created_time: `${date}T08:00:00.000Z`, properties: {
+    ...page.properties, "Ngày": { date: { start: date } }
+  } };
+}
+
+function finalReviewData({ expenses = [], receipts = [], transfers = [], groups = [] } = {}) {
+  const bank = cashflowAccountRow("bank", "Banking");
+  bank.properties["Số Dư Ban Đầu"] = { number: 200000 };
+  return buildAccountSpendingData_(
+    { y: 2026, m: 9, d: 10 },
+    [cashflowCategoryRow("loan", "Loại Chi Phí", "Vay Và Trả"), cashflowCategoryRow("other", "Loại Chi Phí", "Khác")],
+    expenses,
+    [bank, cashflowAccountRow("momo", "Momo"), cashflowAccountRow("fund", "Quỹ Momo")],
+    5500000, transfers, groups,
+    { sourceAccountNames: ["Banking", "Momo"], rentReserveAmount: 0, otherIncomeRows: receipts }
+  );
+}
+
+test("final review internal lend and repay conserve virtual balances independently of gross allocation", () => {
+  const groups = [fundGroupRow("essential", "Nhu cầu thiết yếu", "fund", true), fundGroupRow("savings", "Tiết kiệm dài hạn", "fund", true)];
+  const transfers = [
+    finalReviewDatedRow(transferRow("fund-savings", "Cấp quỹ tiết kiệm", 1000000, "external", "fund", "savings"), 1),
+    finalReviewDatedRow(transferRow("borrow", "Mượn quỹ tiết kiệm", 750000, "fund", "fund", "essential"), 2)
+  ];
+  const before = finalReviewData({ transfers, groups });
+  const after = finalReviewData({ groups, transfers: [
+    ...transfers,
+    finalReviewDatedRow(transferRow("repay", "Trả lại 200.000 cho quỹ tiết kiệm", 200000, "fund", "fund", "savings"), 3)
+  ] });
+  assert.deepEqual(after.fundGroups.map((group) => group.allocated), [750000, 1000000]);
+  assert.deepEqual(after.fundGroups.map((group) => group.fundBalance), [550000, 450000]);
+  assert.deepEqual(before.fundGroups.map((group) => group.fundBalance), [750000, 250000]);
+  assert.deepEqual(after.fundGroups.map((group) => group.fundRemaining), [550000, 450000]);
+  assert.equal(after.fundGroups.reduce((total, group) => total + group.fundBalance, 0), 1000000);
+  assert.equal(after.explicitLedger.fundLoans.loans[0].outstanding, 550000);
+});
+
+test("final review liability payment through Banking cannot reimburse a Banking advance", () => {
+  const data = finalReviewData({
+    expenses: [
+      finalReviewDatedRow(namedExpenseRow("advance", "Chi đầu tháng", "other", "bank", 100000), 1),
+      finalReviewDatedRow(namedExpenseRow("pay-em", "Trả lại tiền mượn Em", "loan", "bank", 500000, "Thanh toán bằng Banking"), 3)
+    ],
+    receipts: [finalReviewDatedRow(cashflowIncomeRow("borrow-em", "Em cho mượn tiền", "loan", "bank", 500000), 2)]
+  });
+  const bank = data.explicitLedger.previousMonthAdvances.accounts.find((item) => item.accountId === "bank");
+  assert.equal(data.explicitLedger.personalLoans.liabilities[0].outstanding, 0);
+  assert.equal(bank.principal, 100000);
+  assert.equal(bank.repaid, 0);
+  assert.equal(bank.outstanding, 100000);
+  assert.deepEqual(data.explicitLedger.unmatched, []);
+});
+
+test("final review source reimbursement requires a beneficiary instead of a payment-account mention", () => {
+  const advance = finalReviewDatedRow(namedExpenseRow("advance", "Chi đầu tháng", "other", "bank", 100000), 1);
+  const unaddressed = finalReviewData({ expenses: [advance], receipts: [
+    finalReviewDatedRow(cashflowIncomeRow("return", "Trả lại tiền mua hộ", "other", "momo", 100000, "Thanh toán bằng Banking"), 2)
+  ] });
+  assert.equal(unaddressed.explicitLedger.previousMonthAdvances.accounts[0].outstanding, 100000);
+  assert.equal(unaddressed.explicitLedger.unmatched[0].id, "return");
+  const addressed = finalReviewData({ expenses: [advance], receipts: [
+    finalReviewDatedRow(cashflowIncomeRow("reimburse", "Cấp bù cho Banking", "other", "momo", 100000, "Thanh toán bằng Momo"), 2)
+  ] });
+  assert.equal(addressed.explicitLedger.previousMonthAdvances.accounts[0].outstanding, 0);
+  assert.deepEqual(addressed.explicitLedger.unmatched, []);
+});
+
+test("final review Tuấn return settles its opening advance before a later Banking reimbursement", () => {
+  const data = finalReviewData({ expenses: [
+    finalReviewDatedRow(namedExpenseRow("lend-tuan", "Cho cháu Tuấn mượn", "loan", "bank", 100000), 1),
+    finalReviewDatedRow(namedExpenseRow("later-advance", "Chi đầu tháng", "other", "bank", 100000), 3)
+  ], receipts: [
+    finalReviewDatedRow(cashflowIncomeRow("return-tuan", "Cháu Tuấn trả nợ", "loan", "momo", 100000), 2),
+    finalReviewDatedRow(cashflowIncomeRow("reimburse", "Cấp bù cho Banking", "other", "momo", 100000), 4)
+  ] });
+  const bank = data.explicitLedger.previousMonthAdvances.accounts.find((item) => item.accountId === "bank");
+  assert.equal(data.explicitLedger.personalLoans.receivables[0].outstanding, 0);
+  assert.equal(bank.principal, 200000);
+  assert.equal(bank.repaid, 200000);
+  assert.equal(bank.outstanding, 0);
+  assert.deepEqual(data.explicitLedger.unmatched, []);
+});
+
+test("final review matched fund repayment has no duplicate source warning while ambiguous repayment stays visible", () => {
+  const data = finalReviewData({
+    groups: [fundGroupRow("essential", "Nhu cầu thiết yếu", "fund", true), fundGroupRow("savings", "Tiết kiệm dài hạn", "fund", true)],
+    transfers: [
+      finalReviewDatedRow(transferRow("fund-savings", "Cấp quỹ tiết kiệm", 1000000, "external", "fund", "savings"), 1),
+      finalReviewDatedRow(transferRow("borrow", "Mượn quỹ tiết kiệm", 750000, "fund", "fund", "essential"), 2),
+      finalReviewDatedRow(transferRow("repay", "Trả lại 200.000 cho quỹ tiết kiệm", 200000, "fund", "fund", "savings"), 3),
+      finalReviewDatedRow(transferRow("ambiguous", "Trả lại tiền", 10000, "fund", "fund", ""), 4)
+    ]
+  });
+  assert.equal(data.explicitLedger.fundLoans.loans[0].repaid, 200000);
+  assert.equal(data.explicitLedger.unmatched.some((row) => row.id === "repay"), false);
+  assert.equal(data.explicitLedger.unmatched.some((row) => row.id === "ambiguous"), true);
+  assert.equal(data.explicitLedger.previousMonthAdvances.totalOutstanding, 0);
+});
+
 test("September 2026 explicit ledger preserves the complete snapshot and independent debts", () => {
   // Literal snapshot amounts/dates; neutral titles stand in for undisclosed expense titles.
   const dated = (page, date, time) => ({

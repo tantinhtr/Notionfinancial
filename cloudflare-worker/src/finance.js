@@ -818,6 +818,7 @@ export function buildAccountSpendingData_(
   const fundGroups = [];
   const knownGroupIds = {};
   for (const row of fundGroupRows) knownGroupIds[row.id] = true;
+  const fundLoanRowIds = new Set(explicitLedger.fundLoans.loans.flatMap((loan) => [loan.openedBy, ...loan.repaymentRows]));
 
   for (const fundGroupRow of fundGroupRows) {
     const props = fundGroupRow.properties || {};
@@ -862,8 +863,10 @@ export function buildAccountSpendingData_(
       });
     };
 
-    let netAllocated = explicitLedger.fundLoans.allocationAdjustments[fundGroupRow.id] || 0;
+    const loanAllocation = explicitLedger.fundLoans.allocationAdjustments[fundGroupRow.id] || 0;
+    let netAllocated = loanAllocation;
     for (const transferRow of transferRows) {
+      if (fundLoanRowIds.has(transferRow.id)) continue;
       const transferProps = transferRow.properties || {};
       const groupRelation =
         (transferProps["Nhóm Quỹ"] && transferProps["Nhóm Quỹ"].relation) || [];
@@ -930,15 +933,17 @@ export function buildAccountSpendingData_(
 
     group.allocated = Math.max(netAllocated, 0);
     group.over = Math.max(group.spent - group.budget, 0);
-    // A negative balance is an unexplained funding shortfall, not a named debt.
-    group.fundBalance = netAllocated - group.paidFromFund;
+    // Gross allocation includes borrowed funding; spendable money records both loan sides.
+    group.fundBalance = netAllocated - loanAllocation
+      + (explicitLedger.fundLoans.balanceAdjustments[fundGroupRow.id] || 0) - group.paidFromFund;
     // Hai khoản này khác bản chất, không được cộng chung:
     //   explicitDebts — only obligations with an explicitly identified lender.
     //   transferNeeded— phần ngân sách CHƯA tiêu, phải CẤP vào quỹ trước khi chi.
     // Đã ứng trước rồi thì thôi không cần cấp nữa, nên transferNeeded chỉ tính
     // trên số dư dương của quỹ.
     if (requiresAllocation) {
-      group.fundingShortfall = Math.max(-group.fundBalance, 0);
+      // Explicit internal movements explain balance changes, not unidentified spending.
+      group.fundingShortfall = Math.max(group.paidFromFund - netAllocated, 0);
       if (group.fundingShortfall > 0) explicitLedger.unmatched.push({
         fundGroupId: fundGroupRow.id,
         fundGroupName: group.name,
