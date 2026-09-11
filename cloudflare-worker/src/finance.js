@@ -1231,7 +1231,11 @@ function appendOpeningPlan_(lines, openingPlan) {
   openingPlan = openingPlan || {};
   const sources = openingPlan.sourceAccounts || [];
   const allocations = openingPlan.allocations || [];
-  if (!(openingPlan.sourceTotal > 0) && !(openingPlan.rentReserve > 0) && !allocations.length) return false;
+  const hasOpeningData = openingPlan.sourceTotal > 0
+    || openingPlan.rentReserve > 0
+    || sources.some((source) => source.opening > 0)
+    || allocations.some((allocation) => allocation.amount > 0);
+  if (!hasOpeningData) return false;
 
   lines.push("", "📅 TIỀN DƯ THÁNG TRƯỚC");
   lines.push(

@@ -2064,6 +2064,31 @@ test("fund budget text preserves the approved empty state", () => {
   );
 });
 
+test("fund budget hides a zero opening plan in an empty month", () => {
+  assert.equal(
+    fundBudgetText_({
+      t: { y: 2026, m: 9, d: 30 },
+      fundGroups: [],
+      openingPlan: {
+        sourceTotal: 0,
+        rentReserve: 0,
+        sourceAccounts: [
+          { id: "cash", name: "Tiền Mặt", opening: 0 },
+          { id: "bank", name: "Banking", opening: 0 },
+          { id: "grab-cash", name: "Grap Tiền Mặt", opening: 0 },
+          { id: "momo", name: "Momo", opening: 0 }
+        ],
+        allocations: [
+          { fund: "Tiết kiệm dài hạn", amount: 0 },
+          { fund: "Đầu tư tài chính", amount: 0 },
+          { fund: "Hưởng thụ", amount: 0 }
+        ]
+      }
+    }),
+    "📦 QUỸ & NGÂN SÁCH — tháng 9/2026\n\nChưa có dữ liệu tháng này."
+  );
+});
+
 test("fund budget keyboard keeps only the cashflow navigation", () => {
   assert.deepEqual(fundBudgetKeyboard_(), {
     inline_keyboard: [
