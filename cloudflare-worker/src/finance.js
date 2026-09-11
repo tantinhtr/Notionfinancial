@@ -889,14 +889,30 @@ export function buildAccountSpendingData_(
     let unfundedSpent = 0;
     for (const fixed of fixedBudgets) {
       if (fixed.groupId !== fundGroupRow.id) continue;
+      const paidOutsideByAccount = {};
+      for (const spendRow of fixed.spendRows) {
+        const lender = spendRow.lender !== "" && ownKeys[stripFundPrefix_(spendRow.lender)] !== true
+          ? spendRow.lender
+          : "";
+        if (lender === "" && spendRow.account !== "" &&
+            spendRow.account !== accountNames[destinationAccountId]) {
+          paidOutsideByAccount[spendRow.account] =
+            (paidOutsideByAccount[spendRow.account] || 0) + spendRow.amount;
+        }
+      }
       group.budget += fixed.budget;
       group.spent += fixed.spent;
-      group.children.push({
+      const child = {
         name: fixed.name,
         budget: fixed.budget,
         spent: fixed.spent,
         over: Math.max(fixed.spent - fixed.budget, 0)
-      });
+      };
+      const paidOutsideSources = Object.keys(paidOutsideByAccount)
+        .map((account) => ({ account, amount: paidOutsideByAccount[account] }))
+        .sort((a, b) => b.amount - a.amount);
+      if (paidOutsideSources.length) child.paidOutsideSources = paidOutsideSources;
+      group.children.push(child);
       // Chi nhung nhan con thuc su phai di qua tai khoan giu quy moi tinh vao so
       // can cap them. Đi Chợ tra thang bang tien mat thi khong doi bom truoc.
       if (fixed.skipsFund) {
@@ -1196,6 +1212,11 @@ function budgetLine_(group) {
   if (group.unmatchedCategories && group.unmatchedCategories.length) {
     row += " · ⚠️ thiếu loại chi";
   }
+  if (group.requiresAllocation) {
+    row += (group.allocated || 0) > 0
+      ? " · đã cấp " + money_(group.allocated)
+      : " · chưa cấp";
+  }
   return row;
 }
 
@@ -1205,12 +1226,17 @@ function childLines_(group) {
   const children = group.children || [];
   if (children.length < 2) return [];
   const balanceChildName = fundBalanceChildName_(group);
-  return children.map((child) => "   • " + child.name + ": " +
-    money_(child.spent) + " / " + money_(child.budget) +
-    (child.over > 0 ? " ⛔ vượt " + money_(child.over) : "") +
-    (child.name === balanceChildName && (group.fundRemaining || 0) > 0
-      ? " · quỹ còn " + money_(group.fundRemaining)
-      : ""));
+  return children.map((child) => {
+    const outsideSources = (child.paidOutsideSources || [])
+      .map((source) => source.account + ": " + money_(source.amount));
+    return "   • " + child.name + ": " +
+      money_(child.spent) + " / " + money_(child.budget) +
+      (child.over > 0 ? " ⛔ vượt " + money_(child.over) : "") +
+      (child.name === balanceChildName && (group.fundRemaining || 0) > 0
+        ? " · quỹ còn " + money_(group.fundRemaining)
+        : "") +
+      (outsideSources.length ? " · đã chi từ " + outsideSources.join(", ") : "");
+  });
 }
 
 const DEBT_ROWS_SHOWN = 6;
@@ -1340,14 +1366,6 @@ function appendUnmatched_(lines, unmatched) {
   return true;
 }
 
-// Tien DI VAO nhom quy: da cap bao nhieu, con lai bao nhieu trong tai khoan giu quy.
-function fundInflowLine_(group) {
-  if (!group.requiresAllocation) return "";
-  // "Quy con" da nam o dong tren roi, day chi noi da bom vao bao nhieu. Luon in ca
-  // hai so, ke ca khi chua cap dong nao: "chưa cấp" khong noi duoc con thieu bao nhieu.
-  return "   ↳ đã cấp " + money_(group.allocated || 0) + " / " + money_(group.budget || 0);
-}
-
 function budgetHeadline_(budget, groups) {
   const spent = (groups || []).reduce((sum, group) => sum + (group.spent || 0), 0);
   const planned = (groups || []).reduce((sum, group) => sum + (group.budget || 0), 0);
@@ -1368,8 +1386,6 @@ export function fundBudgetText_(data) {
     for (const group of groups) {
       lines.push(budgetLine_(group));
       for (const childLine of childLines_(group)) lines.push(childLine);
-      const inflow = fundInflowLine_(group);
-      if (inflow !== "") lines.push(inflow);
     }
   }
 

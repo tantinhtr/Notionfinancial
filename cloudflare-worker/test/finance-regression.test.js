@@ -1000,8 +1000,7 @@ test("a fund that spent without identified funding reports a shortfall instead o
     "📦 QUỸ & NGÂN SÁCH — tháng 8/2026\n" +
       "\n" +
       "📊 NHÓM QUỸ — 574.444đ / 500.000đ · ⛔ vượt 74.444đ\n" +
-      "⛔ Làm YouTube: 574.444đ / 500.000đ · vượt 74.444đ\n" +
-      "   ↳ đã cấp 0đ / 500.000đ\n" +
+      "⛔ Làm YouTube: 574.444đ / 500.000đ · vượt 74.444đ · chưa cấp\n" +
       "\n" +
       "⚠️ CHƯA ĐỦ DỮ KIỆN\n" +
       "• (không ngày) — Làm YouTube: 554.444đ"
@@ -1297,6 +1296,8 @@ test("September 2026 explicit ledger preserves the complete snapshot and indepen
   const text = fundBudgetText_(data);
   assert.match(text, /Nhà Trọ: 2\.017\.000đ \/ 2\.150\.000đ/);
   assert.doesNotMatch(text, /Nhu cầu thiết yếu:[^\n]*quỹ còn 133\.004đ/);
+  assert.match(text, /Nhu cầu thiết yếu:[^\n]*đã cấp 2\.150\.004đ/);
+  assert.doesNotMatch(text, /↳ đã cấp/);
   assert.match(text, /Nhà Trọ: 2\.017\.000đ \/ 2\.150\.000đ · quỹ còn 133\.004đ/);
   assert.match(text, /4 nguồn: 3\.849\.710đ · Nhà trọ: 2\.150\.000đ/);
   assert.match(text, /Ba lọ 10%: 566\.570đ\/lọ/);
@@ -1588,7 +1589,7 @@ test("a spending note assigns the expense to that fund even from another categor
   const text = fundBudgetText_(data);
   // Quy chua duoc cap dong nao nen khong khoe "con 179.000" — do la ngan sach,
   // khong phai tien dang nam trong tai khoan giu quy.
-  assert.match(text, /✅ Phát Sinh: 421\.000đ \/ 600\.000đ\n/);
+  assert.match(text, /✅ Phát Sinh: 421\.000đ \/ 600\.000đ · chưa cấp\n/);
   assert.doesNotMatch(text, /quỹ còn/);
   // Ghi chu "tinh vao quy phat sinh" chi doi ngan sach, khong phai muon quy khac.
   assert.doesNotMatch(text, /→ quỹ /);
@@ -1641,7 +1642,8 @@ test("a group only reports as spare the money actually sitting in its fund", () 
   const beforeText = fundBudgetText_(before);
   // Chua cap 70.000 thi khong duoc khoe "con 101.600" — trong quy chi co 31.600 that.
   assert.match(beforeText, /✅ Thiết Yếu: 2\.298\.400đ \/ 2\.400\.000đ · quỹ còn 31\.600đ/);
-  assert.match(beforeText, /↳ đã cấp 2\.330\.000đ \/ 2\.400\.000đ/);
+  assert.match(beforeText, /Thiết Yếu:[^\n]*đã cấp 2\.330\.000đ/);
+  assert.doesNotMatch(beforeText, /↳ đã cấp/);
   assert.match(beforeText, /• Thiết Yếu → Quỹ Momo: 70\.000đ/);
   assert.doesNotMatch(beforeText, /101\.600đ · quỹ/);
 
@@ -1650,8 +1652,49 @@ test("a group only reports as spare the money actually sitting in its fund", () 
     transferRow("cap-toc", "Tiền cắt tóc", 70000, "momo", "fund", "essential-fund")
   ])));
   assert.match(afterText, /✅ Thiết Yếu: 2\.298\.400đ \/ 2\.400\.000đ · quỹ còn 101\.600đ/);
-  assert.match(afterText, /↳ đã cấp 2\.400\.000đ \/ 2\.400\.000đ/);
+  assert.match(afterText, /Thiết Yếu:[^\n]*đã cấp 2\.400\.000đ/);
+  assert.doesNotMatch(afterText, /↳ đã cấp/);
   assert.doesNotMatch(afterText, /CẦN CẤP THÊM/);
+});
+
+test("a child paid directly outside its fund is covered and names the source", () => {
+  const expense = (id, name, categoryId, accountId, amount) => ({
+    id,
+    properties: {
+      "Nội Dung Khoản Chi": { title: [{ plain_text: name }] },
+      "Ghi Chú": { rich_text: [] },
+      "Số Tiền": { number: amount },
+      "Ngày": { date: { start: "2026-09-08" } },
+      "Loại Chi Phí": { relation: [{ id: categoryId }] },
+      "Phương Thức Thanh Toán": { relation: [{ id: accountId }] }
+    }
+  });
+  const data = buildAccountSpendingData_(
+    { y: 2026, m: 9, d: 11 },
+    [
+      trackedCategoryRow("rent", "Nhà Trọ", 2150000, "essential"),
+      trackedCategoryRow("hair", "Cắt Tóc", 70000, "essential")
+    ],
+    [
+      expense("rent-fund", "Tiền phòng", "rent", "fund", 2017000),
+      expense("hair-cash", "Cắt tóc", "hair", "grab-cash", 70000)
+    ],
+    [
+      cashflowAccountRow("fund", "Quỹ Momo"),
+      cashflowAccountRow("grab-cash", "Grap Tiền Mặt")
+    ],
+    5500000,
+    [transferRow("fund-rent", "Cấp tiền phòng", 2150000, "momo", "fund", "essential")],
+    [fundGroupRow("essential", "Nhu cầu thiết yếu", "fund", true)]
+  );
+
+  const essential = data.fundGroups[0];
+  assert.equal(essential.paidOutsideFund, 70000);
+  assert.equal(essential.transferNeeded, 0);
+  assert.match(
+    fundBudgetText_(data),
+    /• Cắt Tóc: 70\.000đ \/ 70\.000đ · đã chi từ Grap Tiền Mặt: 70\.000đ/
+  );
 });
 
 test("a fund name only counts when it is written out in full after the word quy", () => {
@@ -1775,8 +1818,14 @@ test("a jar keeps its children visible and honours old names in notes", () => {
   // 45.000 Cà Phê phai nam o dong con Phát Sinh, khong bi gom chung vao lo.
   assert.deepEqual(nec.children, [
     { name: "Nhà Trọ", budget: 2150000, spent: 2130000, over: 0 },
-    { name: "Đi Chợ", budget: 1400000, spent: 669000, over: 0 },
-    { name: "Phát Sinh", budget: 600000, spent: 45000, over: 0 }
+    {
+      name: "Đi Chợ", budget: 1400000, spent: 669000, over: 0,
+      paidOutsideSources: [{ account: "Grap Tiền Mặt", amount: 669000 }]
+    },
+    {
+      name: "Phát Sinh", budget: 600000, spent: 45000, over: 0,
+      paidOutsideSources: [{ account: "Grap Tiền Mặt", amount: 45000 }]
+    }
   ]);
   // Đi Chợ tick "Chi Thẳng Không Qua Quỹ" nen 731.000 chua tieu khong bi doi cap.
   // Con lai: (2.150.000 + 600.000) - (2.130.000 + 45.000) = 575.000, quy dang giu
@@ -2345,13 +2394,10 @@ test("fund budget text preserves approved fund statuses and heading", () => {
     "📦 QUỸ & NGÂN SÁCH — tháng 7/2026\n" +
       "\n" +
       "📊 NHÓM QUỸ — 3.657.844đ / 4.900.000đ · ✅ còn 1.242.156đ\n" +
-      "✅ Thiết Yếu: 2.277.400đ / 2.400.000đ · quỹ còn 122.600đ\n" +
-      "   ↳ đã cấp 2.400.000đ / 2.400.000đ\n" +
+      "✅ Thiết Yếu: 2.277.400đ / 2.400.000đ · quỹ còn 122.600đ · đã cấp 2.400.000đ\n" +
       "✅ Đi Chợ: 801.000đ / 1.300.000đ · còn 499.000đ\n" +
-      "✅ Phát Sinh: 0đ / 600.000đ\n" +
-      "   ↳ đã cấp 0đ / 600.000đ\n" +
-      "⛔ Làm YouTube: 554.444đ / 500.000đ · vượt 54.444đ\n" +
-      "   ↳ đã cấp 555.000đ / 500.000đ\n" +
+      "✅ Phát Sinh: 0đ / 600.000đ · chưa cấp\n" +
+      "⛔ Làm YouTube: 554.444đ / 500.000đ · vượt 54.444đ · đã cấp 555.000đ\n" +
       "✅ Chưa Ghép: 25.000đ / 100.000đ · còn 75.000đ · ⚠️ thiếu loại chi\n" +
       "\n" +
       "💰 CẦN CẤP THÊM\n" +
