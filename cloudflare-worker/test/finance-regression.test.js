@@ -1296,7 +1296,8 @@ test("September 2026 explicit ledger preserves the complete snapshot and indepen
   assert.deepEqual(withChangedBalances.explicitLedger, ledger);
   const text = fundBudgetText_(data);
   assert.match(text, /Nhà Trọ: 2\.017\.000đ \/ 2\.150\.000đ/);
-  assert.match(text, /quỹ còn 133\.004đ/);
+  assert.doesNotMatch(text, /Nhu cầu thiết yếu:[^\n]*quỹ còn 133\.004đ/);
+  assert.match(text, /Nhà Trọ: 2\.017\.000đ \/ 2\.150\.000đ · quỹ còn 133\.004đ/);
   assert.match(text, /4 nguồn: 3\.849\.710đ · Nhà trọ: 2\.150\.000đ/);
   assert.match(text, /Ba lọ 10%: 566\.570đ\/lọ/);
   assert.equal(text.split("Nhu cầu thiết yếu mượn Tiết kiệm dài hạn: 750.000đ").length - 1, 1);

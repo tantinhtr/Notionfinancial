@@ -1162,6 +1162,20 @@ export function unusualSpendingKeyboard_() {
   };
 }
 
+function fundBalanceChildName_(group) {
+  const children = group.children || [];
+  const held = Math.max(group.fundRemaining || 0, 0);
+  if (children.length < 2 || held <= 0) return "";
+  // Chỉ gắn số dư xuống nhãn con khi số tiền khớp duy nhất với phần còn lại
+  // của nhãn đó. Sai lệch dưới 1.000đ giữ được khoản cấp lẻ (ví dụ 4đ), nhưng
+  // tiền còn chung của nhiều nhãn vẫn phải ở dòng nhóm.
+  const matches = children.filter((child) => {
+    const remaining = Math.max((child.budget || 0) - (child.spent || 0), 0);
+    return remaining > 0 && held >= remaining && held - remaining < 1000;
+  });
+  return matches.length === 1 ? matches[0].name : "";
+}
+
 function budgetLine_(group) {
   const over = group.over || 0;
   let row = (over > 0 ? "⛔ " : "✅ ") + group.name + ": " +
@@ -1173,7 +1187,9 @@ function budgetLine_(group) {
     // quỹ, không phải ngân sách trừ đã tiêu. Phần ngân sách chưa cấp vào quỹ thì
     // chưa phải tiền của nhóm — nó nằm ở mục CẦN CẤP THÊM cho tới khi được cấp.
     const held = group.fundRemaining || 0;
-    if (held > 0) row += " · quỹ còn " + money_(held);
+    if (held > 0 && fundBalanceChildName_(group) === "") {
+      row += " · quỹ còn " + money_(held);
+    }
   } else {
     row += " · còn " + money_(Math.max((group.budget || 0) - (group.spent || 0), 0));
   }
@@ -1188,9 +1204,13 @@ function budgetLine_(group) {
 function childLines_(group) {
   const children = group.children || [];
   if (children.length < 2) return [];
+  const balanceChildName = fundBalanceChildName_(group);
   return children.map((child) => "   • " + child.name + ": " +
     money_(child.spent) + " / " + money_(child.budget) +
-    (child.over > 0 ? " ⛔ vượt " + money_(child.over) : ""));
+    (child.over > 0 ? " ⛔ vượt " + money_(child.over) : "") +
+    (child.name === balanceChildName && (group.fundRemaining || 0) > 0
+      ? " · quỹ còn " + money_(group.fundRemaining)
+      : ""));
 }
 
 const DEBT_ROWS_SHOWN = 6;
