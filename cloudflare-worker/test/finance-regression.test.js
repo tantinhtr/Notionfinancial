@@ -1034,6 +1034,180 @@ test("750000 internal loan adds allocation once and keeps debt despite the 13300
   assert.equal(data.explicitLedger.rows.find((row) => row.id === "grab-income").amount, 999999);
 });
 
+test("September 2026 explicit ledger preserves the complete snapshot and independent debts", () => {
+  // Literal snapshot amounts/dates; neutral titles stand in for undisclosed expense titles.
+  const dated = (page, date, time) => ({
+    ...page,
+    object: "page",
+    created_time: `${date}T${time}:00.000Z`,
+    properties: { ...page.properties, "Ngày": { type: "date", date: { start: date, end: null, time_zone: null } } }
+  });
+  const expense = (id, title, category, account, amount, date, time) =>
+    dated(namedExpenseRow(id, title, category, account, amount), date, time);
+  const income = (id, title, category, account, amount, date, time) =>
+    dated(cashflowIncomeRow(id, title, category, account, amount), date, time);
+  const transfer = (id, title, amount, from, to, group, date, time) =>
+    dated(transferRow(id, title, amount, from, to, group), date, time);
+  const accounts = [
+    ["cash", "Tiền Mặt", 2021000, 665000],
+    ["bank", "Banking", 1670004, 0],
+    ["grab-cash", "Grap Tiền Mặt", 0, 9000],
+    ["momo", "Momo", 158706, 100000],
+    ["fund", "Quỹ Momo", 706166, 247876]
+  ].map(([id, name, opening, current]) => {
+    const page = cashflowAccountRow(id, name, current);
+    page.properties["Số Dư Ban Đầu"] = { type: "number", number: opening };
+    return page;
+  });
+  const categories = [
+    trackedCategoryRow("rent", "Nhà Trọ", 2150000, "essential"),
+    trackedCategoryRow("market", "Đi Chợ", 1400000, "essential"),
+    trackedCategoryRow("incidental", "Phát Sinh", 600000, "essential"),
+    trackedCategoryRow("internet", "Internet", 180000, "essential"),
+    trackedCategoryRow("misc", "Khác", 70000, "essential"),
+    trackedCategoryRow("affiliate", "Affiilate", 600000, "education"),
+    trackedCategoryRow("development", "Phát triển bản thân", 500000, "education"),
+    cashflowCategoryRow("loan", "Loại Chi Phí", "Vay Và Trả"),
+    cashflowCategoryRow("grap", "Loại Chi Phí", "Grap"),
+    cashflowCategoryRow("other", "Loại Chi Phí", "Chi khác")
+  ];
+  const expenses = [
+    expense("momo-opening", "Chi Momo đầu tháng", "other", "momo", 100000, "2026-09-01", "01:00"),
+    expense("cash-01-95", "Chi tiền mặt", "other", "cash", 95000, "2026-09-01", "02:00"),
+    expense("cash-01-17", "Chi tiền mặt", "other", "cash", 17000, "2026-09-01", "02:01"),
+    expense("cash-01-25", "Chi tiền mặt", "other", "cash", 25000, "2026-09-01", "02:02"),
+    expense("cash-01-140", "Chi tiền mặt", "other", "cash", 140000, "2026-09-01", "02:03"),
+    expense("cash-02-35", "Chi tiền mặt", "other", "cash", 35000, "2026-09-02", "02:00"),
+    expense("cash-02-500", "Chi tiền mặt", "other", "cash", 500000, "2026-09-02", "02:01"),
+    expense("lend-tuan", "Cho cháu Tuấn mượn", "loan", "bank", 100000, "2026-09-03", "08:00"),
+    expense("cash-06-364", "Chi tiền mặt", "other", "cash", 364000, "2026-09-06", "09:00"),
+    expense("cash-06-10", "Chi tiền mặt", "other", "cash", 10000, "2026-09-06", "09:01"),
+    expense("cash-06-170", "Chi tiền mặt", "other", "cash", 170000, "2026-09-06", "09:02"),
+    expense("pay-to", "Trả tiền mượn tố tháng trước", "loan", "bank", 500000, "2026-09-07", "07:00"),
+    expense("wallet-topup", "Mượn tiền nạp ví grap", "grap", "bank", 170000, "2026-09-07", "08:00"),
+    expense("momo-current", "Chi Momo", "other", "momo", 108000, "2026-09-07", "09:00"),
+    expense("grab-07-35", "Chi Grap tiền mặt", "other", "grab-cash", 35000, "2026-09-07", "10:00"),
+    expense("grab-07-10", "Chi Grap tiền mặt", "other", "grab-cash", 10000, "2026-09-07", "10:01"),
+    expense("grab-07-100", "Chi Grap tiền mặt", "other", "grab-cash", 100000, "2026-09-07", "10:02"),
+    expense("grab-07-60", "Chi Grap tiền mặt", "other", "grab-cash", 60000, "2026-09-07", "10:03"),
+    expense("grab-08-70", "Chi Grap tiền mặt", "other", "grab-cash", 70000, "2026-09-08", "09:00"),
+    expense("grab-08-17", "Chi Grap tiền mặt", "other", "grab-cash", 17000, "2026-09-08", "09:01"),
+    expense("grab-08-93", "Chi Grap tiền mặt", "other", "grab-cash", 93000, "2026-09-08", "09:02"),
+    expense("rent-paid", "Tiền phòng tháng 9", "rent", "fund", 2017000, "2026-09-08", "10:00")
+  ];
+  const transfers = [
+    transfer("rent-allocation", "Chuyển tiền vào quỹ Nhà Trọ", 1400004, "bank", "fund", "essential", "2026-09-01", "00:00"),
+    transfer("savings-allocation", "Chuyển tiền vào quỹ tiết kiệm", 158706, "momo", "fund", "savings", "2026-09-01", "04:00"),
+    transfer("borrow-750", "Mượn tiền của quỹ tiết kiệm chuyển sang tiền phòng quỹ thiết yếu", 750000, "fund", "fund", "essential", "2026-09-08", "05:00")
+  ];
+  const groups = [
+    fundGroupRow("essential", "Nhu cầu thiết yếu", "fund", true),
+    fundGroupRow("education", "Giáo dục phát triển", "fund", true),
+    fundGroupRow("savings", "Tiết kiệm dài hạn", "fund", true),
+    fundGroupRow("investment", "Đầu tư tài chính", "fund", true),
+    fundGroupRow("enjoyment", "Hưởng thụ", "fund", true),
+    fundGroupRow("giving", "Cho đi", "fund", true)
+  ];
+  const options = {
+    sourceAccountNames: ["Tiền Mặt", "Banking", "Grap Tiền Mặt", "Momo"],
+    rentReserveAmount: 2150000,
+    rolloverFundNames: ["Tiết kiệm dài hạn", "Đầu tư tài chính", "Hưởng thụ"],
+    outsideThreshold: 500000,
+    passThroughKeywords: ["code"],
+    passThroughCategories: ["Vay Và Trả"],
+    spendableSubFunds: ["sửa xe"],
+    incomeRows: [income("grab-net", "Grap thu nhập ròng", "net-income", "momo", 286581, "2026-09-08", "08:00")],
+    // Other-income category IDs are absent from expense categories, as in the repository.
+    otherIncomeRows: [
+      income("grab-qr", "Grab QR", "grab-receipt", "momo", 208000, "2026-09-01", "03:00"),
+      income("grab-cash-income", "Grab tiền mặt", "grab-receipt", "grab-cash", 394000, "2026-09-01", "03:30"),
+      income("borrow-em", "Em cho mượn tiền", "other-loan", "bank", 500000, "2026-09-06", "08:00"),
+      income("tuan-return", "Cháu Tuấn trả nợ", "other-return", "momo", 100000, "2026-09-08", "07:00")
+    ]
+  };
+  const data = buildAccountSpendingData_(
+    { y: 2026, m: 9, d: 10 }, categories, expenses, accounts, 5500000, transfers, groups, options
+  );
+  const ledger = data.explicitLedger;
+  const essential = data.fundGroups.find((group) => group.name === "Nhu cầu thiết yếu");
+  const savingsLoan = ledger.fundLoans.loans.find((loan) => loan.openedBy === "borrow-750");
+  const bankAdvance = ledger.previousMonthAdvances.accounts.find((account) => account.accountName === "Banking");
+  const cashAdvance = ledger.previousMonthAdvances.accounts.find((account) => account.accountName === "Tiền Mặt");
+  const momoAdvance = ledger.previousMonthAdvances.accounts.find((account) => account.accountName === "Momo");
+  const emLiability = ledger.personalLoans.liabilities.find((loan) => loan.party === "em");
+  const tuanReceivable = ledger.personalLoans.receivables.find((loan) => loan.party === "cháu tuấn");
+
+  assert.equal(ledger.rows.length, 30);
+  assert.equal(data.openingPlan.sourceTotal, 3849710);
+  assert.equal(data.openingPlan.rentReserve, 2150000);
+  assert.equal(data.openingPlan.remainder, 1699710);
+  assert.deepEqual(data.openingPlan.sourceAccounts.map((account) => account.name), ["Tiền Mặt", "Banking", "Grap Tiền Mặt", "Momo"]);
+  assert.deepEqual(data.openingPlan.allocations, [
+    { fund: "Tiết kiệm dài hạn", amount: 566570 },
+    { fund: "Đầu tư tài chính", amount: 566570 },
+    { fund: "Hưởng thụ", amount: 566570 }
+  ]);
+  assert.equal(essential.budget, 4400000);
+  assert.equal(essential.allocated, 2150004);
+  assert.equal(essential.paidFromFund, 2017000);
+  assert.equal(essential.fundRemaining, 133004);
+  assert.equal(savingsLoan.lender, "Tiết kiệm dài hạn");
+  assert.equal(savingsLoan.principal, 750000);
+  assert.equal(savingsLoan.repaid, 0);
+  assert.equal(savingsLoan.outstanding, 750000);
+  assert.equal(bankAdvance.principal, 270000);
+  assert.equal(bankAdvance.repaid, 100000);
+  assert.equal(bankAdvance.outstanding, 170000);
+  assert.equal(cashAdvance.principal, 1356000);
+  assert.equal(cashAdvance.repaid, 0);
+  assert.equal(cashAdvance.outstanding, 1356000);
+  assert.deepEqual(cashAdvance.rows.map((row) => row.amount), [95000, 17000, 25000, 140000, 35000, 500000, 364000, 10000, 170000]);
+  assert.equal(momoAdvance.principal, 100000);
+  assert.equal(momoAdvance.repaid, 0);
+  assert.equal(momoAdvance.outstanding, 100000);
+  assert.equal(ledger.previousMonthAdvances.totalOutstanding, 1626000);
+  assert.equal(ledger.previousMonthAdvances.accounts.find((account) => account.accountName === "Grap Tiền Mặt").outstanding, 0);
+  assert.equal(emLiability.outstanding, 500000);
+  assert.equal(emLiability.repaid, 0);
+  assert.deepEqual(emLiability.repaymentRows, []);
+  assert.equal(tuanReceivable.principal, 100000);
+  assert.equal(tuanReceivable.repaid, 100000);
+  assert.equal(tuanReceivable.outstanding, 0);
+  assert.equal(tuanReceivable.sourceAccountId, "bank");
+  assert.deepEqual(tuanReceivable.repaymentRows, ["tuan-return"]);
+  assert.equal(ledger.rows.find((row) => row.id === "tuan-return").accountId, "momo");
+  assert.deepEqual(ledger.personalLoans.repayments.map((row) => [row.id, row.party, row.amount]), [
+    ["pay-to", "tố", 500000], ["tuan-return", "cháu tuấn", 100000]
+  ]);
+  assert.deepEqual(ledger.unmatched.map((row) => [row.id, row.unmatchedAmount]), [["pay-to", 500000]]);
+  assert.deepEqual(data.income, { real: 286581, grabGross: 602000, other: 600000 });
+  assert.equal(data.cashOutflowTotal, 4736000);
+  assert.equal(data.personalSpendingTotal, 3966000);
+  assert.deepEqual(data.loanFlow, { total: 600000, lent: 100000, repaid: 500000, other: 0 });
+
+  // Current balances cannot alter the opening baseline or repay any ledger.
+  const changedBalances = accounts.map((page) => ({
+    ...page, properties: { ...page.properties, "Số Dư Hiện Tại": { formula: { type: "number", number: 9999999 } } }
+  }));
+  const withChangedBalances = buildAccountSpendingData_(
+    { y: 2026, m: 9, d: 10 }, categories, expenses, changedBalances, 5500000, transfers, groups, options
+  );
+  assert.deepEqual(withChangedBalances.explicitLedger, ledger);
+  const text = fundBudgetText_(data);
+  assert.match(text, /Nhà Trọ: 2\.017\.000đ \/ 2\.150\.000đ/);
+  assert.match(text, /quỹ còn 133\.004đ/);
+  assert.match(text, /4 nguồn: 3\.849\.710đ · Nhà trọ: 2\.150\.000đ/);
+  assert.match(text, /Ba lọ 10%: 566\.570đ\/lọ/);
+  assert.equal(text.split("Nhu cầu thiết yếu mượn Tiết kiệm dài hạn: 750.000đ").length - 1, 1);
+  assert.equal(text.split("Đã trả: 0đ · Còn nợ: 750.000đ").length - 1, 1);
+  assert.match(text, /Nợ Em: 500\.000đ/);
+  assert.match(text, /Tiền Mặt: cần cấp bù 1\.356\.000đ/);
+  assert.match(text, /Banking: cần cấp bù 170\.000đ/);
+  assert.match(text, /Momo: cần cấp bù 100\.000đ/);
+  assert.match(text, /07\/09 — Trả tiền mượn tố tháng trước: 500\.000đ/);
+  assert.doesNotMatch(text, /616\.996đ|đã trả:? 109\.000đ|có nguồn để trả/i);
+});
+
 test("fund budget renders explicit ledger sections independently", () => {
   const text = fundBudgetText_({
     t: { y: 2026, m: 9, d: 10 },
@@ -1111,6 +1285,32 @@ test("fund budget renders explicit ledger sections independently", () => {
   assert.match(text, /Momo: cần cấp bù 100\.000đ/);
   assert.doesNotMatch(text, /616\.996đ/);
   assert.doesNotMatch(text, /đã trả 109\.000đ|có nguồn để trả/);
+});
+
+test("fund debt deduplication preserves distinct sources, parties, and unidentified legacy debts", () => {
+  const debt = {
+    openedBy: "loan-a", borrowerGroupId: "essential", borrowerGroupName: "Nhu cầu thiết yếu",
+    lender: "Tiết kiệm dài hạn", principal: 750000, repaid: 0, outstanding: 750000
+  };
+  const legacy = { ...debt, openedBy: undefined };
+  const text = fundBudgetText_({
+    t: { y: 2026, m: 9, d: 10 },
+    explicitLedger: { fundLoans: { loans: [debt] } },
+    fundGroups: [{
+      name: "Nhu cầu thiết yếu", budget: 0, spent: 0,
+      explicitDebts: [
+        { ...debt },
+        { ...debt, openedBy: "loan-b" },
+        { ...debt, borrowerGroupId: "education", borrowerGroupName: "Giáo dục phát triển" },
+        { ...debt, lender: "Đầu tư tài chính" },
+        legacy, legacy, { ...legacy }
+      ]
+    }]
+  });
+  assert.equal(text.split("Đã trả: 0đ · Còn nợ: 750.000đ").length - 1, 6);
+  assert.equal(text.split("Nhu cầu thiết yếu mượn Tiết kiệm dài hạn: 750.000đ").length - 1, 4);
+  assert.match(text, /Giáo dục phát triển mượn Tiết kiệm dài hạn/);
+  assert.match(text, /Nhu cầu thiết yếu mượn Đầu tư tài chính/);
 });
 
 test("fund budget warns about an unclassified semantic row without changing debt totals", () => {

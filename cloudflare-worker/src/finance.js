@@ -1195,7 +1195,12 @@ function collectDebts_(data, groups) {
   const debts = ((ledger.fundLoans || {}).loans || []).slice();
   for (const group of groups) {
     for (const debt of group.explicitDebts || []) {
-      if (!debts.includes(debt)) debts.push(debt);
+      const duplicate = debts.some((item) => item === debt || (debt.openedBy
+        && item.openedBy === debt.openedBy
+        && item.borrowerGroupId === debt.borrowerGroupId
+        && item.borrowerGroupName === debt.borrowerGroupName
+        && item.lender === debt.lender));
+      if (!duplicate) debts.push(debt);
     }
   }
   return debts.filter((debt) => (debt.principal || 0) > 0);

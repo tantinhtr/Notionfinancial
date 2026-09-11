@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createNotionClient } from "../src/notion.js";
+import { fundBudgetText_ } from "../src/finance.js";
+import { createStateStore } from "../src/state.js";
 import {
   AmbiguousIncomeWriteError,
   createFinanceRepository
@@ -387,6 +389,98 @@ test("fund report wires seven concurrent Notion queries into the finance builder
     ["income", monthFilter],
     ["other-income", monthFilter]
   ]);
+});
+
+test("September 2026 explicit ledger renders one debt after the repository JSON cache round-trip", async () => {
+  const cachedValues = new Map();
+  const state = createStateStore({
+    async get(key) { return cachedValues.get(key) ?? null; },
+    async put(key, value) { cachedValues.set(key, value); },
+    async delete(key) { cachedValues.delete(key); }
+  });
+  const { repository, notion } = createRepository({
+    now: () => new Date("2026-09-10T12:00:00.000Z"),
+    state,
+    rows: {
+      accounts: openingAccountRows(),
+      budgets: [row("rent", {
+        "Loại Chi Phí": { title: [{ plain_text: "Nhà Trọ" }] },
+        "Ngân Sách Tháng": { number: 2150000 },
+        "Tính Trong 5,5 Triệu": { checkbox: true },
+        "Nhóm Quỹ": { relation: [{ id: "essential" }] }
+      })],
+      "fund-groups": [
+        row("essential", {
+          "Tên Nhóm Quỹ": { title: [{ plain_text: "Nhu cầu thiết yếu" }] },
+          "Tài Khoản Giữ Quỹ": { relation: [{ id: "fund" }] },
+          "Bắt Buộc Cấp Quỹ": { checkbox: true }
+        }),
+        row("savings", {
+          "Tên Nhóm Quỹ": { title: [{ plain_text: "Tiết kiệm dài hạn" }] },
+          "Tài Khoản Giữ Quỹ": { relation: [{ id: "fund" }] },
+          "Bắt Buộc Cấp Quỹ": { checkbox: true }
+        })
+      ],
+      expenses: [{
+        id: "rent-paid", created_time: "2026-09-08T10:00:00.000Z",
+        properties: {
+          "Nội Dung Khoản Chi": { title: [{ plain_text: "Tiền phòng tháng 9" }] },
+          "Ghi Chú": { rich_text: [] },
+          "Số Tiền": { number: 2017000 },
+          "Ngày": { date: { start: "2026-09-08" } },
+          "Loại Chi Phí": { relation: [{ id: "rent" }] },
+          "Phương Thức Thanh Toán": { relation: [{ id: "fund" }] }
+        }
+      }],
+      transfers: [
+        {
+          id: "rent-allocation", created_time: "2026-09-01T00:00:00.000Z",
+          properties: {
+            "Ghi Chú": { title: [{ plain_text: "Chuyển tiền vào quỹ Nhà Trọ" }] },
+            "Số Tiền": { number: 1400004 },
+            "Ngày": { date: { start: "2026-09-01" } },
+            "Loại Chuyển Đổi": { select: { name: "Giao Dịch Giữa Các Tài Khoản" } },
+            "Từ Tài Khoản": { relation: [{ id: "bank" }] },
+            "Đến Tài Khoản": { relation: [{ id: "fund" }] },
+            "Nhóm Quỹ": { relation: [{ id: "essential" }] }
+          }
+        },
+        {
+          id: "borrow-750", created_time: "2026-09-08T05:00:00.000Z",
+          properties: {
+            "Ghi Chú": { title: [{ plain_text: "Mượn tiền của quỹ tiết kiệm chuyển sang tiền phòng quỹ thiết yếu" }] },
+            "Số Tiền": { number: 750000 },
+            "Ngày": { date: { start: "2026-09-08" } },
+            "Loại Chuyển Đổi": { select: { name: "Giao Dịch Giữa Các Tài Khoản" } },
+            "Từ Tài Khoản": { relation: [{ id: "fund" }] },
+            "Đến Tài Khoản": { relation: [{ id: "fund" }] },
+            "Nhóm Quỹ": { relation: [{ id: "essential" }] }
+          }
+        }
+      ],
+      income: [],
+      "other-income": []
+    }
+  });
+
+  const fresh = await repository.getFundBudgetReport(true);
+  assert.equal(notion.calls.length, 7);
+  assert.deepEqual(notion.created, []);
+  assert.equal(typeof cachedValues.get("report:fund-budget:2026-09-10"), "string");
+  const cached = await repository.getFundBudgetReport();
+  assert.equal(notion.calls.length, 7);
+  assert.notEqual(cached, fresh);
+  assert.deepEqual(cached, fresh);
+  assert.equal(cached.openingPlan.sourceTotal, 3849710);
+  assert.equal(cached.fundGroups[0].fundRemaining, 133004);
+  assert.equal(cached.explicitLedger.fundLoans.loans[0].outstanding, 750000);
+  for (const model of [fresh, cached]) {
+    const text = fundBudgetText_(model);
+    assert.equal(text.split("Nhu cầu thiết yếu mượn Tiết kiệm dài hạn: 750.000đ").length - 1, 1);
+    assert.equal(text.split("Đã trả: 0đ · Còn nợ: 750.000đ").length - 1, 1);
+    assert.doesNotMatch(text, /616\.996đ|đã trả:? 109\.000đ|có nguồn để trả/i);
+  }
+  assert.equal(fundBudgetText_(cached), fundBudgetText_(fresh));
 });
 
 test("an existing Telegram Update ID prevents an income page creation", async () => {

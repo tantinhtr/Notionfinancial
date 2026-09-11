@@ -22,46 +22,37 @@ Bot chỉ trả lời đúng một Telegram user id (`ALLOWED_USER_ID`), mọi n
 
 ### Đọc báo cáo Quỹ & ngân sách
 
-Báo cáo chia làm ba mục tách bạch, mỗi mục trả lời một câu hỏi khác nhau:
+Báo cáo tách ngân sách, số quỹ còn, nợ ghi rõ và tiền tháng trước cần cấp bù.
+Ví dụ dưới đây là dữ liệu kiểm thử tháng 9/2026, không phải số dư live:
 
 ```
-📊 NGÂN SÁCH
-✅ Thiết Yếu: 2.328.400đ / 2.330.000đ · còn 1.600đ
-⛔ Làm YouTube: 574.444đ / 500.000đ · vượt 74.444đ
+Nhà Trọ: 2.017.000đ / 2.150.000đ
+Quỹ còn: 133.004đ
 
-💸 ỨNG TRƯỚC — cần trả lại
-• Làm YouTube → quỹ tích lũy: 554.444đ
-    02/08 Goolge play tự động thanh toán tiền claude: 554.444đ
-• Phát Sinh → Momo: 47.000đ
-    22/08 Thanh toán đơn hàng shoppe: 47.000đ (phần lố)
-Tổng: 601.444đ
+📅 TIỀN DƯ THÁNG TRƯỚC
+4 nguồn: 3.849.710đ · Nhà trọ: 2.150.000đ
+Ba lọ 10%: 566.570đ/lọ
 
-💰 CẦN CẤP THÊM — phần ngân sách chưa dùng mà quỹ chưa có tiền
-• Phát Sinh → Quỹ Momo: 449.000đ
+🤝 NỢ GHI RÕ
+Nhu cầu thiết yếu mượn Tiết kiệm dài hạn: 750.000đ
+Đã trả: 0đ · Còn nợ: 750.000đ
+Nợ Em: 500.000đ
+
+♻️ CẦN CẤP BÙ TIỀN THÁNG TRƯỚC
+Tiền Mặt: cần cấp bù 1.356.000đ
+Banking: cần cấp bù 170.000đ
+Momo: cần cấp bù 100.000đ
 ```
 
-- **NGÂN SÁCH** — đã tiêu bao nhiêu so với mức trần tự đặt. Đây là kế hoạch, không phải tiền thật.
-- **ỨNG TRƯỚC** — tiền người khác bỏ ra hộ, phải trả lại. Mỗi dòng đọc là: *nhóm nào → trả cho ai → bao nhiêu*, kèm luôn các giao dịch tạo ra nó.
-- **CẦN CẤP THÊM** — phần ngân sách **chưa dùng tới**, trừ đi số quỹ đang giữ. Lọ có nhiều nhãn con thì in thêm dòng con nói rõ cục tiền đó dành cho nhãn nào, chia theo phần ngân sách còn lại, nhãn thiếu nhiều nhất trước. Các dòng con luôn cộng đúng bằng số của cả lọ. Tiền đã tiêu bằng túi khác **cũng coi như đã cấp rồi**: đáng lẽ nó phải đi qua quỹ, chỉ là chưa có giao dịch chuyển. Việc trả lại cho bên đã ứng nằm ở mục ỨNG TRƯỚC, không phải cấp lại lần hai. Nhóm nào tiêu vượt ngân sách thì không xuất hiện ở đây.
+- **NGÂN SÁCH / QUỸ CÒN** — chi so với kế hoạch và số tiền đã cấp còn lại là hai số riêng. **CẦN CẤP THÊM** chỉ tính phần ngân sách chưa dùng; không cấp lại khoản đã tiêu.
+- **TIỀN DƯ THÁNG TRƯỚC** — lấy `Số Dư Ban Đầu` của Tiền Mặt, Banking, Grap Tiền Mặt và Momo; loại Quỹ Momo. Dành trước tiền Nhà Trọ rồi chia phần còn lại một lần cho Tiết kiệm dài hạn, Đầu tư tài chính và Hưởng thụ. Số dư hiện tại không kích hoạt chia lại.
+- **NỢ GHI RÕ** — đọc tên, ghi chú và quan hệ của giao dịch. Chuyển giữa hai lọ cùng nằm trong Quỹ Momo vẫn có thể mở khoản vay. Số quỹ còn 133.004đ không giảm khoản nợ 750.000đ; chỉ giao dịch trả nợ rõ bên nhận mới giảm nợ.
+- **CẦN CẤP BÙ TIỀN THÁNG TRƯỚC** — theo dõi phần chi dùng nguồn đầu tháng theo ngày giao dịch và thứ tự tạo trong ngày. Miễn khoản dự phòng Nhà Trọ. Nếu nguồn tiền trộn lẫn, chỉ ghi phần tối thiểu chắc chắn dùng tiền tháng trước; không gán một khoản thu cụ thể cho một khoản chi.
+- **CHƯA ĐỦ DỮ KIỆN** — giao dịch chưa khớp được in ngày, tên và số tiền. Thiếu nguồn cấp quỹ không tự biến thành nợ với Quỹ Momo.
 
-Mỗi nhóm quỹ có một tài khoản giữ quỹ (`Tài Khoản Giữ Quỹ` trong Notion), và mọi khoản thuộc nhóm đó đáng lẽ phải thanh toán bằng tài khoản ấy. Khi một khoản lại được trả bằng thứ khác — tiền mặt, ví khác, hay quỹ khác:
+Tuấn trả 100.000đ vào Momo vẫn khép khoản cho Tuấn mượn từ Banking. Khoản Em cho mượn 500.000đ và khoản trả Tố 500.000đ được theo dõi độc lập. Thu nhập Grab, tiền khách trả và số dư tài khoản không tự trả nợ hay cấp bù.
 
-**Chỉ có một trường hợp sinh món nợ:** chi bằng chính tài khoản giữ quỹ (Quỹ Momo) mà ghi chú nói `lấy từ quỹ X`, với X không phải một lọ nào. Đó là tiền của quỹ con khác đang nằm chung trong Quỹ Momo, phải trả lại.
-
-| Trả bằng | Bot làm gì |
-|---|---|
-| Momo, Banking, Tiền Mặt, Grap Tiền Mặt… | Không ghi nợ. Đều là tiền của chính mình, không ai bỏ ra hộ |
-| Quỹ Momo, ghi chú `lấy từ quỹ X` mà X là một lọ | Không ghi nợ — tiền của chính lọ đó |
-| Quỹ Momo, ghi chú `lấy từ quỹ X` mà X **không** phải lọ nào | Ghi vào ỨNG TRƯỚC, trả đủ cho quỹ X |
-| Quỹ Momo, nhóm tiêu quá số đã được cấp | Ghi vào ỨNG TRƯỚC — nhóm đã ăn lấn tiền của túi khác trong cùng tài khoản |
-
-Ví dụ nhóm Làm YouTube (ngân sách 600.000đ) chưa cấp đồng nào mà đã tiêu 574.444đ: 554.444đ trả bằng Quỹ Momo với ghi chú `( lấy từ quỹ tích lũy )`, 20.000đ trả bằng Momo.
-
-- ỨNG TRƯỚC chỉ có **quỹ tích lũy 554.444đ** — quỹ tích lũy là một túi khác nằm chung trong Quỹ Momo, phải trả đủ.
-- 20.000đ trả bằng Momo **không** vào ỨNG TRƯỚC: đó là tiền của chính mình, không ai bỏ ra hộ.
-- CẦN CẤP THÊM còn **25.556đ** = 600.000 − 574.444, vì phần đã tiêu coi như đã cấp rồi.
-
-Ví dụ nhóm Thiết Yếu gồm Nhà Trọ 2.150.000 + Internet 180.000 + Khác 70.000. Hôm cắt tóc trả bằng Banking thì **không** sinh nợ gì cả — Banking là tiền của chính mình. Chỉ khi trả bằng Quỹ Momo kèm ghi chú `( lấy từ quỹ sửa xe )` mới thành món nợ với quỹ sửa xe.
+Các hành vi này được kiểm tra tự động cục bộ; chưa xác minh Telegram live cho đến lần triển khai được duyệt và bấm nút thật. Không có thay đổi schema hay ghi dữ liệu Notion trong đợt sửa ledger.
 
 ### Lọ và nhãn con
 
@@ -109,7 +100,7 @@ Mỗi món liệt kê tối đa 6 giao dịch rồi gộp phần còn lại thà
 
 `vượt 74.444đ` ở mục NGÂN SÁCH chỉ là thông tin: tháng này nhóm đó xài lố so với dự tính.
 
-Nhóm nào không bật `Bắt Buộc Cấp Quỹ` trong Notion thì không bao giờ xuất hiện ở mục ỨNG TRƯỚC, vì nó vốn được chi thẳng từ tài khoản của nó.
+`Bắt Buộc Cấp Quỹ` điều khiển phần cấp quỹ; sổ vay và cấp bù tiền tháng trước được tính độc lập từ giao dịch.
 
 ### Tiền vào quỹ
 
@@ -123,17 +114,17 @@ Mỗi nhóm quỹ có hai chiều tiền, báo cáo hiện cả hai:
 - Dòng trên là **tiền ra**: đã tiêu bao nhiêu so với ngân sách, và trong quỹ còn **tiền thật** bao nhiêu.
 - Dòng `↳` là **tiền vào**: đã chuyển được bao nhiêu trên tổng ngân sách của lọ. Chưa cấp đồng nào thì ghi `đã cấp 0đ / 1.100.000đ` chứ không ghi trống "chưa cấp" — phải thấy được còn thiếu bao nhiêu.
 
-`quỹ còn X` **không phải** là ngân sách trừ đã tiêu. Nó là `đã cấp − đã tiêu`, tức tiền đang thật sự nằm trong tài khoản giữ quỹ. Ví dụ trên: ngân sách còn dư 101.600 trên giấy, nhưng 70.000 tiền cắt tóc chưa hề được cấp vào quỹ nên không được tính là tiền của nhóm — trong quỹ chỉ có 31.600 (tiền trọ thừa 28.000 + wifi thừa 3.600). Khi nào cấp nốt 70.000 kia thì dòng này mới thành `quỹ còn 101.600đ`.
+`quỹ còn X` **không phải** là ngân sách trừ đã tiêu. Nó là phần còn dương của `đã cấp − đã chi từ quỹ`, không lấy khoản chi bằng tài khoản khác để giảm số dư hay nợ. Số dư vật lý của Quỹ Momo cũng không được dùng thay số tiền của từng lọ.
 
 Phần chênh lệch đó chính là mục **CẦN CẤP THÊM**: `ngân sách chưa dùng tới − quỹ đang giữ` (xem ở trên).
 
-`quỹ còn X` chỉ hiện khi đó là tiền thật sự **rảnh**. Nếu nhóm có khoản chi trả bằng tài khoản khác thì số dư đã bị hẹn trả lại, nên bị trừ đi trước — không thể vừa khoe *"quỹ còn 31.600đ"* vừa đòi trả đúng 31.600đ đó ở mục ỨNG TRƯỚC.
+`quỹ còn X` được hiển thị độc lập với nợ và cấp bù; không trừ số dư này khỏi khoản nợ khi chưa có giao dịch trả rõ ràng.
 
 Nhóm không bật `Bắt Buộc Cấp Quỹ` (như Đi Chợ) không có quỹ riêng, nên dòng của nó vẫn là `còn X` theo ngân sách.
 
 Dòng tổng **không so với tổng ngân sách 5tr5**, vì phần ngân sách đã tiêu rồi thì cấp vào cũng vô nghĩa — tiền đi mất rồi.
 
-Tiền vào lấy từ bảng **Giao Dịch Các Tài Khoản**, chỉ tính giao dịch có gắn nhãn `Nhóm Quỹ` và chuyển **đến** đúng tài khoản giữ quỹ của nhóm. Chuyển ra khỏi tài khoản đó thì trừ đi.
+Tiền vào lấy từ bảng **Giao Dịch Các Tài Khoản**, theo `Nhóm Quỹ` và tài khoản giữ quỹ. Chuyển ra thì trừ đi; khoản vay rõ giữa hai lọ cùng tài khoản vẫn cấp tiền cho lọ nhận đúng một lần.
 
 Nhóm không bật `Bắt Buộc Cấp Quỹ` (như Đi Chợ) không có dòng `↳`, vì nó vốn chi thẳng không cần cấp trước.
 
@@ -164,7 +155,7 @@ Ngoài ra cả nhãn `Vay Và Trả` bị loại (khai ở `passThroughCategorie
 | `quỹ sửa xe` | nạp từ thu nhập tháng này, mỗi ngày 50k | **là chi tiêu** — không dùng tới thì tốt, dùng tới là đã tiêu thật |
 | `quỹ đi chơi với em`, `quỹ tích lũy`, `quỹ mua máy tính cho cháu` | để dành từ trước | **không tính** vào chi tiêu tháng này |
 
-Mặc định là **không tính**; túi nào là tiền của tháng thì phải khai tên vào `spendableSubFunds`. Luật này chỉ áp cho khoản **ngoài lọ** — khoản trong lọ vẫn tính bình thường, và món nợ với túi đó vẫn nằm ở mục ỨNG TRƯỚC.
+Mặc định là **không tính**; túi nào là tiền của tháng thì phải khai tên vào `spendableSubFunds`. Luật này chỉ áp cho khoản **ngoài lọ** — khoản trong lọ vẫn tính bình thường; món nợ ghi rõ với túi đó được theo dõi riêng ở mục NỢ GHI RÕ.
 
 Cố ý bắt `code` chứ không bắt `ứng`, vì `1 vỉ trứng gà` cũng chứa `ứng`.
 
