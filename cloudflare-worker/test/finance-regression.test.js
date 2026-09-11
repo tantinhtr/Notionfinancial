@@ -1001,7 +1001,10 @@ test("a fund that spent without identified funding reports a shortfall instead o
       "\n" +
       "📊 NHÓM QUỸ — 574.444đ / 500.000đ · ⛔ vượt 74.444đ\n" +
       "⛔ Làm YouTube: 574.444đ / 500.000đ · vượt 74.444đ\n" +
-      "   ↳ đã cấp 0đ / 500.000đ"
+      "   ↳ đã cấp 0đ / 500.000đ\n" +
+      "\n" +
+      "⚠️ CHƯA ĐỦ DỮ KIỆN\n" +
+      "• (không ngày) — Làm YouTube: 554.444đ"
   );
 });
 
@@ -1029,6 +1032,120 @@ test("750000 internal loan adds allocation once and keeps debt despite the 13300
   assert.equal(essential.explicitDebts[0].lender, "Tiết kiệm dài hạn");
   assert.equal(data.openingPlan, data.explicitLedger.openingPlan);
   assert.equal(data.explicitLedger.rows.find((row) => row.id === "grab-income").amount, 999999);
+});
+
+test("fund budget renders explicit ledger sections independently", () => {
+  const text = fundBudgetText_({
+    t: { y: 2026, m: 9, d: 10 },
+    fundGroups: [{
+      name: "Nhu cầu thiết yếu",
+      budget: 2330000,
+      spent: 2017000,
+      over: 0,
+      allocated: 2150004,
+      fundRemaining: 133004,
+      requiresAllocation: true,
+      transferNeeded: 0,
+      unmatchedCategories: [],
+      children: [
+        { name: "Nhà Trọ", budget: 2150000, spent: 2017000, over: 0 },
+        { name: "Internet", budget: 180000, spent: 0, over: 0 }
+      ]
+    }],
+    openingPlan: {
+      sourceTotal: 3849710,
+      rentReserve: 2150000,
+      sourceAccounts: [
+        { id: "cash", name: "Tiền Mặt", opening: 2021000 },
+        { id: "bank", name: "Banking", opening: 1670004 },
+        { id: "grab-cash", name: "Grap Tiền Mặt", opening: 0 },
+        { id: "momo", name: "Momo", opening: 158706 }
+      ],
+      allocations: [
+        { fund: "Tiết kiệm dài hạn", amount: 566570 },
+        { fund: "Đầu tư tài chính", amount: 566570 },
+        { fund: "Hưởng thụ", amount: 566570 }
+      ]
+    },
+    explicitLedger: {
+      fundLoans: { loans: [{
+        borrowerGroupId: "essential",
+        borrowerGroupName: "Nhu cầu thiết yếu",
+        lender: "Tiết kiệm dài hạn",
+        principal: 750000,
+        repaid: 0,
+        outstanding: 750000,
+        openedBy: "borrow-750",
+        repaymentRows: []
+      }] },
+      personalLoans: { receivables: [], liabilities: [{
+        party: "em",
+        principal: 500000,
+        repaid: 0,
+        outstanding: 500000,
+        openedBy: "borrow-em",
+        repaymentRows: []
+      }], repayments: [], unmatched: [] },
+      previousMonthAdvances: {
+        totalOutstanding: 1626000,
+        accounts: [
+          { accountName: "Tiền Mặt", principal: 1356000, repaid: 0, outstanding: 1356000 },
+          { accountName: "Banking", principal: 270000, repaid: 100000, outstanding: 170000 },
+          { accountName: "Momo", principal: 100000, repaid: 0, outstanding: 100000 }
+        ],
+        unmatchedSources: []
+      },
+      unmatched: []
+    }
+  });
+
+  assert.match(text, /Nhà Trọ: 2\.017\.000đ \/ 2\.150\.000đ/);
+  assert.match(text, /quỹ còn 133\.004đ/);
+  assert.match(text, /📅 TIỀN DƯ THÁNG TRƯỚC[\s\S]*4 nguồn: 3\.849\.710đ · Nhà trọ: 2\.150\.000đ/);
+  assert.match(text, /Ba lọ 10%: 566\.570đ\/lọ/);
+  assert.match(text, /Nhu cầu thiết yếu mượn Tiết kiệm dài hạn: 750\.000đ/);
+  assert.match(text, /Đã trả: 0đ · Còn nợ: 750\.000đ/);
+  assert.match(text, /Nợ Em: 500\.000đ/);
+  assert.match(text, /Tiền Mặt: cần cấp bù 1\.356\.000đ/);
+  assert.match(text, /Banking: cần cấp bù 170\.000đ/);
+  assert.match(text, /Momo: cần cấp bù 100\.000đ/);
+  assert.doesNotMatch(text, /616\.996đ/);
+  assert.doesNotMatch(text, /đã trả 109\.000đ|có nguồn để trả/);
+});
+
+test("fund budget warns about an unclassified semantic row without changing debt totals", () => {
+  const fundLoan = {
+    borrowerGroupName: "Nhu cầu thiết yếu",
+    lender: "Tiết kiệm dài hạn",
+    principal: 750000,
+    repaid: 0,
+    outstanding: 750000
+  };
+  const personalLiability = { party: "em", principal: 500000, repaid: 0, outstanding: 500000 };
+  const text = fundBudgetText_({
+    t: { y: 2026, m: 9, d: 10 },
+    fundGroups: [],
+    explicitLedger: {
+      fundLoans: { loans: [fundLoan] },
+      personalLoans: { liabilities: [personalLiability] },
+      previousMonthAdvances: { accounts: [] },
+      unmatched: [{
+        id: "ambiguous",
+        date: "2026-09-10",
+        title: "Em cho mượn tiền và Tố trả nợ",
+        unmatchedAmount: 500000,
+        reason: "unidentified-personal-income"
+      }]
+    }
+  });
+
+  assert.match(text, /⚠️ CHƯA ĐỦ DỮ KIỆN/);
+  assert.match(text, /10\/09 — Em cho mượn tiền và Tố trả nợ: 500\.000đ/);
+  assert.match(text, /Còn nợ: 750\.000đ/);
+  assert.match(text, /Nợ Em: 500\.000đ/);
+  assert.equal(fundLoan.outstanding, 750000);
+  assert.equal(personalLiability.outstanding, 500000);
+  assert.doesNotMatch(text, /Đã trả: 500\.000đ|Còn nợ: 250\.000đ/);
 });
 
 test("spending notes name the fund that was borrowed from", () => {
@@ -1102,8 +1219,8 @@ test("spending notes name the fund that was borrowed from", () => {
   assert.deepEqual(incidental.borrowedFunds, []);
 
   const text = fundBudgetText_(data);
-  assert.match(text, /• Làm YouTube → quỹ tích lũy: 554\.444đ/);
-  assert.match(text, /• Làm YouTube → quỹ sửa xe: 150\.000đ/);
+  assert.match(text, /Làm YouTube mượn quỹ tích lũy: 554\.444đ/);
+  assert.match(text, /Làm YouTube mượn quỹ sửa xe: 150\.000đ/);
   // Ten hien thi bo phan chu thich quy trong ngoac.
   assert.match(text, /02\/08 Claude pro: 554\.444đ/);
   assert.doesNotMatch(text, /quxy/);
@@ -1642,7 +1759,7 @@ test("only a named pot outside the jars creates a debt, never a plain account", 
   assert.equal(essential.fundRemaining, 2400000);
 
   const text = fundBudgetText_(data);
-  assert.match(text, /• Nhu cầu thiết yếu → quỹ tích lũy: 100\.000đ/);
+  assert.match(text, /Nhu cầu thiết yếu mượn quỹ tích lũy: 100\.000đ/);
   assert.doesNotMatch(text, /→ Banking/);
   assert.doesNotMatch(text, /→ Tiền Mặt/);
 });

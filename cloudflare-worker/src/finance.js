@@ -1190,24 +1190,15 @@ function childLines_(group) {
 
 const DEBT_ROWS_SHOWN = 6;
 
-function collectDebts_(groups) {
-  const debts = [];
+function collectDebts_(data, groups) {
+  const ledger = data.explicitLedger || {};
+  const debts = ((ledger.fundLoans || {}).loans || []).slice();
   for (const group of groups) {
-    const account = group.destinationAccount || "Tài khoản giữ quỹ";
-    for (const borrowed of group.borrowedFunds || []) {
-      debts.push({
-        group: group.name,
-        account: borrowed.fund,
-        amount: borrowed.amount,
-        rows: borrowed.rows || []
-      });
-    }
-    if ((group.fundDebt || 0) > 0) {
-      // Day la phan hut so du cua quy, khong gan voi giao dich cu the nao.
-      debts.push({ group: group.name, account, amount: group.fundDebt, rows: [] });
+    for (const debt of group.explicitDebts || []) {
+      if (!debts.includes(debt)) debts.push(debt);
     }
   }
-  return debts;
+  return debts.filter((debt) => (debt.principal || 0) > 0);
 }
 
 // Bo phan chu thich quy trong ngoac khoi ten hien thi: dong tren da noi ro nhom
@@ -1234,6 +1225,85 @@ function debtRowLines_(rows) {
   const hidden = rows.length - DEBT_ROWS_SHOWN;
   if (hidden > 0) lines.push("    … và " + hidden + " khoản nữa");
   return lines;
+}
+
+function appendOpeningPlan_(lines, openingPlan) {
+  openingPlan = openingPlan || {};
+  const sources = openingPlan.sourceAccounts || [];
+  const allocations = openingPlan.allocations || [];
+  if (!(openingPlan.sourceTotal > 0) && !(openingPlan.rentReserve > 0) && !allocations.length) return false;
+
+  lines.push("", "📅 TIỀN DƯ THÁNG TRƯỚC");
+  lines.push(
+    sources.length + " nguồn: " + money_(openingPlan.sourceTotal || 0) +
+    " · Nhà trọ: " + money_(openingPlan.rentReserve || 0)
+  );
+  if (allocations.length === 3 && allocations.every((entry) => entry.amount === allocations[0].amount)) {
+    lines.push("Ba lọ 10%: " + money_(allocations[0].amount) + "/lọ");
+  } else {
+    for (const allocation of allocations) {
+      lines.push(allocation.fund + ": " + money_(allocation.amount));
+    }
+  }
+  return true;
+}
+
+function displayParty_(party) {
+  const text = String(party || "").trim();
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : "(chưa rõ người)";
+}
+
+function appendExplicitDebts_(lines, data, groups) {
+  const ledger = data.explicitLedger || {};
+  const fundDebts = collectDebts_(data, groups);
+  const personalLoans = ledger.personalLoans || {};
+  const liabilities = (personalLoans.liabilities || []).filter((item) => (item.outstanding || 0) > 0);
+  const receivables = (personalLoans.receivables || []).filter((item) => (item.outstanding || 0) > 0);
+  if (!fundDebts.length && !liabilities.length && !receivables.length) return false;
+
+  lines.push("", "🤝 NỢ GHI RÕ");
+  for (const debt of fundDebts) {
+    lines.push(
+      debt.borrowerGroupName + " mượn " + debt.lender + ": " + money_(debt.principal)
+    );
+    lines.push(
+      "Đã trả: " + money_(debt.repaid || 0) + " · Còn nợ: " + money_(debt.outstanding || 0)
+    );
+    for (const line of debtRowLines_(debt.rows || [])) lines.push(line);
+  }
+  for (const liability of liabilities) {
+    lines.push("Nợ " + displayParty_(liability.party) + ": " + money_(liability.outstanding));
+  }
+  for (const receivable of receivables) {
+    lines.push(displayParty_(receivable.party) + " nợ: " + money_(receivable.outstanding));
+  }
+  return true;
+}
+
+function appendPreviousMonthAdvances_(lines, previousMonthAdvances) {
+  const accounts = ((previousMonthAdvances || {}).accounts || [])
+    .filter((account) => (account.outstanding || 0) > 0);
+  if (!accounts.length) return false;
+
+  lines.push("", "♻️ CẦN CẤP BÙ TIỀN THÁNG TRƯỚC");
+  for (const account of accounts) {
+    lines.push(account.accountName + ": cần cấp bù " + money_(account.outstanding));
+  }
+  return true;
+}
+
+function appendUnmatched_(lines, unmatched) {
+  if (!(unmatched || []).length) return false;
+  lines.push("", "⚠️ CHƯA ĐỦ DỮ KIỆN");
+  for (const row of unmatched) {
+    const day = typeof row.date === "string" && row.date.length >= 10
+      ? row.date.slice(8, 10) + "/" + row.date.slice(5, 7)
+      : "(không ngày)";
+    const title = row.title || row.fundGroupName || row.reason || "Giao dịch chưa phân loại";
+    const amount = row.unmatchedAmount === undefined ? row.amount : row.unmatchedAmount;
+    lines.push("• " + day + " — " + title + ": " + money_(amount || 0));
+  }
+  return true;
 }
 
 // Tien DI VAO nhom quy: da cap bao nhieu, con lai bao nhieu trong tai khoan giu quy.
@@ -1269,18 +1339,6 @@ export function fundBudgetText_(data) {
     }
   }
 
-  const debts = collectDebts_(groups);
-  if (debts.length) {
-    lines.push("", "💸 ỨNG TRƯỚC — cần trả lại");
-    let total = 0;
-    for (const debt of debts) {
-      total += debt.amount;
-      lines.push("• " + debt.group + " → " + debt.account + ": " + money_(debt.amount));
-      for (const line of debtRowLines_(debt.rows || [])) lines.push(line);
-    }
-    lines.push("Tổng: " + money_(total));
-  }
-
   const funding = groups.filter((group) => (group.transferNeeded || 0) > 0);
   if (funding.length) {
     lines.push("", "💰 CẦN CẤP THÊM");
@@ -1299,7 +1357,13 @@ export function fundBudgetText_(data) {
     }
   }
 
-  if (!groups.length && !budget) {
+  const ledger = data.explicitLedger || {};
+  appendOpeningPlan_(lines, data.openingPlan);
+  appendExplicitDebts_(lines, data, groups);
+  appendPreviousMonthAdvances_(lines, ledger.previousMonthAdvances);
+  appendUnmatched_(lines, ledger.unmatched);
+
+  if (!groups.length && !budget && lines.length === 1) {
     lines.push("", "Chưa có dữ liệu tháng này.");
   }
   return lines.join("\n");
