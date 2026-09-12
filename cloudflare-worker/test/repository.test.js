@@ -476,8 +476,8 @@ test("September 2026 explicit ledger renders one debt after the repository JSON 
   assert.equal(cached.explicitLedger.fundLoans.loans[0].outstanding, 750000);
   for (const model of [fresh, cached]) {
     const text = fundBudgetText_(model);
-    assert.equal(text.split("Nhu cầu thiết yếu mượn Tiết kiệm dài hạn: 750.000đ").length - 1, 1);
-    assert.equal(text.split("Đã trả: 0đ · Còn nợ: 750.000đ").length - 1, 1);
+    assert.equal(text.split("còn nợ Quỹ Tiết kiệm dài hạn 750.000đ").length - 1, 1);
+    assert.doesNotMatch(text, /🤝 NỢ GHI RÕ|Đã trả:|Nhu cầu thiết yếu mượn/);
     assert.doesNotMatch(text, /616\.996đ|đã trả:? 109\.000đ|có nguồn để trả/i);
   }
   assert.equal(fundBudgetText_(cached), fundBudgetText_(fresh));

@@ -1242,6 +1242,16 @@ function fundBalanceChildName_(group) {
   return matches.length === 1 ? matches[0].name : "";
 }
 
+function debtInlineTexts_(debts) {
+  return (debts || [])
+    .filter((debt) => (debt.outstanding || 0) > 0)
+    .map((debt) => {
+      const lender = String(debt.lender || "(chưa rõ quỹ)").trim();
+      const fundName = /^quỹ(?:\s|$)/i.test(lender) ? lender : "Quỹ " + lender;
+      return "còn nợ " + fundName + " " + money_(debt.outstanding);
+    });
+}
+
 function budgetLine_(group) {
   const over = group.over || 0;
   let row = (over > 0 ? "⛔ " : "✅ ") + group.name + ": " +
@@ -1267,6 +1277,12 @@ function budgetLine_(group) {
       ? " · đã cấp " + money_(group.allocated)
       : " · chưa cấp";
   }
+  const children = group.children || [];
+  const childNames = new Set(children.map((child) => child.name));
+  const debts = debtInlineTexts_((group.explicitDebts || []).filter((debt) =>
+    children.length < 2 || !debt.childName || !childNames.has(debt.childName)
+  ));
+  if (debts.length) row += " · " + debts.join(", ");
   return row;
 }
 
@@ -1279,13 +1295,8 @@ function childLines_(group) {
   return children.map((child) => {
     const outsideSources = (child.paidOutsideSources || [])
       .map((source) => source.account + ": " + money_(source.amount));
-    const debts = (group.explicitDebts || [])
-      .filter((debt) => debt.childName === child.name && (debt.outstanding || 0) > 0)
-      .map((debt) => {
-        const lender = String(debt.lender || "(chưa rõ quỹ)").trim();
-        const fundName = /^quỹ(?:\s|$)/i.test(lender) ? lender : "Quỹ " + lender;
-        return "còn nợ " + fundName + " " + money_(debt.outstanding);
-      });
+    const debts = debtInlineTexts_((group.explicitDebts || [])
+      .filter((debt) => debt.childName === child.name));
     return "   • " + child.name + ": " +
       money_(child.spent) + " / " + money_(child.budget) +
       (child.over > 0 ? " ⛔ vượt " + money_(child.over) : "") +
@@ -1295,82 +1306,6 @@ function childLines_(group) {
       (debts.length ? " · " + debts.join(", ") : "") +
       (outsideSources.length ? " · đã chi từ " + outsideSources.join(", ") : "");
   });
-}
-
-const DEBT_ROWS_SHOWN = 6;
-
-function collectDebts_(data, groups) {
-  const ledger = data.explicitLedger || {};
-  const debts = ((ledger.fundLoans || {}).loans || []).slice();
-  for (const group of groups) {
-    for (const debt of group.explicitDebts || []) {
-      const duplicate = debts.some((item) => item === debt || (debt.openedBy
-        && item.openedBy === debt.openedBy
-        && item.borrowerGroupId === debt.borrowerGroupId
-        && item.borrowerGroupName === debt.borrowerGroupName
-        && item.lender === debt.lender));
-      if (!duplicate) debts.push(debt);
-    }
-  }
-  return debts.filter((debt) => (debt.principal || 0) > 0);
-}
-
-// Bo phan chu thich quy trong ngoac khoi ten hien thi: dong tren da noi ro nhom
-// va ben cho muon roi, giu lai chi ton cho. Ngoac khong nhac quy — vi du
-// "( mua do cho em )" — la ngu canh that, phai giu.
-function displayName_(name) {
-  return String(name || "")
-    .replace(/\([^)]*\)/g, (chunk) => (/(^|\s)qu\S+/i.test(chunk) ? " " : chunk))
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function debtRowLines_(rows) {
-  const lines = [];
-  for (const row of rows.slice(0, DEBT_ROWS_SHOWN)) {
-    const day = typeof row.date === "string" && row.date.length >= 10
-      ? row.date.slice(8, 10) + "/" + row.date.slice(5, 7) + " "
-      : "";
-    const name = displayName_(row.name).slice(0, 42);
-    lines.push(
-      "    " + day + name + ": " + money_(row.amount) + (row.partial ? " (một phần)" : "")
-    );
-  }
-  const hidden = rows.length - DEBT_ROWS_SHOWN;
-  if (hidden > 0) lines.push("    … và " + hidden + " khoản nữa");
-  return lines;
-}
-
-function displayParty_(party) {
-  const text = String(party || "").trim();
-  return text ? text.charAt(0).toUpperCase() + text.slice(1) : "(chưa rõ người)";
-}
-
-function appendExplicitDebts_(lines, data, groups) {
-  const ledger = data.explicitLedger || {};
-  const fundDebts = collectDebts_(data, groups);
-  const personalLoans = ledger.personalLoans || {};
-  const liabilities = (personalLoans.liabilities || []).filter((item) => (item.outstanding || 0) > 0);
-  const receivables = (personalLoans.receivables || []).filter((item) => (item.outstanding || 0) > 0);
-  if (!fundDebts.length && !liabilities.length && !receivables.length) return false;
-
-  lines.push("", "🤝 NỢ GHI RÕ");
-  for (const debt of fundDebts) {
-    lines.push(
-      debt.borrowerGroupName + " mượn " + debt.lender + ": " + money_(debt.principal)
-    );
-    lines.push(
-      "Đã trả: " + money_(debt.repaid || 0) + " · Còn nợ: " + money_(debt.outstanding || 0)
-    );
-    for (const line of debtRowLines_(debt.rows || [])) lines.push(line);
-  }
-  for (const liability of liabilities) {
-    lines.push("Nợ " + displayParty_(liability.party) + ": " + money_(liability.outstanding));
-  }
-  for (const receivable of receivables) {
-    lines.push(displayParty_(receivable.party) + " nợ: " + money_(receivable.outstanding));
-  }
-  return true;
 }
 
 function appendPreviousMonthAdvances_(lines, previousMonthAdvances) {
@@ -1441,7 +1376,6 @@ export function fundBudgetText_(data) {
   }
 
   const ledger = data.explicitLedger || {};
-  appendExplicitDebts_(lines, data, groups);
   appendPreviousMonthAdvances_(lines, ledger.previousMonthAdvances);
   appendUnmatched_(lines, ledger.unmatched);
 
