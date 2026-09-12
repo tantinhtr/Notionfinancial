@@ -1283,31 +1283,6 @@ function debtRowLines_(rows) {
   return lines;
 }
 
-function appendOpeningPlan_(lines, openingPlan) {
-  openingPlan = openingPlan || {};
-  const sources = openingPlan.sourceAccounts || [];
-  const allocations = openingPlan.allocations || [];
-  const hasOpeningData = openingPlan.sourceTotal > 0
-    || openingPlan.rentReserve > 0
-    || sources.some((source) => source.opening > 0)
-    || allocations.some((allocation) => allocation.amount > 0);
-  if (!hasOpeningData) return false;
-
-  lines.push("", "📅 TIỀN DƯ THÁNG TRƯỚC");
-  lines.push(
-    sources.length + " nguồn: " + money_(openingPlan.sourceTotal || 0) +
-    " · Nhà trọ: " + money_(openingPlan.rentReserve || 0)
-  );
-  if (allocations.length === 3 && allocations.every((entry) => entry.amount === allocations[0].amount)) {
-    lines.push("Ba lọ 10%: " + money_(allocations[0].amount) + "/lọ");
-  } else {
-    for (const allocation of allocations) {
-      lines.push(allocation.fund + ": " + money_(allocation.amount));
-    }
-  }
-  return true;
-}
-
 function displayParty_(party) {
   const text = String(party || "").trim();
   return text ? text.charAt(0).toUpperCase() + text.slice(1) : "(chưa rõ người)";
@@ -1408,7 +1383,6 @@ export function fundBudgetText_(data) {
   }
 
   const ledger = data.explicitLedger || {};
-  appendOpeningPlan_(lines, data.openingPlan);
   appendExplicitDebts_(lines, data, groups);
   appendPreviousMonthAdvances_(lines, ledger.previousMonthAdvances);
   appendUnmatched_(lines, ledger.unmatched);
