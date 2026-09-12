@@ -480,6 +480,40 @@ function assignedFund_(expenseRow, assignmentKeys) {
   return best;
 }
 
+const DEBT_TARGET_STOP_WORDS_ = new Set(["quy", "tien", "thang", "nam"]);
+
+function debtTargetPhraseScore_(source, target) {
+  const words = normalizeSearchText_(source).match(/[a-z0-9]+/g) || [];
+  const targetWords = normalizeSearchText_(target).match(/[a-z0-9]+/g) || [];
+  const haystack = " " + targetWords.join(" ") + " ";
+  for (let size = words.length; size >= 1; size -= 1) {
+    for (let start = 0; start + size <= words.length; start += 1) {
+      const phraseWords = words.slice(start, start + size);
+      if (phraseWords.every((word) => DEBT_TARGET_STOP_WORDS_.has(word) || /^\d+$/.test(word))) continue;
+      if (haystack.includes(" " + phraseWords.join(" ") + " ")) return size;
+    }
+  }
+  return 0;
+}
+
+function debtTargetChildName_(debtText, candidates) {
+  let bestScore = 0;
+  let matches = [];
+  for (const candidate of candidates) {
+    let score = 0;
+    for (const source of candidate.sources) {
+      score = Math.max(score, debtTargetPhraseScore_(source, debtText));
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      matches = [candidate.name];
+    } else if (score > 0 && score === bestScore) {
+      matches.push(candidate.name);
+    }
+  }
+  return matches.length === 1 ? matches[0] : "";
+}
+
 function buildMonthlyBudget_(tiers, monthlyLimit) {
   const total = tiers.groupSpending + tiers.looseSpending;
   return {
@@ -549,6 +583,7 @@ export function buildAccountSpendingData_(
     fundGroupRows,
     options
   });
+  const ledgerRowsById = Object.fromEntries(explicitLedger.rows.map((row) => [row.id, row]));
   const spendableSubFundKeys = {};
   for (const name of options.spendableSubFunds || []) {
     spendableSubFundKeys[normalizeSearchText_(stripFundPrefix_(name))] = true;
@@ -885,6 +920,7 @@ export function buildAccountSpendingData_(
 
     const groupRows = [];
     const fundedChildren = [];
+    const debtChildCandidates = [];
     let unfundedBudget = 0;
     let unfundedSpent = 0;
     for (const fixed of fixedBudgets) {
@@ -915,6 +951,10 @@ export function buildAccountSpendingData_(
         .sort((a, b) => b.amount - a.amount);
       if (paidOutsideSources.length) child.paidOutsideSources = paidOutsideSources;
       group.children.push(child);
+      debtChildCandidates.push({
+        name: fixed.name,
+        sources: [fixed.name, ...fixed.spendRows.map((row) => row.name)]
+      });
       // Chi nhung nhan con thuc su phai di qua tai khoan giu quy moi tinh vao so
       // can cap them. Đi Chợ tra thang bang tien mat thi khong doi bom truoc.
       if (fixed.skipsFund) {
@@ -1013,6 +1053,14 @@ export function buildAccountSpendingData_(
       }
     }
     group.explicitDebts.push(...explicitLedger.fundLoans.loans.filter((loan) => loan.borrowerGroupId === fundGroupRow.id));
+    for (const debt of group.explicitDebts) {
+      const openingRow = ledgerRowsById[debt.openedBy];
+      const debtText = openingRow
+        ? openingRow.normalizedText
+        : (debt.rows || []).map((row) => row.name).join(" ");
+      const childName = debtTargetChildName_(debtText, debtChildCandidates);
+      if (childName !== "") debt.childName = childName;
+    }
     group.children.sort((a, b) => b.budget - a.budget);
     // Lo chua dung toi — chua dat ngan sach, chua tieu, chua cap — thi khong in.
     // Nho vay dung du 6 lo trong Notion ma bao cao van chi noi nhung lo dang chay.
@@ -1218,14 +1266,6 @@ function budgetLine_(group) {
     row += (group.allocated || 0) > 0
       ? " · đã cấp " + money_(group.allocated)
       : " · chưa cấp";
-    const debts = (group.explicitDebts || [])
-      .filter((debt) => (debt.outstanding || 0) > 0)
-      .map((debt) => {
-        const lender = String(debt.lender || "(chưa rõ quỹ)").trim();
-        const fundName = /^quỹ(?:\s|$)/i.test(lender) ? lender : "Quỹ " + lender;
-        return "còn nợ " + fundName + " " + money_(debt.outstanding);
-      });
-    if (debts.length) row += " (" + debts.join(", ") + ")";
   }
   return row;
 }
@@ -1239,12 +1279,20 @@ function childLines_(group) {
   return children.map((child) => {
     const outsideSources = (child.paidOutsideSources || [])
       .map((source) => source.account + ": " + money_(source.amount));
+    const debts = (group.explicitDebts || [])
+      .filter((debt) => debt.childName === child.name && (debt.outstanding || 0) > 0)
+      .map((debt) => {
+        const lender = String(debt.lender || "(chưa rõ quỹ)").trim();
+        const fundName = /^quỹ(?:\s|$)/i.test(lender) ? lender : "Quỹ " + lender;
+        return "còn nợ " + fundName + " " + money_(debt.outstanding);
+      });
     return "   • " + child.name + ": " +
       money_(child.spent) + " / " + money_(child.budget) +
       (child.over > 0 ? " ⛔ vượt " + money_(child.over) : "") +
       (child.name === balanceChildName && (group.fundRemaining || 0) > 0
         ? " · quỹ còn " + money_(group.fundRemaining)
         : "") +
+      (debts.length ? " · " + debts.join(", ") : "") +
       (outsideSources.length ? " · đã chi từ " + outsideSources.join(", ") : "");
   });
 }
