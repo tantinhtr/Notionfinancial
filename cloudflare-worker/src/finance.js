@@ -890,14 +890,16 @@ export function buildAccountSpendingData_(
     for (const fixed of fixedBudgets) {
       if (fixed.groupId !== fundGroupRow.id) continue;
       const paidOutsideByAccount = {};
-      for (const spendRow of fixed.spendRows) {
-        const lender = spendRow.lender !== "" && ownKeys[stripFundPrefix_(spendRow.lender)] !== true
-          ? spendRow.lender
-          : "";
-        if (lender === "" && spendRow.account !== "" &&
-            spendRow.account !== accountNames[destinationAccountId]) {
-          paidOutsideByAccount[spendRow.account] =
-            (paidOutsideByAccount[spendRow.account] || 0) + spendRow.amount;
+      if (!fixed.skipsFund) {
+        for (const spendRow of fixed.spendRows) {
+          const lender = spendRow.lender !== "" && ownKeys[stripFundPrefix_(spendRow.lender)] !== true
+            ? spendRow.lender
+            : "";
+          if (lender === "" && spendRow.account !== "" &&
+              spendRow.account !== accountNames[destinationAccountId]) {
+            paidOutsideByAccount[spendRow.account] =
+              (paidOutsideByAccount[spendRow.account] || 0) + spendRow.amount;
+          }
         }
       }
       group.budget += fixed.budget;
@@ -1216,6 +1218,14 @@ function budgetLine_(group) {
     row += (group.allocated || 0) > 0
       ? " · đã cấp " + money_(group.allocated)
       : " · chưa cấp";
+    const debts = (group.explicitDebts || [])
+      .filter((debt) => (debt.outstanding || 0) > 0)
+      .map((debt) => {
+        const lender = String(debt.lender || "(chưa rõ quỹ)").trim();
+        const fundName = /^quỹ(?:\s|$)/i.test(lender) ? lender : "Quỹ " + lender;
+        return "còn nợ " + fundName + " " + money_(debt.outstanding);
+      });
+    if (debts.length) row += " (" + debts.join(", ") + ")";
   }
   return row;
 }

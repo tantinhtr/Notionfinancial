@@ -1296,7 +1296,10 @@ test("September 2026 explicit ledger preserves the complete snapshot and indepen
   const text = fundBudgetText_(data);
   assert.match(text, /Nhà Trọ: 2\.017\.000đ \/ 2\.150\.000đ/);
   assert.doesNotMatch(text, /Nhu cầu thiết yếu:[^\n]*quỹ còn 133\.004đ/);
-  assert.match(text, /Nhu cầu thiết yếu:[^\n]*đã cấp 2\.150\.004đ/);
+  assert.match(
+    text,
+    /Nhu cầu thiết yếu:[^\n]*đã cấp 2\.150\.004đ \(còn nợ Quỹ Tiết kiệm dài hạn 750\.000đ\)/
+  );
   assert.doesNotMatch(text, /↳ đã cấp/);
   assert.match(text, /Nhà Trọ: 2\.017\.000đ \/ 2\.150\.000đ · quỹ còn 133\.004đ/);
   assert.doesNotMatch(text, /TIỀN DƯ THÁNG TRƯỚC|4 nguồn:|Ba lọ 10%:/);
@@ -1816,10 +1819,7 @@ test("a jar keeps its children visible and honours old names in notes", () => {
   // 45.000 Cà Phê phai nam o dong con Phát Sinh, khong bi gom chung vao lo.
   assert.deepEqual(nec.children, [
     { name: "Nhà Trọ", budget: 2150000, spent: 2130000, over: 0 },
-    {
-      name: "Đi Chợ", budget: 1400000, spent: 669000, over: 0,
-      paidOutsideSources: [{ account: "Grap Tiền Mặt", amount: 669000 }]
-    },
+    { name: "Đi Chợ", budget: 1400000, spent: 669000, over: 0 },
     {
       name: "Phát Sinh", budget: 600000, spent: 45000, over: 0,
       paidOutsideSources: [{ account: "Grap Tiền Mặt", amount: 45000 }]
@@ -1834,7 +1834,9 @@ test("a jar keeps its children visible and honours old names in notes", () => {
   const text = fundBudgetText_(data);
   assert.match(text, /✅ Nhu cầu thiết yếu: 2\.844\.000đ \/ 4\.150\.000đ · quỹ còn 70\.000đ/);
   assert.match(text, /   • Nhà Trọ: 2\.130\.000đ \/ 2\.150\.000đ/);
+  assert.doesNotMatch(text, /Đi Chợ:[^\n]*đã chi từ/);
   assert.match(text, /   • Phát Sinh: 45\.000đ \/ 600\.000đ/);
+  assert.match(text, /Phát Sinh:[^\n]*đã chi từ Grap Tiền Mặt: 45\.000đ/);
   assert.doesNotMatch(text, /ỨNG TRƯỚC/);
 });
 
