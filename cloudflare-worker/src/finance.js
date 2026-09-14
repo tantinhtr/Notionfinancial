@@ -577,6 +577,8 @@ export function buildAccountSpendingData_(
     accountRows,
     incomeRows: options.incomeRows,
     otherIncomeRows: options.otherIncomeRows,
+    previousExpenseRows: options.previousExpenseRows,
+    previousOtherIncomeRows: options.previousOtherIncomeRows,
     expenseRows,
     transferRows,
     categoryRows,
@@ -1321,14 +1323,17 @@ function appendPreviousMonthAdvances_(lines, previousMonthAdvances) {
 }
 
 function appendUnmatched_(lines, unmatched) {
-  if (!(unmatched || []).length) return false;
+  const visible = (unmatched || []).filter((row) =>
+    row.reason !== "source-funding-shortfall" && row.reason !== "funding-shortfall"
+  );
+  if (!visible.length) return false;
   lines.push("", "⚠️ CHƯA ĐỦ DỮ KIỆN");
-  for (const row of unmatched) {
+  for (const row of visible) {
     const day = typeof row.date === "string" && row.date.length >= 10
       ? row.date.slice(8, 10) + "/" + row.date.slice(5, 7)
       : "(không ngày)";
     const title = row.title || row.fundGroupName || row.reason || "Giao dịch chưa phân loại";
-    const amount = row.unmatchedAmount === undefined ? row.amount : row.unmatchedAmount;
+    const amount = row.amount === undefined ? row.unmatchedAmount : row.amount;
     lines.push("• " + day + " — " + title + ": " + money_(amount || 0));
   }
   return true;

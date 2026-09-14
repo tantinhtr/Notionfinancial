@@ -35,6 +35,13 @@ const monthFilter = {
   ]
 };
 
+const previousMonthFilter = {
+  and: [
+    { property: "Ngày", date: { on_or_after: "2026-06-01" } },
+    { property: "Ngày", date: { on_or_before: "2026-06-30" } }
+  ]
+};
+
 function createState({ cached = null, getError, putError, deleteError } = {}) {
   const calls = [];
   return {
@@ -339,21 +346,21 @@ test("fund report serves the cached model instead of re-querying Notion", async 
     stateOptions: { cached }
   });
 
-  // Bam lai trong vong 60 giay thi khong duoc goi lai 7 truy van Notion.
+  // Bam lai trong vong 60 giay thi khong duoc goi lai 9 truy van Notion.
   assert.equal(await repository.getFundBudgetReport(), cached);
   assert.equal(notion.calls.length, 0);
   assert.deepEqual(state.calls, [["get", "fund-budget:2026-07-29"]]);
 
   const fresh = await repository.getFundBudgetReport(true);
   assert.deepEqual(fresh.t, { y: 2026, m: 7, d: 29 });
-  assert.equal(notion.calls.length, 7);
+  assert.equal(notion.calls.length, 9);
   const put = state.calls.at(-1);
   assert.equal(put[0], "put");
   assert.equal(put[1], "fund-budget:2026-07-29");
   assert.equal(put[3], 60);
 });
 
-test("fund report wires seven concurrent Notion queries into the finance builder", async () => {
+test("fund report wires nine concurrent Notion queries into the finance builder", async () => {
   const { notion, repository } = createRepository({ rows: {
     budgets: [], expenses: [], accounts: openingAccountRows(), transfers: [], "fund-groups": [],
     income: [], "other-income": []
@@ -387,7 +394,93 @@ test("fund report wires seven concurrent Notion queries into the finance builder
     ["transfers", monthFilter],
     ["fund-groups", undefined],
     ["income", monthFilter],
-    ["other-income", monthFilter]
+    ["other-income", monthFilter],
+    ["expenses", previousMonthFilter],
+    ["other-income", previousMonthFilter]
+  ]);
+});
+
+test("fund report matches current repayments to a personal loan opened last month", async () => {
+  const currentFilter = {
+    and: [
+      { property: "Ngày", date: { on_or_after: "2026-09-01" } },
+      { property: "Ngày", date: { on_or_before: "2026-09-14" } }
+    ]
+  };
+  const previousFilter = {
+    and: [
+      { property: "Ngày", date: { on_or_after: "2026-08-01" } },
+      { property: "Ngày", date: { on_or_before: "2026-08-31" } }
+    ]
+  };
+  const calls = [];
+  const loanCategory = row("loan", {
+    "Loại Chi Phí": { title: [{ plain_text: "Vay Và Trả" }] }
+  });
+  const accounts = [
+    row("bank", { "Phương Thức Thanh Toán": { title: [{ plain_text: "Banking" }] } }),
+    row("momo", { "Phương Thức Thanh Toán": { title: [{ plain_text: "Momo" }] } })
+  ];
+  const previousLoan = row("borrow-to", {
+    "Tên Khoản Thu": { title: [{ plain_text: "Tố cho mượn tiền" }] },
+    "Số Tiền": { number: 1000000 },
+    "Ngày": { date: { start: "2026-08-14" } },
+    "Loại Khoản Thu": { relation: [{ id: "loan" }] },
+    "Phương Thức Thanh Toán": { relation: [{ id: "momo" }] }
+  });
+  const repayments = [
+    row("repay-to-bank", {
+      "Nội Dung Khoản Chi": { title: [{ plain_text: "Trả tiền mượn tố tháng trước ( còn nợ 500 )" }] },
+      "Số Tiền": { number: 500000 },
+      "Ngày": { date: { start: "2026-09-07" } },
+      "Loại Chi Phí": { relation: [{ id: "loan" }] },
+      "Phương Thức Thanh Toán": { relation: [{ id: "bank" }] }
+    }),
+    row("repay-to-momo", {
+      "Nội Dung Khoản Chi": { title: [{ plain_text: "Trả nợ tố mượn tháng trước" }] },
+      "Ghi Chú": { rich_text: [{ plain_text: "Hết nợ" }] },
+      "Số Tiền": { number: 500000 },
+      "Ngày": { date: { start: "2026-09-13" } },
+      "Loại Chi Phí": { relation: [{ id: "loan" }] },
+      "Phương Thức Thanh Toán": { relation: [{ id: "momo" }] }
+    })
+  ];
+  const notion = {
+    calls,
+    async queryDatabase(databaseId, filter) {
+      calls.push([databaseId, filter]);
+      if (databaseId === "budgets") return [loanCategory];
+      if (databaseId === "accounts") return accounts;
+      if (databaseId === "expenses" && filter?.and?.[0]?.date?.on_or_after === "2026-09-01") return repayments;
+      if (databaseId === "other-income" && filter?.and?.[0]?.date?.on_or_after === "2026-08-01") return [previousLoan];
+      return [];
+    },
+    async createPage() { return { id: "unused" }; }
+  };
+  const { repository } = createRepository({
+    notion,
+    now: () => new Date("2026-09-14T12:00:00.000Z")
+  });
+
+  const model = await repository.getFundBudgetReport(true);
+
+  assert.equal(model.explicitLedger.personalLoans.liabilities[0].principal, 1000000);
+  assert.equal(model.explicitLedger.personalLoans.liabilities[0].repaid, 1000000);
+  assert.equal(model.explicitLedger.personalLoans.liabilities[0].outstanding, 0);
+  assert.deepEqual(model.explicitLedger.personalLoans.liabilities[0].repaymentRows, ["repay-to-bank", "repay-to-momo"]);
+  assert.deepEqual(model.explicitLedger.personalLoans.unmatched, []);
+  assert.equal(
+    model.explicitLedger.unmatched.some((row) => row.reason !== "source-funding-shortfall"),
+    false
+  );
+  assert.doesNotMatch(fundBudgetText_(model), /CHƯA ĐỦ DỮ KIỆN|Trả tiền mượn tố|Trả nợ tố/i);
+  assert.deepEqual(calls.filter(([databaseId]) => databaseId === "expenses"), [
+    ["expenses", currentFilter],
+    ["expenses", previousFilter]
+  ]);
+  assert.deepEqual(calls.filter(([databaseId]) => databaseId === "other-income"), [
+    ["other-income", currentFilter],
+    ["other-income", previousFilter]
   ]);
 });
 
@@ -464,11 +557,11 @@ test("September 2026 explicit ledger renders one debt after the repository JSON 
   });
 
   const fresh = await repository.getFundBudgetReport(true);
-  assert.equal(notion.calls.length, 7);
+  assert.equal(notion.calls.length, 9);
   assert.deepEqual(notion.created, []);
   assert.equal(typeof cachedValues.get("report:fund-budget:2026-09-10"), "string");
   const cached = await repository.getFundBudgetReport();
-  assert.equal(notion.calls.length, 7);
+  assert.equal(notion.calls.length, 9);
   assert.notEqual(cached, fresh);
   assert.deepEqual(cached, fresh);
   assert.equal(cached.openingPlan.sourceTotal, 3849710);

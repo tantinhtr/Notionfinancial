@@ -83,6 +83,18 @@ function monthFilterFor(t) {
   };
 }
 
+function previousMonthFilterFor(t) {
+  const end = new Date(Date.UTC(t.y, t.m - 1, 0));
+  const y = end.getUTCFullYear();
+  const m = end.getUTCMonth() + 1;
+  return {
+    and: [
+      { property: MONTH_DATE_PROPERTY, date: { on_or_after: iso_(y, m, 1) } },
+      { property: MONTH_DATE_PROPERTY, date: { on_or_before: iso_(y, m, end.getUTCDate()) } }
+    ]
+  };
+}
+
 function numericProperty(row, property) {
   const value = row?.properties?.[property]?.number;
   return Number.isFinite(value) ? value : 0;
@@ -180,6 +192,7 @@ export function createFinanceRepository({ notion, state, config, now = () => new
       }
     }
     const filter = monthFilterFor(t);
+    const previousFilter = previousMonthFilterFor(t);
     const [
       categoryRows,
       expenseRows,
@@ -187,7 +200,9 @@ export function createFinanceRepository({ notion, state, config, now = () => new
       transferRows,
       fundGroupRows,
       incomeRows,
-      otherIncomeRows
+      otherIncomeRows,
+      previousExpenseRows,
+      previousOtherIncomeRows
     ] = await Promise.all([
       notion.queryDatabase(config.budgetDb),
       notion.queryDatabase(config.expenseDb, filter),
@@ -195,7 +210,9 @@ export function createFinanceRepository({ notion, state, config, now = () => new
       notion.queryDatabase(config.transferDb, filter),
       notion.queryDatabase(config.fundGroupDb),
       notion.queryDatabase(config.incomeDb, filter),
-      notion.queryDatabase(config.otherIncomeDb, filter)
+      notion.queryDatabase(config.otherIncomeDb, filter),
+      notion.queryDatabase(config.expenseDb, previousFilter),
+      notion.queryDatabase(config.otherIncomeDb, previousFilter)
     ]);
     const model = buildAccountSpendingData_(
       t,
@@ -208,6 +225,8 @@ export function createFinanceRepository({ notion, state, config, now = () => new
       {
         incomeRows,
         otherIncomeRows,
+        previousExpenseRows,
+        previousOtherIncomeRows,
         outsideThreshold: config.outsideBudgetThreshold,
         passThroughKeywords: config.passThroughKeywords,
         passThroughCategories: config.passThroughCategories,

@@ -120,15 +120,21 @@ export function buildFundLoanLedger_(rows = [], fundGroups = []) {
 
 export function buildFinanceLedger_({
   accountRows = [], incomeRows = [], otherIncomeRows = [], expenseRows = [],
-  transferRows = [], categoryRows = [], fundGroupRows = [], options = {}
+  transferRows = [], previousExpenseRows = [], previousOtherIncomeRows = [],
+  categoryRows = [], fundGroupRows = [], options = {}
 } = {}) {
   const rows = readFinanceRows_({ incomeRows, otherIncomeRows, expenseRows, transferRows });
+  const previousPersonalRows = readFinanceRows_({
+    otherIncomeRows: previousOtherIncomeRows,
+    expenseRows: previousExpenseRows
+  });
+  const currentRowIds = new Set(rows.map((row) => row.id));
   const accountNamesById = new Map(accountRows.map((row) => [row.id, propertyText_(row.properties?.["Phương Thức Thanh Toán"])]));
   const categoryNamesById = new Map(categoryRows.map((row) => [row.id, propertyText_(row.properties?.["Loại Chi Phí"])]));
   const loanCategoryIds = new Set([...categoryNamesById].filter(([, name]) => normalizeSearchText_(name) === "vay va tra").map(([id]) => id));
   const unresolvedPersonalRows = [];
   const personalRows = [];
-  for (const row of rows) {
+  for (const row of [...previousPersonalRows, ...rows]) {
     if (row.kind !== "otherIncome" || categoryNamesById.get(row.categoryId)) {
       personalRows.push(row);
       continue;
@@ -145,6 +151,7 @@ export function buildFinanceLedger_({
   const openingPlan = buildOpeningPlan_(accountRows, options);
   const personalLoans = buildPersonalLoanLedger_(personalRows, { loanCategoryIds, accountNamesById });
   personalLoans.unmatched.push(...unresolvedPersonalRows);
+  personalLoans.unmatched = personalLoans.unmatched.filter((row) => currentRowIds.has(row.id));
   const fundLoans = buildFundLoanLedger_(rows, fundGroupRows);
   const previousMonthAdvances = buildPreviousMonthAdvanceLedger_({ openingPlan, rows, accountNamesById, categoryNamesById, personalLoans, fundLoans });
   return {
@@ -235,14 +242,14 @@ const PERSONAL_LOAN_PATTERNS = {
   lend: /^cho\s+(.+?)\s+muon(?:\s+tien)?(?:\s|$)/,
   borrowerReturn: /^(.+?)\s+tra(?:\s+no|\s+tien\s+muon|\s+lai)(?:\s|$)/,
   borrow: /^(.+?)\s+cho\s+muon(?:\s+tien)?(?:\s|$)/,
-  liabilityPayment: /^tra(?:\s+lai)?\s+tien\s+muon\s+(?:cho\s+)?(.+?)(?:\s+thang|\s*\(|$)/
+  liabilityPayment: /^tra(?:\s+lai)?\s+(?:tien\s+muon|no)\s+(?:cho\s+)?(.+?)(?:\s+muon)?(?:\s+thang|\s*\(|$)/
 };
 
 const PERSONAL_LOAN_DISPLAY_PATTERNS = {
   lend: /^cho\s+(.+?)\s+(?:mượn|muon)(?:\s+(?:tiền|tien))?(?:\s|$)/iu,
   borrowerReturn: /^(.+?)\s+(?:trả|tra)(?:\s+(?:nợ|no)|\s+(?:tiền|tien)\s+(?:mượn|muon)|\s+(?:lại|lai))(?:\s|$)/iu,
   borrow: /^(.+?)\s+cho\s+(?:mượn|muon)(?:\s+(?:tiền|tien))?(?:\s|$)/iu,
-  liabilityPayment: /^(?:trả|tra)(?:\s+(?:lại|lai))?\s+(?:tiền|tien)\s+(?:mượn|muon)\s+(?:cho\s+)?(.+?)(?:\s+(?:tháng|thang)|\s*\(|$)/iu
+  liabilityPayment: /^(?:trả|tra)(?:\s+(?:lại|lai))?\s+(?:(?:tiền|tien)\s+(?:mượn|muon)|(?:nợ|no))\s+(?:cho\s+)?(.+?)(?:\s+(?:mượn|muon))?(?:\s+(?:tháng|thang)|\s*\(|$)/iu
 };
 
 function personalLoanParty_(row, patternName) {
@@ -554,7 +561,7 @@ export function buildPreviousMonthAdvanceLedger_({
         recordAdvance_(fromState, row, row.amount);
       }
       if (currentUse.remaining > 0) {
-        unmatchedSources.push({ ...row, unmatchedAmount: currentUse.remaining });
+        unmatchedSources.push({ ...row, unmatchedAmount: currentUse.remaining, reason: "source-funding-shortfall" });
       }
       continue;
     }
@@ -575,7 +582,11 @@ export function buildPreviousMonthAdvanceLedger_({
       recordAdvance_(state, row, openingUsed, openingUsed !== row.amount);
     }
     if (currentUse.remaining - openingUsed > 0) {
-      unmatchedSources.push({ ...row, unmatchedAmount: currentUse.remaining - openingUsed });
+      unmatchedSources.push({
+        ...row,
+        unmatchedAmount: currentUse.remaining - openingUsed,
+        reason: "source-funding-shortfall"
+      });
     }
   }
 

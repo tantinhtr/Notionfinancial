@@ -1000,10 +1000,7 @@ test("a fund that spent without identified funding reports a shortfall instead o
     "📦 QUỸ & NGÂN SÁCH — tháng 8/2026\n" +
       "\n" +
       "📊 NHÓM QUỸ — 574.444đ / 500.000đ · ⛔ vượt 74.444đ\n" +
-      "⛔ Làm YouTube: 574.444đ / 500.000đ · vượt 74.444đ · chưa cấp\n" +
-      "\n" +
-      "⚠️ CHƯA ĐỦ DỮ KIỆN\n" +
-      "• (không ngày) — Làm YouTube: 554.444đ"
+      "⛔ Làm YouTube: 574.444đ / 500.000đ · vượt 74.444đ · chưa cấp"
   );
 });
 
@@ -1420,6 +1417,50 @@ test("fund budget warns about an unclassified semantic row without changing debt
   assert.equal(fundLoan.outstanding, 750000);
   assert.equal(personalLiability.outstanding, 500000);
   assert.doesNotMatch(text, /Đã trả: 500\.000đ|Còn nợ: 250\.000đ/);
+});
+
+test("fund budget never presents a computed source shortfall as a Notion transaction", () => {
+  const data = buildAccountSpendingData_(
+    { y: 2026, m: 9, d: 9 },
+    [],
+    [namedExpenseRow("dinner", "Ăn tối", "food", "grab-cash", 35000)],
+    [cashflowAccountRow("grab-cash", "Grap Tiền Mặt")],
+    5500000,
+    [],
+    [],
+    {
+      sourceAccountNames: ["Grap Tiền Mặt"],
+      rentReserveAmount: 0,
+      otherIncomeRows: [cashflowIncomeRow("available-cash", "Grap tiền mặt", "grab", "grab-cash", 9000)]
+    }
+  );
+
+  const shortfall = data.explicitLedger.unmatched.find((row) => row.id === "dinner");
+  assert.equal(shortfall.unmatchedAmount, 26000);
+  assert.equal(shortfall.reason, "source-funding-shortfall");
+  const text = fundBudgetText_(data);
+  assert.doesNotMatch(text, /Ăn tối|26\.000đ|CHƯA ĐỦ DỮ KIỆN/);
+});
+
+test("fund budget uses the original Notion amount for a displayed unresolved record", () => {
+  const text = fundBudgetText_({
+    t: { y: 2026, m: 9, d: 9 },
+    fundGroups: [],
+    explicitLedger: {
+      previousMonthAdvances: { accounts: [] },
+      unmatched: [{
+        id: "unresolved-repayment",
+        date: "2026-09-09",
+        title: "Trả tiền mượn",
+        amount: 500000,
+        unmatchedAmount: 100000,
+        reason: "ambiguous-personal-repayment"
+      }]
+    }
+  });
+
+  assert.match(text, /09\/09 — Trả tiền mượn: 500\.000đ/);
+  assert.doesNotMatch(text, /100\.000đ/);
 });
 
 test("spending notes name the fund that was borrowed from", () => {
