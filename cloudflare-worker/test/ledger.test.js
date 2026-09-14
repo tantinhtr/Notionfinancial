@@ -63,6 +63,39 @@ test("finance ledger passes opening sources and loan category names to its compo
   assert.equal(result.rows.find((row) => row.id === "grab").categoryId, "other-income-category");
 });
 
+test("historical fund loans reconcile without changing current allocation", () => {
+  const result = buildFundLoanLedger_(readFinanceRows_({ transferRows: [
+    fundTransfer("july-borrow", "Mượn quỹ tiết kiệm", 750000, "essential", "2026-07-10"),
+    fundTransfer("september-repay", "Nhu cầu thiết yếu trả lại 750.000 cho quỹ tiết kiệm", 750000, "savings", "2026-09-07")
+  ] }), loanFunds, { currentRowIds: new Set(["september-repay"]) });
+
+  assert.equal(result.loans[0].outstanding, 0);
+  assert.deepEqual(result.allocationAdjustments, {});
+  assert.deepEqual(result.balanceAdjustments, { essential: -750000, savings: 750000 });
+});
+
+test("historical loan reconciliation excludes old rows from current ledger output", () => {
+  const result = buildFinanceLedger_({
+    accountRows: [account("bank", "Banking", 0, 0), account("momo", "Momo", 0, 0)],
+    categoryRows: [{ id: "loan", properties: {
+      "Loại Chi Phí": { title: [{ plain_text: "Vay Và Trả" }] }
+    } }],
+    historicalOtherIncomeRows: [
+      income("july-loan", "Tố cho mượn tiền", "loan", "momo", 1000000, "2026-07-10")
+    ],
+    historicalExpenseRows: [
+      expense("august-expense", "Ăn tối", "food", "bank", 35000, "2026-08-09")
+    ],
+    expenseRows: [
+      expense("september-repayment", "Trả nợ Tố mượn tháng trước", "loan", "bank", 1000000, "2026-09-07")
+    ]
+  });
+
+  assert.equal(result.personalLoans.liabilities[0].outstanding, 0);
+  assert.deepEqual(result.rows.map((row) => row.id), ["september-repayment"]);
+  assert.equal(result.dataIssues.some((issue) => issue.rowId === "august-expense"), false);
+});
+
 test("current rows report their exact missing required Notion properties once", () => {
   const incomeRow = income("income", "Thu chính", "", "", 100000, "2026-09-02");
   const otherRow = income("other", "Thu khác", "", "", 200000, "2026-09-03");

@@ -346,21 +346,21 @@ test("fund report serves the cached model instead of re-querying Notion", async 
     stateOptions: { cached }
   });
 
-  // Bam lai trong vong 60 giay thi khong duoc goi lai 9 truy van Notion.
+  // Bam lai trong vong 60 giay thi khong duoc goi lai 7 truy van Notion.
   assert.equal(await repository.getFundBudgetReport(), cached);
   assert.equal(notion.calls.length, 0);
   assert.deepEqual(state.calls, [["get", "fund-budget:2026-07-29"]]);
 
   const fresh = await repository.getFundBudgetReport(true);
   assert.deepEqual(fresh.t, { y: 2026, m: 7, d: 29 });
-  assert.equal(notion.calls.length, 9);
+  assert.equal(notion.calls.length, 7);
   const put = state.calls.at(-1);
   assert.equal(put[0], "put");
   assert.equal(put[1], "fund-budget:2026-07-29");
   assert.equal(put[3], 60);
 });
 
-test("fund report wires nine concurrent Notion queries into the finance builder", async () => {
+test("fund report wires seven current and master Notion queries into the finance builder", async () => {
   const { notion, repository } = createRepository({ rows: {
     budgets: [], expenses: [], accounts: openingAccountRows(), transfers: [], "fund-groups": [],
     income: [], "other-income": []
@@ -394,24 +394,20 @@ test("fund report wires nine concurrent Notion queries into the finance builder"
     ["transfers", monthFilter],
     ["fund-groups", undefined],
     ["income", monthFilter],
-    ["other-income", monthFilter],
-    ["expenses", previousMonthFilter],
-    ["other-income", previousMonthFilter]
+    ["other-income", monthFilter]
   ]);
 });
 
-test("fund report matches current repayments to a personal loan opened last month", async () => {
+test("fund report wires complete pre-month history", async () => {
   const currentFilter = {
     and: [
       { property: "Ngày", date: { on_or_after: "2026-09-01" } },
       { property: "Ngày", date: { on_or_before: "2026-09-14" } }
     ]
   };
-  const previousFilter = {
-    and: [
-      { property: "Ngày", date: { on_or_after: "2026-08-01" } },
-      { property: "Ngày", date: { on_or_before: "2026-08-31" } }
-    ]
+  const historyFilter = {
+    property: "Ngày",
+    date: { on_or_before: "2026-08-31" }
   };
   const calls = [];
   const loanCategory = row("loan", {
@@ -452,7 +448,7 @@ test("fund report matches current repayments to a personal loan opened last mont
       if (databaseId === "budgets") return [loanCategory];
       if (databaseId === "accounts") return accounts;
       if (databaseId === "expenses" && filter?.and?.[0]?.date?.on_or_after === "2026-09-01") return repayments;
-      if (databaseId === "other-income" && filter?.and?.[0]?.date?.on_or_after === "2026-08-01") return [previousLoan];
+      if (databaseId === "other-income" && filter?.date?.on_or_before === "2026-08-31") return [previousLoan];
       return [];
     },
     async createPage() { return { id: "unused" }; }
@@ -474,13 +470,52 @@ test("fund report matches current repayments to a personal loan opened last mont
     false
   );
   assert.doesNotMatch(fundBudgetText_(model), /CHƯA ĐỦ DỮ KIỆN|Trả tiền mượn tố|Trả nợ tố/i);
-  assert.deepEqual(calls.filter(([databaseId]) => databaseId === "expenses"), [
+  assert.deepEqual(calls, [
+    ["budgets", undefined],
     ["expenses", currentFilter],
-    ["expenses", previousFilter]
-  ]);
-  assert.deepEqual(calls.filter(([databaseId]) => databaseId === "other-income"), [
+    ["accounts", undefined],
+    ["transfers", currentFilter],
+    ["fund-groups", undefined],
+    ["income", currentFilter],
     ["other-income", currentFilter],
-    ["other-income", previousFilter]
+    ["income", historyFilter],
+    ["other-income", historyFilter],
+    ["expenses", historyFilter],
+    ["transfers", historyFilter]
+  ]);
+});
+
+test("fund report skips history without a current historical reference", async () => {
+  const currentFilter = {
+    and: [
+      { property: "Ngày", date: { on_or_after: "2026-09-01" } },
+      { property: "Ngày", date: { on_or_before: "2026-09-14" } }
+    ]
+  };
+  const calls = [];
+  const notion = {
+    calls,
+    async queryDatabase(databaseId, filter) {
+      calls.push([databaseId, filter]);
+      return [];
+    },
+    async createPage() { return { id: "unused" }; }
+  };
+  const { repository } = createRepository({
+    notion,
+    now: () => new Date("2026-09-14T12:00:00.000Z")
+  });
+
+  await repository.getFundBudgetReport(true);
+
+  assert.deepEqual(calls, [
+    ["budgets", undefined],
+    ["expenses", currentFilter],
+    ["accounts", undefined],
+    ["transfers", currentFilter],
+    ["fund-groups", undefined],
+    ["income", currentFilter],
+    ["other-income", currentFilter]
   ]);
 });
 
@@ -557,11 +592,11 @@ test("September 2026 explicit ledger renders one debt after the repository JSON 
   });
 
   const fresh = await repository.getFundBudgetReport(true);
-  assert.equal(notion.calls.length, 9);
+  assert.equal(notion.calls.length, 7);
   assert.deepEqual(notion.created, []);
   assert.equal(typeof cachedValues.get("report:fund-budget:2026-09-10"), "string");
   const cached = await repository.getFundBudgetReport();
-  assert.equal(notion.calls.length, 9);
+  assert.equal(notion.calls.length, 7);
   assert.notEqual(cached, fresh);
   assert.deepEqual(cached, fresh);
   assert.equal(cached.openingPlan.sourceTotal, 3849710);

@@ -36,7 +36,7 @@ function resolveFund_(phrase, groups) {
   return prefixes.length === 1 ? prefixes[0] : null;
 }
 
-export function buildFundLoanLedger_(rows = [], fundGroups = []) {
+export function buildFundLoanLedger_(rows = [], fundGroups = [], { currentRowIds = new Set(rows.map((row) => row.id)) } = {}) {
   const groups = fundGroups.map((group) => {
     const props = group.properties || {};
     const name = propertyText_(props["Tên Nhóm Quỹ"]);
@@ -90,7 +90,7 @@ export function buildFundLoanLedger_(rows = [], fundGroups = []) {
         loan.repaid += applied;
         loan.outstanding -= applied;
         loan.repaymentRows.push(row.id);
-        moveBalance(loan.borrowerGroupId, lender.id, applied);
+        if (currentRowIds.has(row.id)) moveBalance(loan.borrowerGroupId, lender.id, applied);
         remaining -= applied;
       }
       if (remaining > 0) unmatched.push({ ...row, unmatchedAmount: remaining, reason: "excess-fund-repayment" });
@@ -112,36 +112,42 @@ export function buildFundLoanLedger_(rows = [], fundGroups = []) {
       principal: row.amount, repaid: 0, outstanding: row.amount,
       openedBy: row.id, repaymentRows: []
     });
-    allocationAdjustments[borrower.id] = (allocationAdjustments[borrower.id] || 0) + row.amount;
-    moveBalance(lender.id, borrower.id, row.amount);
+    if (currentRowIds.has(row.id)) {
+      allocationAdjustments[borrower.id] = (allocationAdjustments[borrower.id] || 0) + row.amount;
+      moveBalance(lender.id, borrower.id, row.amount);
+    }
   }
   return { loans, allocationAdjustments, balanceAdjustments, unmatched };
 }
 
 export function buildFinanceLedger_({
   accountRows = [], incomeRows = [], otherIncomeRows = [], expenseRows = [],
-  transferRows = [], previousExpenseRows = [], previousOtherIncomeRows = [],
+  transferRows = [], historicalIncomeRows = [], historicalOtherIncomeRows = [],
+  historicalExpenseRows = [], historicalTransferRows = [],
   categoryRows = [], fundGroupRows = [], options = {}
 } = {}) {
-  const rows = readFinanceRows_({ incomeRows, otherIncomeRows, expenseRows, transferRows });
-  const dataIssues = rows
+  const currentRows = readFinanceRows_({ incomeRows, otherIncomeRows, expenseRows, transferRows });
+  const historicalRows = readFinanceRows_({
+    incomeRows: historicalIncomeRows,
+    otherIncomeRows: historicalOtherIncomeRows,
+    expenseRows: historicalExpenseRows,
+    transferRows: historicalTransferRows
+  });
+  const semanticRows = [...historicalRows, ...currentRows];
+  const dataIssues = currentRows
     .map((row) => {
       const missing = missingFields_(row);
       return missing.length ? dataIssue_(row, "missing_required_data", missing) : null;
     })
     .filter(Boolean)
     .sort((a, b) => a.date.localeCompare(b.date) || a.createdTime.localeCompare(b.createdTime) || a.rowId.localeCompare(b.rowId));
-  const previousPersonalRows = readFinanceRows_({
-    otherIncomeRows: previousOtherIncomeRows,
-    expenseRows: previousExpenseRows
-  });
-  const currentRowIds = new Set(rows.map((row) => row.id));
+  const currentRowIds = new Set(currentRows.map((row) => row.id));
   const accountNamesById = new Map(accountRows.map((row) => [row.id, propertyText_(row.properties?.["Phương Thức Thanh Toán"])]));
   const categoryNamesById = new Map(categoryRows.map((row) => [row.id, propertyText_(row.properties?.["Loại Chi Phí"])]));
   const loanCategoryIds = new Set([...categoryNamesById].filter(([, name]) => normalizeSearchText_(name) === "vay va tra").map(([id]) => id));
   const unresolvedPersonalRows = [];
   const personalRows = [];
-  for (const row of [...previousPersonalRows, ...rows]) {
+  for (const row of semanticRows) {
     if (row.kind !== "otherIncome" || categoryNamesById.get(row.categoryId)) {
       personalRows.push(row);
       continue;
@@ -159,10 +165,11 @@ export function buildFinanceLedger_({
   const personalLoans = buildPersonalLoanLedger_(personalRows, { loanCategoryIds, accountNamesById });
   personalLoans.unmatched.push(...unresolvedPersonalRows);
   personalLoans.unmatched = personalLoans.unmatched.filter((row) => currentRowIds.has(row.id));
-  const fundLoans = buildFundLoanLedger_(rows, fundGroupRows);
-  const previousMonthAdvances = buildPreviousMonthAdvanceLedger_({ openingPlan, rows, accountNamesById, categoryNamesById, personalLoans, fundLoans });
+  const fundLoans = buildFundLoanLedger_(semanticRows, fundGroupRows, { currentRowIds });
+  fundLoans.unmatched = fundLoans.unmatched.filter((row) => currentRowIds.has(row.id));
+  const previousMonthAdvances = buildPreviousMonthAdvanceLedger_({ openingPlan, rows: currentRows, accountNamesById, categoryNamesById, personalLoans, fundLoans });
   return {
-    rows, openingPlan, personalLoans, previousMonthAdvances, fundLoans,
+    rows: currentRows, openingPlan, personalLoans, previousMonthAdvances, fundLoans,
     dataIssues,
     unmatched: [...personalLoans.unmatched, ...previousMonthAdvances.unmatchedSources, ...fundLoans.unmatched]
   };

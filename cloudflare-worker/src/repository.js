@@ -3,6 +3,7 @@ import {
   buildMonthlyCashflowData_,
   iso_
 } from "./finance.js";
+import { readFinanceRows_ } from "./ledger.js";
 
 const MONTH_DATE_PROPERTY = "Ngày";
 const INCOME_CATEGORY_PROPERTY = "Loại Khoản Thu";
@@ -83,16 +84,16 @@ function monthFilterFor(t) {
   };
 }
 
-function previousMonthFilterFor(t) {
+function historyBeforeMonthFilterFor(t) {
   const end = new Date(Date.UTC(t.y, t.m - 1, 0));
-  const y = end.getUTCFullYear();
-  const m = end.getUTCMonth() + 1;
   return {
-    and: [
-      { property: MONTH_DATE_PROPERTY, date: { on_or_after: iso_(y, m, 1) } },
-      { property: MONTH_DATE_PROPERTY, date: { on_or_before: iso_(y, m, end.getUTCDate()) } }
-    ]
+    property: MONTH_DATE_PROPERTY,
+    date: { on_or_before: iso_(end.getUTCFullYear(), end.getUTCMonth() + 1, end.getUTCDate()) }
   };
+}
+
+export function historyLookupRequired_(rows = []) {
+  return rows.some((row) => /\b(?:tra no|tra lai|tra tien muon|nhan lai|hoan lai|hoan tien|cap bu|dao giao dich|dieu chinh|thang truoc|truoc do)\b/.test(row.normalizedText));
 }
 
 function numericProperty(row, property) {
@@ -192,7 +193,6 @@ export function createFinanceRepository({ notion, state, config, now = () => new
       }
     }
     const filter = monthFilterFor(t);
-    const previousFilter = previousMonthFilterFor(t);
     const [
       categoryRows,
       expenseRows,
@@ -200,9 +200,7 @@ export function createFinanceRepository({ notion, state, config, now = () => new
       transferRows,
       fundGroupRows,
       incomeRows,
-      otherIncomeRows,
-      previousExpenseRows,
-      previousOtherIncomeRows
+      otherIncomeRows
     ] = await Promise.all([
       notion.queryDatabase(config.budgetDb),
       notion.queryDatabase(config.expenseDb, filter),
@@ -210,10 +208,22 @@ export function createFinanceRepository({ notion, state, config, now = () => new
       notion.queryDatabase(config.transferDb, filter),
       notion.queryDatabase(config.fundGroupDb),
       notion.queryDatabase(config.incomeDb, filter),
-      notion.queryDatabase(config.otherIncomeDb, filter),
-      notion.queryDatabase(config.expenseDb, previousFilter),
-      notion.queryDatabase(config.otherIncomeDb, previousFilter)
+      notion.queryDatabase(config.otherIncomeDb, filter)
     ]);
+    let historicalIncomeRows = [];
+    let historicalOtherIncomeRows = [];
+    let historicalExpenseRows = [];
+    let historicalTransferRows = [];
+    const currentRows = readFinanceRows_({ incomeRows, otherIncomeRows, expenseRows, transferRows });
+    if (historyLookupRequired_(currentRows)) {
+      const historyFilter = historyBeforeMonthFilterFor(t);
+      [historicalIncomeRows, historicalOtherIncomeRows, historicalExpenseRows, historicalTransferRows] = await Promise.all([
+        notion.queryDatabase(config.incomeDb, historyFilter),
+        notion.queryDatabase(config.otherIncomeDb, historyFilter),
+        notion.queryDatabase(config.expenseDb, historyFilter),
+        notion.queryDatabase(config.transferDb, historyFilter)
+      ]);
+    }
     const model = buildAccountSpendingData_(
       t,
       categoryRows,
@@ -225,8 +235,10 @@ export function createFinanceRepository({ notion, state, config, now = () => new
       {
         incomeRows,
         otherIncomeRows,
-        previousExpenseRows,
-        previousOtherIncomeRows,
+        historicalIncomeRows,
+        historicalOtherIncomeRows,
+        historicalExpenseRows,
+        historicalTransferRows,
         outsideThreshold: config.outsideBudgetThreshold,
         passThroughKeywords: config.passThroughKeywords,
         passThroughCategories: config.passThroughCategories,
