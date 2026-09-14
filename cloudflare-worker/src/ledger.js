@@ -94,7 +94,7 @@ export function buildFundLoanLedger_(rows = [], fundGroups = [], {
       } else if (!lender && chronologyOnly_(parts[0].replace(/^(?:tien|quy)\b\s*/, ""))) {
         onIssue(row, "missing_required_data", ["Quỹ liên quan"]);
       }
-      if (!lender || (row.fundGroupId && row.fundGroupId !== lender.id)
+      if (!lender || borrower?.id === lender.id || (row.fundGroupId && row.fundGroupId !== lender.id)
         || borrowers.some((resolved) => !resolved || resolved.id !== borrower?.id)) {
         unmatched.push({ ...row, unmatchedAmount: row.amount, reason: "unidentified-fund-repayment" });
         continue;
@@ -175,6 +175,7 @@ export function buildFinanceLedger_({
     if (missing.length) onIssue(row, "missing_required_data", missing);
   }
   const accountNamesById = new Map(accountRows.map((row) => [row.id, propertyText_(row.properties?.["Phương Thức Thanh Toán"])]));
+  validateExplicitConflicts_(currentRows, accountNamesById, fundGroupRows, onIssue);
   const categoryNamesById = new Map(categoryRows.map((row) => [row.id, propertyText_(row.properties?.["Loại Chi Phí"])]));
   const loanCategoryIds = new Set([...categoryNamesById].filter(([, name]) => normalizeSearchText_(name) === "vay va tra").map(([id]) => id));
   const unresolvedPersonalRows = [];
@@ -345,6 +346,62 @@ function missingFields_(row) {
     if (!row.toAccountId) missing.push("Đến Tài Khoản");
   }
   return missing;
+}
+
+function validateExplicitConflicts_(rows, accountNamesById, fundGroups, onIssue) {
+  const accounts = [...accountNamesById].map(([id, name]) => ({ id, name, key: normalizeSearchText_(name) }));
+  const groups = fundGroups.map((group) => ({
+    id: group.id, name: propertyText_(group.properties?.["Tên Nhóm Quỹ"]),
+    keys: [propertyText_(group.properties?.["Tên Nhóm Quỹ"]), ...propertyText_(group.properties?.["Tên Cũ"]).split(",")]
+      .map(fundNameKey_).filter(Boolean)
+  }));
+  const clean = (phrase) => phrase.trim().replace(/[.,]+$/, "");
+  for (const row of rows) {
+    const directions = [...row.normalizedText.matchAll(/\b(tu|sang|vao|den|thanh toan bang)\s+(.+?)(?=\s+(?:tu|sang|vao|den|de|chuyen|thanh toan bang)\s+|[|;]|$)/g)];
+    for (const [, direction, phrase] of directions) {
+      const payment = direction === "thanh toan bang";
+      if ((row.kind === "transfer") === payment) continue;
+      const matches = accounts.filter((account) => account.key && account.key === clean(phrase));
+      if (matches.length !== 1) continue;
+      const relationId = payment ? row.accountId : direction === "tu" ? row.fromAccountId : row.toAccountId;
+      const related = accounts.find((account) => account.id === relationId && account.name);
+      if (!related || related.id === matches[0].id) continue;
+      const field = payment ? "Phương Thức Thanh Toán" : direction === "tu" ? "Từ Tài Khoản" : "Đến Tài Khoản";
+      onIssue(row, "conflicting_data", [`Ghi chú: ${matches[0].name}; ${field}: ${related.name}`]);
+    }
+    if (row.kind !== "transfer" || !row.fromAccountId || row.fromAccountId !== row.toAccountId
+      || normalizeSearchText_(accountNamesById.get(row.fromAccountId)) !== "quy momo") continue;
+
+    const related = groups.find((group) => group.id === row.fundGroupId);
+    if (!row.fundGroupId) onIssue(row, "missing_required_data", ["Nhóm Quỹ"]);
+    const sourcePhrases = directions.filter(([, direction]) => direction === "tu").map((match) => match[2]);
+    const destinationPhrases = directions.filter(([, direction]) => ["sang", "vao", "den"].includes(direction)).map((match) => match[2]);
+    for (const clause of row.normalizedText.split(/[|;]/)) {
+      const opening = /\bmuon(?:\s+tien)?(?:\s+cua)?\s+(.+?)(?=\s+(?:chuyen|sang|cho|de)\b|$)/.exec(clause);
+      if (opening) sourcePhrases.push(opening[1]);
+      const repayment = /\b(?:tra lai|hoan lai|tra no)\b/.exec(clause);
+      if (!repayment) continue;
+      const before = clause.slice(0, repayment.index).trim().replace(/^tu\s+/, "");
+      if (before) sourcePhrases.push(before);
+      const after = clause.slice(repayment.index + repayment[0].length).trim()
+        .replace(/^(?:[\d.,]+(?![\d.,/-])\s*(?:d|dong)?\s*)?(?:tien\s+)?(?:cho\s+)?/, "")
+        .split(/\s+tu\s+/);
+      destinationPhrases.push(after[0]);
+    }
+    const sources = sourcePhrases.map((phrase) => resolveFund_(clean(phrase), groups)).filter(Boolean);
+    const destinations = destinationPhrases.map((phrase) => resolveFund_(clean(phrase), groups)).filter(Boolean);
+    const conflictingDestinations = related ? destinations.filter((group) => group.id !== related.id) : [];
+    if (conflictingDestinations.length) {
+      onIssue(row, "conflicting_data", conflictingDestinations.map((group) => `Nội dung: ${group.name}; Nhóm Quỹ: ${related.name}`));
+      continue;
+    }
+    const sourceIds = new Set(sources.map((group) => group.id));
+    if (related && sourceIds.size === 1 && sourceIds.has(related.id)) {
+      onIssue(row, "conflicting_data", [`Quỹ liên quan: ${related.name}; Nhóm Quỹ: ${related.name} (cần hai quỹ khác nhau)`]);
+    } else if (sourceIds.size !== 1) {
+      onIssue(row, "missing_required_data", ["Quỹ liên quan"]);
+    }
+  }
 }
 
 const PERSONAL_LOAN_PATTERNS = {

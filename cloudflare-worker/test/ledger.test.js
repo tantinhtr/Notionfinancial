@@ -32,6 +32,130 @@ const loanCategories = [{ id: "loan", properties: {
   "Loại Chi Phí": { title: [{ plain_text: "Vay Và Trả" }] }
 } }];
 
+test("explicit transfer account text conflicting with relations reports both values", () => {
+  const result = buildFinanceLedger_({
+    accountRows: [account("bank", "Banking", 0, 0), account("cash", "Grap Tiền Mặt", 0, 0), account("momo", "Momo", 0, 0)],
+    transferRows: [transfer("conflict", "Chuyển từ Banking sang Momo", "cash", "momo", 500000, "2026-09-15", "")]
+  });
+  assert.deepEqual(result.dataIssues.map(({ type, details }) => ({ type, details })), [{
+    type: "conflicting_data", details: ["Ghi chú: Banking; Từ Tài Khoản: Grap Tiền Mặt"]
+  }]);
+});
+
+test("explicit destination conflicts merge per row and never compare the source with destination", () => {
+  for (const direction of ["sang", "vào", "đến"]) {
+    const result = buildFinanceLedger_({
+      accountRows: [account("bank", "Banking", 0, 0), account("momo", "Momo", 0, 0)],
+      transferRows: [transfer("conflict", `Chuyển từ Momo ${direction} Banking`, "bank", "momo", 500000, "2026-09-15", "")]
+    });
+    assert.deepEqual(result.dataIssues.map((issue) => issue.details), [[
+      "Ghi chú: Momo; Từ Tài Khoản: Banking", "Ghi chú: Banking; Đến Tài Khoản: Momo"
+    ]]);
+  }
+});
+
+test("explicit payment account compares only the payment relation for all income and expense kinds", () => {
+  const result = buildFinanceLedger_({
+    accountRows: [account("bank", "Banking", 0, 0), account("momo", "Momo", 0, 0)],
+    incomeRows: [income("main", "Thu", "salary", "momo", 100, "2026-09-15", "Thanh toán bằng Banking")],
+    otherIncomeRows: [income("other", "Thu khác", "gift", "momo", 200, "2026-09-15", "thanh toán bằng BANKING.")],
+    expenseRows: [expense("expense", "Chi", "food", "momo", 300, "2026-09-15", "Thanh toán bằng Banking")]
+  });
+  assert.deepEqual(result.dataIssues.map((issue) => [issue.rowId, issue.details]), [
+    ["expense", ["Ghi chú: Banking; Phương Thức Thanh Toán: Momo"]],
+    ["main", ["Ghi chú: Banking; Phương Thức Thanh Toán: Momo"]],
+    ["other", ["Ghi chú: Banking; Phương Thức Thanh Toán: Momo"]]
+  ]);
+});
+
+test("vague text never overrides valid structured account and fund relations", () => {
+  for (const title of ["Chuyển tiền chi tiêu", "Banking và Momo", "Chuyển từ ngân hàng lạ sang Momo", "Chuyển từ Bank sang Momo", "Chuyển từ Banking hoặc Momo sang Momo", "Chuyển từ Banking cá nhân sang Momo", "Chuyển từ Banking sang Momo"]) {
+    const result = buildFinanceLedger_({
+      accountRows: [account("bank", "Banking", 0, 0), account("momo", "Momo", 0, 0)],
+      transferRows: [transfer("valid", title, "bank", "momo", 500000, "2026-09-15", "")],
+      expenseRows: [expense("valid-payment", "Momo", "food", "bank", 100, "2026-09-15", "Từ Momo sang Banking")]
+    });
+    assert.deepEqual(result.dataIssues, [], title);
+  }
+  const ambiguous = buildFinanceLedger_({
+    accountRows: [account("a", "Banking", 0, 0), account("b", "BANKING", 0, 0), account("momo", "Momo", 0, 0)],
+    transferRows: [transfer("ambiguous", "Chuyển từ Banking sang Momo", "momo", "momo", 100, "2026-09-15", "")]
+  });
+  assert.deepEqual(ambiguous.dataIssues, []);
+});
+
+test("same-account Quỹ Momo requires structured group and one explicit counterpart even at zero amount", () => {
+  for (const amount of [0, 999999]) {
+    const result = buildFinanceLedger_({
+      accountRows: [account("fund-account", "Quỹ Momo", 9000000, 1000000)], fundGroupRows: loanFunds,
+      transferRows: [fundTransfer("missing", "Chuyển quỹ", amount, "")],
+      historicalTransferRows: [fundTransfer("historical", "Chuyển quỹ", amount, "", "2026-08-01")]
+    });
+    assert.deepEqual(result.dataIssues.map((issue) => [issue.rowId, issue.type, issue.details]), [
+      ["missing", "missing_required_data", ["Nhóm Quỹ", "Quỹ liên quan"]]
+    ]);
+  }
+});
+
+test("same-account Quỹ Momo distinguishes a same-fund conflict from absent or ambiguous counterpart", () => {
+  for (const [title, groups, type] of [
+    ["Mượn quỹ thiết yếu", loanFunds, "conflicting_data"],
+    ["Chuyển từ quỹ thiết yếu sang quỹ thiết yếu", loanFunds, "conflicting_data"],
+    ["Nhu cầu thiết yếu trả lại cho quỹ thiết yếu", loanFunds, "conflicting_data"],
+    ["Chuyển quỹ", loanFunds, "missing_required_data"],
+    ["Chuyển từ quỹ lạ", loanFunds, "missing_required_data"],
+    ["Chuyển từ quỹ tiết kiệm", [...loanFunds, fundGroup("short", "Tiết kiệm ngắn hạn")], "missing_required_data"]
+  ]) {
+    const result = buildFinanceLedger_({
+      accountRows: [account("fund-account", "Quỹ Momo", 0, 0)], fundGroupRows: groups,
+      transferRows: [fundTransfer("row", title, 100000)]
+    });
+    assert.deepEqual(result.dataIssues.map((issue) => issue.type), [type], title);
+    assert.match(result.dataIssues[0].details.join(" "), type === "conflicting_data" ? /Nhu cầu thiết yếu.*Nhóm Quỹ.*Nhu cầu thiết yếu/ : /Quỹ liên quan/);
+  }
+});
+
+test("same-account Quỹ Momo resolves real fund aliases and compares the receiving fund", () => {
+  for (const [title, group, conflict] of [
+    ["Chuyển từ quỹ dự phòng sang quỹ thiết yếu", "essential", false],
+    ["Chuyển từ quỹ dự phòng sang quỹ thiết yếu", "savings", true],
+    ["Nhu cầu thiết yếu trả lại cho quỹ tiết kiệm", "essential", true]
+  ]) {
+    const result = buildFinanceLedger_({
+      accountRows: [account("fund-account", "Quỹ Momo", 0, 0)],
+      fundGroupRows: [...loanFunds, fundGroup("reserve", "Dự trữ", "Dự phòng")],
+      transferRows: [fundTransfer("row", title, 200000, group)]
+    });
+    assert.deepEqual(result.dataIssues.map((issue) => issue.type), conflict ? ["conflicting_data"] : [], title);
+    if (conflict) assert.match(result.dataIssues[0].details.join(" "), /Nhu cầu thiết yếu.*Tiết kiệm dài hạn|Tiết kiệm dài hạn.*Nhu cầu thiết yếu/);
+  }
+});
+
+test("same-account Quỹ Momo requires explicit repayment source even when history has one borrower", () => {
+  const result = buildFinanceLedger_({
+    accountRows: [account("fund-account", "Quỹ Momo", 0, 0)], fundGroupRows: loanFunds,
+    historicalTransferRows: [fundTransfer("old", "Mượn quỹ tiết kiệm", 200000, "essential", "2026-08-01")],
+    transferRows: [fundTransfer("repay", "Trả lại cho quỹ tiết kiệm", 200000, "savings")]
+  });
+  assert.deepEqual(result.dataIssues.map((issue) => [issue.rowId, issue.type, issue.details]), [
+    ["repay", "missing_required_data", ["Quỹ liên quan"]]
+  ]);
+  assert.equal(result.fundLoans.loans[0].outstanding, 0);
+});
+
+test("explicit conflict validation excludes historical rows and does not replace missing-field issues", () => {
+  const row = transfer("current", "Chuyển từ Banking sang Momo", "momo", "momo", 123, "2026-09-15", "");
+  delete row.properties["Loại Chuyển Đổi"];
+  const result = buildFinanceLedger_({
+    accountRows: [account("bank", "Banking", 0, 0), account("momo", "Momo", 0, 0)],
+    transferRows: [row],
+    historicalTransferRows: [transfer("old", "Chuyển từ Banking sang Momo", "momo", "momo", 123, "2026-08-15", "")]
+  });
+  assert.deepEqual(result.dataIssues.map((issue) => [issue.rowId, issue.type, issue.amount]), [
+    ["current", "missing_required_data", 123], ["current", "conflicting_data", 123]
+  ]);
+});
+
 test("current personal repayments report history_not_found only after all earlier principal", () => {
   for (const amount of [500000, 1100000]) {
     const result = buildFinanceLedger_({
