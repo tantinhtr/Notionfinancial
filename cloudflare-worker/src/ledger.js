@@ -39,7 +39,8 @@ function fundNameKey_(name) {
 
 function positiveEvidenceText_(text) {
   // Decline the entire clause when negation makes its direction/action uncertain.
-  return text.split(/[|;]/).filter((clause) => !/\bkhong\b/.test(clause)).join(" | ").trim();
+  // A comma separates clauses unless it is inside a written number.
+  return text.split(/[|;]|(?<!\d),|,(?!\d)/).filter((clause) => !/\bkhong\b/.test(clause)).join(" | ").trim();
 }
 
 function resolveFund_(phrase, groups) {

@@ -221,6 +221,44 @@ test("review task 4 same-fund history suppression stays inside the validated Qu�
   }
 });
 
+test("review task 4 unrelated fee negation retains positive transfer direction after a comma", () => {
+  const result = buildFinanceLedger_({
+    accountRows: [account("bank", "Banking", 0, 0), account("momo", "Momo", 0, 0)],
+    transferRows: [transfer("row", "Không tính phí, chuyển từ Banking sang Momo", "momo", "momo", 100, "2026-09-15", "")]
+  });
+  assert.deepEqual(result.dataIssues.map((issue) => issue.details), [["Ghi chú: Banking; Từ Tài Khoản: Momo"]]);
+});
+
+test("review task 4 unrelated fee negation retains positive payment after a comma", () => {
+  const result = buildFinanceLedger_({
+    accountRows: [account("bank", "Banking", 0, 0), account("momo", "Momo", 0, 0)],
+    expenseRows: [expense("row", "Chi", "food", "momo", 100, "2026-09-15", "Không thu phí, thanh toán bằng Banking")]
+  });
+  assert.deepEqual(result.dataIssues.map((issue) => issue.details), [["Ghi chú: Banking; Phương Thức Thanh Toán: Momo"]]);
+});
+
+test("review task 4 unrelated interest negation retains positive fund opening after a comma", () => {
+  const result = buildFinanceLedger_({
+    accountRows: [account("fund-account", "Quỹ Momo", 0, 0)], fundGroupRows: loanFunds,
+    transferRows: [fundTransfer("row", "Không tính lãi, mượn quỹ tiết kiệm", 100000)]
+  });
+  assert.deepEqual(result.dataIssues, []);
+  assert.equal(result.fundLoans.loans[0].lender, "Tiết kiệm dài hạn");
+  assert.equal(result.fundLoans.loans[0].principal, 100000);
+});
+
+test("review task 4 comma negation boundary preserves positive repayments and numeric commas", () => {
+  const result = buildFinanceLedger_({
+    accountRows: [account("fund-account", "Quỹ Momo", 0, 0), account("bank", "Banking", 0, 0)], fundGroupRows: loanFunds,
+    historicalTransferRows: [fundTransfer("loan", "Mượn quỹ tiết kiệm", 100000, "essential", "2026-08-01")],
+    historicalExpenseRows: [expense("advance", "Dùng tiền tháng trước", "food", "bank", 100000, "2026-08-01")],
+    transferRows: [fundTransfer("repay", "Không tính lãi, Nhu cầu thiết yếu trả lại 100,000 cho quỹ tiết kiệm", 100000, "savings")],
+    otherIncomeRows: [income("refund", "Không tính phí, Hoàn lại Banking", "refund", "bank", 100000, "2026-09-02")]
+  });
+  assert.deepEqual(result.dataIssues, []);
+  assert.equal(result.fundLoans.loans[0].outstanding, 0);
+});
+
 test("current personal repayments report history_not_found only after all earlier principal", () => {
   for (const amount of [500000, 1100000]) {
     const result = buildFinanceLedger_({
