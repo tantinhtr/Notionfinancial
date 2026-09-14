@@ -23,6 +23,16 @@ function numericProperty_(property) {
   return Number.isFinite(value) ? value : 0;
 }
 
+function validTransactionDate_(value) {
+  if (!/^\d{4}-\d{2}-\d{2}(?:T.+)?$/.test(value) || !Number.isFinite(Date.parse(value))) return false;
+  const day = value.slice(0, 10);
+  return new Date(day + "T00:00:00Z").toISOString().slice(0, 10) === day;
+}
+
+function chronologyOnly_(text) {
+  return /^(?:(?:cua|tu|vao)\s+)?(?:thang\s+(?:truoc|nay|sau|\d{1,2}(?:[/-]\d{4})?)(?:\s+nam\s+\d{4})?|ngay\s+(?:\d{1,2}[/-]\d{1,2}(?:[/-]\d{4})?|\d{4}-\d{2}-\d{2})|nam\s+(?:truoc|nay|\d{4})|truoc\s+do|hom\s+qua)?$/.test(text.trim());
+}
+
 function fundNameKey_(name) {
   return normalizeSearchText_(name).replace(/^quy\s+/, "").trim();
 }
@@ -80,7 +90,7 @@ export function buildFundLoanLedger_(rows = [], fundGroups = [], {
         onIssue(row, "conflicting_data", [`Nội dung: ${lender.name}; Nhóm Quỹ: ${relatedGroup.name}`]);
       } else if (new Set(borrowers.filter(Boolean).map((resolved) => resolved.id)).size > 1) {
         onIssue(row, "conflicting_data", [`Quỹ liên quan: ${borrowers.filter(Boolean).map((group) => group.name).join("; ")}`]);
-      } else if (!lender && /^(?:tien)?$/.test(parts[0])) {
+      } else if (!lender && chronologyOnly_(parts[0].replace(/^(?:tien|quy)\b\s*/, ""))) {
         onIssue(row, "missing_required_data", ["Quỹ liên quan"]);
       }
       if (!lender || (row.fundGroupId && row.fundGroupId !== lender.id)
@@ -119,7 +129,9 @@ export function buildFundLoanLedger_(rows = [], fundGroups = [], {
     const lender = resolveFund_(opening[1], groups);
     const sameAccount = row.fromAccountId && row.fromAccountId === row.toAccountId;
     if (!borrower && sameAccount) onIssue(row, "missing_required_data", ["Nhóm Quỹ"]);
-    if (sameAccount && /^(?:tien|quy)?$/.test(opening[1])) onIssue(row, "missing_required_data", ["Quỹ liên quan"]);
+    if (sameAccount && !lender && chronologyOnly_(opening[1].replace(/^(?:tien|quy)\b\s*/, ""))) {
+      onIssue(row, "missing_required_data", ["Quỹ liên quan"]);
+    }
     if (!borrower || !lender || borrower.id === lender.id
       || (sameAccount && (borrower.accountId !== row.toAccountId || lender.accountId !== row.fromAccountId))) {
       unmatched.push({ ...row, unmatchedAmount: row.amount, reason: "unidentified-fund-loan" });
@@ -151,7 +163,7 @@ export function buildFinanceLedger_({
     expenseRows: historicalExpenseRows,
     transferRows: historicalTransferRows
   });
-  const semanticRows = [...historicalRows, ...currentRows];
+  const semanticRows = [...historicalRows.filter((row) => validTransactionDate_(row.date)), ...currentRows];
   const currentRowIds = new Set(currentRows.map((row) => row.id));
   const currentRowsById = new Map(currentRows.map((row) => [row.id, row]));
   const issuesByKey = new Map();
@@ -189,7 +201,10 @@ export function buildFinanceLedger_({
   for (const row of currentRows) {
     if (missingFields_(row).length) continue;
     if (loanCategoryIds.has(row.categoryId) || unresolvedPersonalRows.some((item) => item.id === row.id)) {
-      if ([row.title, row.note].some((text) => /^(?:tra(?: lai)? (?:no|tien muon)(?: cho)?|cho muon(?: tien)?|muon(?: tien)?|nhan (?:lai )?(?:tien )?(?:tra no|tra lai))(?:\s+(?:thang truoc|truoc do))?$/.test(normalizeSearchText_(text)))) {
+      if ([row.title, row.note].some((text) => {
+        const action = normalizeSearchText_(text).match(/^(?:tra(?: lai)? (?:no|tien muon)(?: cho)?|cho muon(?: tien)?|muon(?: tien)?|nhan (?:lai )?(?:tien )?(?:tra no|tra lai))(?:\s+(.+))?$/);
+        return action && chronologyOnly_(action[1] || "");
+      })) {
         onIssue(row, "missing_required_data", ["Người liên quan"]);
       }
     }
@@ -349,7 +364,7 @@ function personalLoanParty_(row, patternName) {
     const partyText = String(value || "").replace(/\s+(?:mượn|muon)\s+(?:trước đó|truoc do).*$/iu, "");
     const normalizedMatch = normalizeSearchText_(partyText).match(PERSONAL_LOAN_PATTERNS[patternName]);
     if (!normalizedMatch) continue;
-    if (/^(?:thang truoc|truoc do)$/.test(normalizedMatch[1])) continue;
+    if (chronologyOnly_(normalizedMatch[1])) continue;
 
     const displayText = partyText.toLowerCase().replace(/\s+/g, " ").trim();
     const displayMatch = displayText.match(PERSONAL_LOAN_DISPLAY_PATTERNS[patternName]);
@@ -590,7 +605,7 @@ function validateReimbursements_(rows, accountNamesById, fundGroups, personalLoa
       const prefixes = beneficiaries.filter((item) => item.kind === "fund" && item.keys.some((key) => key.startsWith(fundNameKey_(phrase) + " ")));
       return prefixes.length === 1 ? prefixes : [];
     }))];
-    if (!phrases.length) {
+    if (!matches.length && phrases.every(chronologyOnly_)) {
       onIssue(row, "missing_required_data", ["Tài khoản hoặc quỹ cần hoàn"]);
       continue;
     }
@@ -600,7 +615,7 @@ function validateReimbursements_(rows, accountNamesById, fundGroups, personalLoa
     }
     if (matches.length !== 1) continue;
     const beneficiary = matches[0];
-    const relationId = beneficiary.kind === "fund" ? row.fundGroupId : row.kind === "transfer" ? row.toAccountId : "";
+    const relationId = beneficiary.kind === "fund" ? row.fundGroupId : row.kind === "transfer" ? row.toAccountId : row.accountId;
     const relation = beneficiaries.find((item) => item.kind === beneficiary.kind && item.id === relationId);
     if (relation && relation.id !== beneficiary.id) {
       onIssue(row, "conflicting_data", [`Bên cần hoàn: ${beneficiary.name}; Quan hệ: ${relation.name}`]);

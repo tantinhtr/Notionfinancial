@@ -206,6 +206,78 @@ test("an unresolved fund phrase does not invent a conflict with the only known b
   assert.deepEqual(result.dataIssues, []);
 });
 
+test("review reimbursement account conflicts apply to income and expense even with matching history", () => {
+  for (const kind of ["incomeRows", "otherIncomeRows", "expenseRows"]) {
+    const page = kind === "expenseRows"
+      ? expense("refund", "Hoàn lại Banking", "refund", "momo", 100000, "2026-09-07")
+      : income("refund", "Hoàn lại Banking", "refund", "momo", 100000, "2026-09-07");
+    const result = buildFinanceLedger_({
+      accountRows: [account("bank", "Banking", 0, 0), account("momo", "Momo", 0, 0)],
+      historicalExpenseRows: [expense("advance", "Dùng tiền tháng trước", "food", "bank", 100000, "2026-08-01")],
+      [kind]: [page]
+    });
+    assert.deepEqual(result.dataIssues.map((issue) => [issue.type, issue.details]), [
+      ["conflicting_data", ["Bên cần hoàn: Banking; Quan hệ: Momo"]]
+    ], kind);
+  }
+});
+
+test("review chronology alone does not identify a fund or reimbursement beneficiary", () => {
+  for (const suffix of ["tháng trước", "tháng 8", "trước đó", "ngày 14/08/2026", "tháng 8 năm 2026", "hôm qua"]) {
+    const result = buildFinanceLedger_({
+      fundGroupRows: loanFunds,
+      accountRows: [account("bank", "Banking", 0, 0)],
+      transferRows: [
+        fundTransfer("open", `Mượn tiền ${suffix}`, 100000),
+        fundTransfer("repay", `Trả lại tiền ${suffix}`, 100000, "savings")
+      ],
+      otherIncomeRows: [income("refund", `Hoàn lại ${suffix}`, "refund", "bank", 100000, "2026-09-02")]
+    });
+    assert.deepEqual(result.dataIssues.map((issue) => [issue.rowId, issue.type, issue.details]), [
+      ["open", "missing_required_data", ["Quỹ liên quan"]],
+      ["repay", "missing_required_data", ["Quỹ liên quan"]],
+      ["refund", "missing_required_data", ["Tài khoản hoặc quỹ cần hoàn"]]
+    ], suffix);
+  }
+  const unknown = buildFinanceLedger_({
+    fundGroupRows: loanFunds,
+    transferRows: [fundTransfer("unknown", "Mượn tiền của quỹ chưa đặt tên", 100000)],
+    otherIncomeRows: [income("refund", "Hoàn lại nơi đã ứng", "refund", "bank", 100000, "2026-09-02")]
+  });
+  assert.deepEqual(unknown.dataIssues, []);
+});
+
+test("review chronology alone cannot become a personal repayment counterparty", () => {
+  for (const suffix of ["tháng 8", "tháng 08/2026", "tháng 8 năm 2026", "ngày 14/08/2026", "ngày 2026-08-14", "hôm qua", "trước đó"]) {
+    const result = buildFinanceLedger_({
+      categoryRows: loanCategories,
+      expenseRows: [expense("repay", `Trả nợ ${suffix}`, "loan", "bank", 100000, "2026-09-07")]
+    });
+    assert.deepEqual(result.dataIssues.map((issue) => [issue.type, issue.details]), [
+      ["missing_required_data", ["Người liên quan"]]
+    ], suffix);
+    assert.deepEqual(result.personalLoans.repayments, []);
+  }
+});
+
+test("review invalid historical dates cannot establish earlier principal in any ledger family", () => {
+  for (const date of ["", "not-a-date", "2026-02-30", "2026-08-01"]) {
+    const result = buildFinanceLedger_({
+      categoryRows: loanCategories, fundGroupRows: loanFunds,
+      accountRows: [account("bank", "Banking", 0, 0)],
+      historicalExpenseRows: [expense("advance", "Dùng tiền tháng trước", "food", "bank", 100000, date)],
+      historicalOtherIncomeRows: [income("personal-open", "Tố cho mượn tiền", "loan", "bank", 100000, date)],
+      historicalTransferRows: [fundTransfer("fund-open", "Mượn quỹ tiết kiệm", 100000, "essential", date)],
+      otherIncomeRows: [income("refund", "Hoàn lại Banking", "refund", "bank", 100000, "2026-09-07")],
+      expenseRows: [expense("personal-pay", "Trả nợ Tố", "loan", "bank", 100000, "2026-09-07")],
+      transferRows: [fundTransfer("fund-pay", "Trả lại cho quỹ tiết kiệm", 100000, "savings", "2026-09-07")]
+    });
+    assert.deepEqual(result.dataIssues.map((issue) => [issue.rowId, issue.type]), date === "2026-08-01" ? [] : [
+      ["fund-pay", "history_not_found"], ["personal-pay", "history_not_found"], ["refund", "history_not_found"]
+    ], date);
+  }
+});
+
 function fundTransfer(id, title, amount, groupId = "essential", date = "2026-09-01") {
   const page = transfer(id, title, "fund-account", "fund-account", amount, date, "");
   page.properties["Nhóm Quỹ"] = { relation: groupId ? [{ id: groupId }] : [] };
