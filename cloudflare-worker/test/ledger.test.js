@@ -278,6 +278,63 @@ test("review invalid historical dates cannot establish earlier principal in any 
   }
 });
 
+test("review round 2 numeric-only chronology is never a party in any reconciliation family", () => {
+  for (const suffix of ["14/08/2026", "08/2026", "14-08-2026", "08-2026", "2026-08-14"]) {
+    const result = buildFinanceLedger_({
+      categoryRows: loanCategories, fundGroupRows: loanFunds,
+      accountRows: [account("bank", "Banking", 0, 0)],
+      expenseRows: [expense("person", `Trả nợ ${suffix}`, "loan", "bank", 100000, "2026-09-07")],
+      transferRows: [
+        fundTransfer("open", `Mượn tiền ${suffix}`, 100000),
+        fundTransfer("repay", `Trả lại tiền ${suffix}`, 100000, "savings")
+      ],
+      otherIncomeRows: [income("refund", `Hoàn lại ${suffix}`, "refund", "bank", 100000, "2026-09-07")]
+    });
+    assert.deepEqual(result.dataIssues.map((issue) => [issue.rowId, issue.type, issue.details]), [
+      ["open", "missing_required_data", ["Quỹ liên quan"]],
+      ["repay", "missing_required_data", ["Quỹ liên quan"]],
+      ["person", "missing_required_data", ["Người liên quan"]],
+      ["refund", "missing_required_data", ["Tài khoản hoặc quỹ cần hoàn"]]
+    ], suffix);
+    assert.deepEqual(result.personalLoans.repayments, []);
+  }
+});
+
+test("review round 2 invalid current dates retain aggregates but cannot establish earlier principal", () => {
+  for (const date of ["", "not-a-date", "2026-02-30", "2026-09-01"]) {
+    const valid = date === "2026-09-01";
+    const result = buildFinanceLedger_({
+      categoryRows: loanCategories, fundGroupRows: loanFunds,
+      accountRows: [account("bank", "Banking", 0, 0)],
+      expenseRows: [
+        expense("advance", "Dùng tiền tháng trước", "food", "bank", 100000, date),
+        expense("personal-pay", "Trả nợ Tố", "loan", "bank", 100000, "2026-09-07")
+      ],
+      otherIncomeRows: [
+        income("personal-open", "Tố cho mượn tiền", "loan", "bank", 100000, date),
+        income("refund", "Hoàn lại Banking", "refund", "bank", 100000, "2026-09-07")
+      ],
+      transferRows: [
+        fundTransfer("fund-open", "Mượn quỹ tiết kiệm", 100000, "essential", date),
+        fundTransfer("fund-pay", "Trả lại cho quỹ tiết kiệm", 100000, "savings", "2026-09-07")
+      ],
+      options: { sourceAccountNames: ["Banking"] }
+    });
+    assert.deepEqual(result.dataIssues.filter((issue) => issue.type === "history_not_found").map((issue) => issue.rowId),
+      valid ? [] : ["fund-pay", "personal-pay", "refund"], date);
+    if (date === "") {
+      assert.deepEqual(result.dataIssues.filter((issue) => issue.type === "missing_required_data").map((issue) => [issue.rowId, issue.details]), [
+        ["advance", ["Ngày"]], ["fund-open", ["Ngày"]], ["personal-open", ["Ngày"]]
+      ]);
+    }
+    assert.equal(result.rows.length, 6);
+    assert.equal(result.rows.find((row) => row.id === "advance").amount, 100000);
+    assert.equal(result.fundLoans.allocationAdjustments.essential, 100000);
+    assert.equal(result.personalLoans.liabilities[0].principal, 100000);
+    assert.equal(result.previousMonthAdvances.accounts[0].principal, 100000);
+  }
+});
+
 function fundTransfer(id, title, amount, groupId = "essential", date = "2026-09-01") {
   const page = transfer(id, title, "fund-account", "fund-account", amount, date, "");
   page.properties["Nhóm Quỹ"] = { relation: groupId ? [{ id: groupId }] : [] };

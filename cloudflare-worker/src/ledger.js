@@ -30,7 +30,7 @@ function validTransactionDate_(value) {
 }
 
 function chronologyOnly_(text) {
-  return /^(?:(?:cua|tu|vao)\s+)?(?:thang\s+(?:truoc|nay|sau|\d{1,2}(?:[/-]\d{4})?)(?:\s+nam\s+\d{4})?|ngay\s+(?:\d{1,2}[/-]\d{1,2}(?:[/-]\d{4})?|\d{4}-\d{2}-\d{2})|nam\s+(?:truoc|nay|\d{4})|truoc\s+do|hom\s+qua)?$/.test(text.trim());
+  return /^(?:(?:cua|tu|vao)\s+)?(?:thang\s+(?:truoc|nay|sau|\d{1,2}(?:[/-]\d{4})?)(?:\s+nam\s+\d{4})?|ngay\s+(?:\d{1,2}[/-]\d{1,2}(?:[/-]\d{4})?|\d{4}-\d{2}-\d{2})|\d{1,2}[/-](?:\d{1,2}[/-])?\d{4}|\d{4}-\d{2}-\d{2}|nam\s+(?:truoc|nay|\d{4})|truoc\s+do|hom\s+qua)?$/.test(text.trim());
 }
 
 function fundNameKey_(name) {
@@ -66,6 +66,7 @@ export function buildFundLoanLedger_(rows = [], fundGroups = [], {
     balanceAdjustments[toId] = (balanceAdjustments[toId] || 0) + amount;
   };
   const unmatched = [];
+  const datedRowIds = new Set(rows.filter((row) => validTransactionDate_(row.date)).map((row) => row.id));
   const orderedRows = rows.slice().sort((a, b) =>
     (a.date || "").localeCompare(b.date || "")
       || (a.createdTime || "").localeCompare(b.createdTime || "")
@@ -79,7 +80,7 @@ export function buildFundLoanLedger_(rows = [], fundGroups = [], {
       // A relation on a repayment names its receiving lender, never its borrower.
       const before = text.slice(0, repayment.index).trim().replace(/^tu\s+/, "");
       const after = text.slice(repayment.index + repayment[0].length).trim();
-      const parts = after.replace(/^(?:[\d.,]+\s*(?:d|dong)?\s*)?(?:tien\s+)?(?:cho\s+)?/, "").split(/\s+tu\s+/);
+      const parts = after.replace(/^(?:[\d.,]+(?![\d.,/-])\s*(?:d|dong)?\s*)?(?:tien\s+)?(?:cho\s+)?/, "").split(/\s+tu\s+/);
       const lender = resolveFund_(parts[0], groups);
       const borrowerPhrases = [before, ...parts.slice(1)].filter(Boolean);
       const borrowers = borrowerPhrases.map((phrase) => resolveFund_(phrase, groups));
@@ -99,6 +100,7 @@ export function buildFundLoanLedger_(rows = [], fundGroups = [], {
         continue;
       }
       const candidates = loans.filter((loan) => loan.lender === lender.name && loan.outstanding > 0
+        && datedRowIds.has(loan.openedBy)
         && (!borrower || loan.borrowerGroupId === borrower.id));
       if (!candidates.length || (!borrower && new Set(candidates.map((loan) => loan.borrowerGroupId)).size > 1)) {
         unmatched.push({ ...row, unmatchedAmount: row.amount, reason: "ambiguous-fund-repayment" });
@@ -397,7 +399,7 @@ function applyPersonalRepayment_(openItems, repaymentRow, partyInfo) {
 
   for (const entry of openItems) {
     if (remaining <= 0) break;
-    if (entry.partyKey !== partyInfo.key || entry.item.outstanding <= 0) continue;
+    if (entry.partyKey !== partyInfo.key || entry.item.outstanding <= 0 || !validTransactionDate_(entry.date)) continue;
 
     const applied = Math.min(remaining, entry.item.outstanding);
     entry.item.repaid += applied;
@@ -447,7 +449,7 @@ export function buildPersonalLoanLedger_(rows = [], options = {}) {
           sourceAccountName: accountName_(accountNamesById, row.accountId)
         };
         receivables.push(item);
-        openReceivables.push({ item, partyKey: lender.key });
+        openReceivables.push({ item, partyKey: lender.key, date: row.date });
         continue;
       }
 
@@ -482,7 +484,7 @@ export function buildPersonalLoanLedger_(rows = [], options = {}) {
       repaymentRows: []
     };
     liabilities.push(item);
-    openLiabilities.push({ item, partyKey: borrower.key });
+    openLiabilities.push({ item, partyKey: borrower.key, date: row.date });
   }
 
   return { receivables, liabilities, repayments, unmatched };
@@ -592,12 +594,12 @@ function validateReimbursements_(rows, accountNamesById, fundGroups, personalLoa
   ]);
   const obligations = [];
   for (const row of orderedFinanceRows_(rows)) {
-    if (isExplicitPreviousMonthUse_(row) && (row.kind === "expense" || row.kind === "transfer")) {
+    if (validTransactionDate_(row.date) && isExplicitPreviousMonthUse_(row) && (row.kind === "expense" || row.kind === "transfer")) {
       obligations.push({ accountId: row.accountId || row.fromAccountId, fundId: row.fundGroupId, remaining: row.amount });
     }
     if (!isExplicitReimbursement_(row) || personalIds.has(row.id) || fundIds.has(row.id)) continue;
     const phrases = [...row.normalizedText.matchAll(/\b(?:tra lai|hoan lai|cap bu)\s*(.*?)(?=\s+(?:tu|bang|thanh toan)\s+|[|;]|$)/g)]
-      .flatMap((match) => match[1].replace(/^(?:[\d.,]+\s*(?:d|dong)?\s*)?(?:tien\s*)?(?:cho\s*)?/, "").split(/\s+(?:va|hoac)\s+/))
+      .flatMap((match) => match[1].replace(/^(?:[\d.,]+(?![\d.,/-])\s*(?:d|dong)?\s*)?(?:tien\s*)?(?:cho\s*)?/, "").split(/\s+(?:va|hoac)\s+/))
       .map((phrase) => phrase.trim().replace(/[.,]+$/, "")).filter(Boolean);
     const matches = [...new Set(phrases.flatMap((phrase) => {
       const exact = beneficiaries.filter((item) => item.keys.includes(item.kind === "fund" ? fundNameKey_(phrase) : phrase));
