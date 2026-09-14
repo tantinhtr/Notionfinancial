@@ -63,6 +63,55 @@ test("finance ledger passes opening sources and loan category names to its compo
   assert.equal(result.rows.find((row) => row.id === "grab").categoryId, "other-income-category");
 });
 
+test("current rows report their exact missing required Notion properties once", () => {
+  const incomeRow = income("income", "Thu chính", "", "", 100000, "2026-09-02");
+  const otherRow = income("other", "Thu khác", "", "", 200000, "2026-09-03");
+  const expenseRow = expense("expense", "Ăn tối", "", "", 35000, "2026-09-01");
+  const transferRow = transfer("transfer", "Chuyển tiền", "", "", 50000, "2026-09-04", "");
+  transferRow.properties["Loại Chuyển Đổi"] = { select: null };
+
+  const { dataIssues } = buildFinanceLedger_({
+    accountRows: [],
+    categoryRows: [],
+    incomeRows: [incomeRow],
+    otherIncomeRows: [otherRow],
+    expenseRows: [expenseRow],
+    transferRows: [transferRow]
+  });
+
+  assert.deepEqual(dataIssues.map(({ rowId, type, details }) => ({ rowId, type, details })), [
+    { rowId: "expense", type: "missing_required_data", details: ["Loại Chi Phí", "Phương Thức Thanh Toán"] },
+    { rowId: "income", type: "missing_required_data", details: ["Loại Khoản Thu", "Phương Thức Thanh Toán"] },
+    { rowId: "other", type: "missing_required_data", details: ["Loại Khoản Thu", "Phương Thức Thanh Toán"] },
+    { rowId: "transfer", type: "missing_required_data", details: ["Loại Chuyển Đổi", "Từ Tài Khoản", "Đến Tài Khoản"] }
+  ]);
+});
+
+test("current rows report missing common required Notion properties with the stored zero amount", () => {
+  const row = expense("missing-common", "", "food", "cash", 0, "");
+  row.properties["Số Tiền"] = { number: null };
+
+  const { dataIssues } = buildFinanceLedger_({ expenseRows: [row] });
+
+  assert.deepEqual(dataIssues, [{
+    type: "missing_required_data",
+    rowId: "missing-common",
+    date: "",
+    createdTime: "",
+    title: "",
+    amount: 0,
+    details: ["Nội dung", "Ngày", "Số Tiền"]
+  }]);
+});
+
+test("Grab net income does not require expense-only properties", () => {
+  const result = buildFinanceLedger_({
+    incomeRows: [income("grab-net", "Thu Nhập Ròng Grab (App)", "goalRelationPageId", "momo", 286581, "2026-09-08")]
+  });
+
+  assert.equal(result.dataIssues.some((issue) => issue.rowId === "grab-net"), false);
+});
+
 test("integrated unknown income categories use explicit personal-loan wording", () => {
   const result = buildFinanceLedger_({
     categoryRows: [{ id: "expense-loan", properties: { "Loại Chi Phí": { title: [{ plain_text: "Vay Và Trả" }] } } }],
@@ -404,25 +453,25 @@ test("reads title note type account and fund fields from every finance database"
     {
       id: "income-row", kind: "income", title: "Thu nhập ròng app", note: "Tiền chạy Grab",
       text: "Thu nhập ròng app | Tiền chạy Grab", normalizedText: "thu nhap rong app | tien chay grab",
-      amount: 500000, date: "2026-09-01", createdTime: "2026-09-01T05:00:00.000Z",
+      amount: 500000, amountPresent: true, date: "2026-09-01", datePresent: true, titlePresent: true, createdTime: "2026-09-01T05:00:00.000Z",
       categoryId: "net-income", accountId: "momo", fromAccountId: "", toAccountId: "", fundGroupId: "essential", transferType: ""
     },
     {
       id: "other-income-row", kind: "otherIncome", title: "Doanh thu gộp Grab", note: "Khách chuyển khoản",
       text: "Doanh thu gộp Grab | Khách chuyển khoản", normalizedText: "doanh thu gop grab | khach chuyen khoan",
-      amount: 700000, date: "2026-09-02", createdTime: "2026-09-02T05:00:00.000Z",
+      amount: 700000, amountPresent: true, date: "2026-09-02", datePresent: true, titlePresent: true, createdTime: "2026-09-02T05:00:00.000Z",
       categoryId: "gross-grab", accountId: "banking", fromAccountId: "", toAccountId: "", fundGroupId: "", transferType: ""
     },
     {
       id: "expense-row", kind: "expense", title: "Tiền nhà trọ", note: "Lấy từ quỹ thiết yếu",
       text: "Tiền nhà trọ | Lấy từ quỹ thiết yếu", normalizedText: "tien nha tro | lay tu quy thiet yeu",
-      amount: 2100000, date: "2026-09-03", createdTime: "2026-09-03T05:00:00.000Z",
+      amount: 2100000, amountPresent: true, date: "2026-09-03", datePresent: true, titlePresent: true, createdTime: "2026-09-03T05:00:00.000Z",
       categoryId: "rent", accountId: "momo", fromAccountId: "", toAccountId: "", fundGroupId: "essential", transferType: ""
     },
     {
       id: "borrow-savings", kind: "transfer", title: "Mượn tiền của quỹ tiết kiệm chuyển sang tiền phòng quỹ thiết yếu", note: "",
       text: "Mượn tiền của quỹ tiết kiệm chuyển sang tiền phòng quỹ thiết yếu", normalizedText: "muon tien cua quy tiet kiem chuyen sang tien phong quy thiet yeu",
-      amount: 750000, date: "2026-09-08", createdTime: "2026-09-08T05:00:00.000Z",
+      amount: 750000, amountPresent: true, date: "2026-09-08", datePresent: true, titlePresent: true, createdTime: "2026-09-08T05:00:00.000Z",
       categoryId: "", accountId: "", fromAccountId: "fund-account", toAccountId: "fund-account", fundGroupId: "essential", transferType: "Giao Dịch Giữa Các Tài Khoản"
     }
   ]);

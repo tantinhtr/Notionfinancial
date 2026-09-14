@@ -124,6 +124,13 @@ export function buildFinanceLedger_({
   categoryRows = [], fundGroupRows = [], options = {}
 } = {}) {
   const rows = readFinanceRows_({ incomeRows, otherIncomeRows, expenseRows, transferRows });
+  const dataIssues = rows
+    .map((row) => {
+      const missing = missingFields_(row);
+      return missing.length ? dataIssue_(row, "missing_required_data", missing) : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.date.localeCompare(b.date) || a.createdTime.localeCompare(b.createdTime) || a.rowId.localeCompare(b.rowId));
   const previousPersonalRows = readFinanceRows_({
     otherIncomeRows: previousOtherIncomeRows,
     expenseRows: previousExpenseRows
@@ -156,6 +163,7 @@ export function buildFinanceLedger_({
   const previousMonthAdvances = buildPreviousMonthAdvanceLedger_({ openingPlan, rows, accountNamesById, categoryNamesById, personalLoans, fundLoans });
   return {
     rows, openingPlan, personalLoans, previousMonthAdvances, fundLoans,
+    dataIssues,
     unmatched: [...personalLoans.unmatched, ...previousMonthAdvances.unmatchedSources, ...fundLoans.unmatched]
   };
 }
@@ -206,6 +214,7 @@ export function buildOpeningPlan_(accountRows = [], options = {}) {
 function row_(kind, page, titleProperty) {
   const props = page.properties || {};
   const title = propertyText_(props[titleProperty]);
+  const amountProperty = props["Số Tiền"];
   const note = titleProperty === "Ghi Chú" ? "" : propertyText_(props["Ghi Chú"]);
   const text = [title, note].filter(Boolean).join(" | ");
   return {
@@ -215,8 +224,11 @@ function row_(kind, page, titleProperty) {
     note,
     text,
     normalizedText: normalizeSearchText_(text),
-    amount: amount_(props["Số Tiền"]),
+    amount: amount_(amountProperty),
+    amountPresent: Number.isFinite(amountProperty?.number),
     date: props["Ngày"]?.date?.start || "",
+    datePresent: typeof props["Ngày"]?.date?.start === "string" && props["Ngày"].date.start !== "",
+    titlePresent: title.trim() !== "",
     createdTime: page.created_time || "",
     categoryId: relationId_(props[kind === "expense" ? "Loại Chi Phí" : "Loại Khoản Thu"]),
     accountId: relationId_(props["Phương Thức Thanh Toán"]),
@@ -236,6 +248,39 @@ export function readFinanceRows_({
     ...expenseRows.map((page) => row_("expense", page, "Nội Dung Khoản Chi")),
     ...transferRows.map((page) => row_("transfer", page, "Ghi Chú"))
   ].sort((a, b) => (a.date + a.createdTime).localeCompare(b.date + b.createdTime));
+}
+
+function dataIssue_(row, type, details) {
+  return {
+    type,
+    rowId: row.id,
+    date: row.date,
+    createdTime: row.createdTime,
+    title: row.title,
+    amount: row.amount,
+    details: [...new Set(details)]
+  };
+}
+
+function missingFields_(row) {
+  const missing = [];
+  if (!row.titlePresent) missing.push("Nội dung");
+  if (!row.datePresent) missing.push("Ngày");
+  if (!row.amountPresent) missing.push("Số Tiền");
+  if (row.kind === "expense") {
+    if (!row.categoryId) missing.push("Loại Chi Phí");
+    if (!row.accountId) missing.push("Phương Thức Thanh Toán");
+  }
+  if (row.kind === "income" || row.kind === "otherIncome") {
+    if (!row.categoryId) missing.push("Loại Khoản Thu");
+    if (!row.accountId) missing.push("Phương Thức Thanh Toán");
+  }
+  if (row.kind === "transfer") {
+    if (!row.transferType) missing.push("Loại Chuyển Đổi");
+    if (!row.fromAccountId) missing.push("Từ Tài Khoản");
+    if (!row.toAccountId) missing.push("Đến Tài Khoản");
+  }
+  return missing;
 }
 
 const PERSONAL_LOAN_PATTERNS = {
