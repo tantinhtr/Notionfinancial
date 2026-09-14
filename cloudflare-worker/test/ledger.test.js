@@ -104,6 +104,34 @@ test("current rows report missing common required Notion properties with the sto
   }]);
 });
 
+test("current rows treat a stored zero as an amount, not missing data", () => {
+  const row = expense("zero-amount", "Ăn tối", "", "cash", 0, "2026-09-05");
+
+  const { dataIssues } = buildFinanceLedger_({ expenseRows: [row] });
+
+  assert.deepEqual(dataIssues, [{
+    type: "missing_required_data",
+    rowId: "zero-amount",
+    date: "2026-09-05",
+    createdTime: "",
+    title: "Ăn tối",
+    amount: 0,
+    details: ["Loại Chi Phí"]
+  }]);
+});
+
+test("data issues sort same-date rows by creation time then row ID", () => {
+  const rows = [
+    timed(expense("row-b", "B", "", "cash", 1000, "2026-09-05"), "2026-09-05T08:00:00.000Z"),
+    timed(expense("row-a", "A", "", "cash", 1000, "2026-09-05"), "2026-09-05T08:00:00.000Z"),
+    timed(expense("row-earlier", "Earlier", "", "cash", 1000, "2026-09-05"), "2026-09-05T07:00:00.000Z")
+  ];
+
+  const { dataIssues } = buildFinanceLedger_({ expenseRows: rows });
+
+  assert.deepEqual(dataIssues.map((issue) => issue.rowId), ["row-earlier", "row-a", "row-b"]);
+});
+
 test("Grab net income does not require expense-only properties", () => {
   const result = buildFinanceLedger_({
     incomeRows: [income("grab-net", "Thu Nhập Ròng Grab (App)", "goalRelationPageId", "momo", 286581, "2026-09-08")]
