@@ -28,6 +28,184 @@ const loanFunds = [
   fundGroup("savings", "Tiết kiệm dài hạn")
 ];
 
+const loanCategories = [{ id: "loan", properties: {
+  "Loại Chi Phí": { title: [{ plain_text: "Vay Và Trả" }] }
+} }];
+
+test("current personal repayments report history_not_found only after all earlier principal", () => {
+  for (const amount of [500000, 1100000]) {
+    const result = buildFinanceLedger_({
+      categoryRows: loanCategories,
+      historicalOtherIncomeRows: amount === 500000 ? [] : [
+        income("old-a", "Tố cho mượn tiền", "loan", "momo", 400000, "2026-07-01"),
+        income("old-b", "Tố cho mượn tiền", "loan", "momo", 600000, "2026-08-01")
+      ],
+      expenseRows: [expense("repay", "Trả nợ Tố mượn tháng trước", "loan", "bank", amount, "2026-09-07")]
+    });
+    assert.deepEqual(result.dataIssues.map(({ type, rowId, details, amount }) => ({ type, rowId, details, amount })), [{
+      type: "history_not_found", rowId: "repay", amount,
+      details: ["Không tìm thấy bản ghi gốc liên quan"]
+    }]);
+  }
+});
+
+test("personal reconciliation consumes older openings and excludes historical issues", () => {
+  const result = buildFinanceLedger_({
+    categoryRows: loanCategories,
+    historicalOtherIncomeRows: [
+      income("old-a", "Tố cho mượn tiền", "loan", "momo", 400000, "2026-07-01"),
+      income("old-b", "Tố cho mượn tiền", "loan", "momo", 600000, "2026-08-01"),
+      income("old-unmatched", "Lan trả nợ", "loan", "bank", 100000, "2026-08-02")
+    ],
+    expenseRows: [expense("repay", "Trả nợ Tố mượn trước đó", "loan", "bank", 1000000, "2026-09-07")],
+    otherIncomeRows: [income("return", "Tuấn trả nợ", "loan", "bank", 200000, "2026-09-08")]
+  });
+  assert.deepEqual(result.personalLoans.liabilities.map((item) => item.outstanding), [0, 0]);
+  assert.deepEqual(result.dataIssues.map((issue) => [issue.rowId, issue.type]), [["return", "history_not_found"]]);
+});
+
+test("missing personal party is required data but unrecognized prose is not", () => {
+  const result = buildFinanceLedger_({
+    categoryRows: loanCategories,
+    expenseRows: [
+      expense("missing", "Trả nợ", "loan", "bank", 100000, "2026-09-07"),
+      expense("unrecognized", "Giao dịch đã thống nhất", "loan", "bank", 100000, "2026-09-07")
+    ]
+  });
+  assert.deepEqual(result.dataIssues.map((issue) => [issue.rowId, issue.type, issue.details]), [
+    ["missing", "missing_required_data", ["Người liên quan"]]
+  ]);
+});
+
+test("fund repayment scans multiple matching openings without an excess category", () => {
+  for (const amount of [1000000, 1100000]) {
+    const result = buildFinanceLedger_({
+      fundGroupRows: loanFunds,
+      historicalTransferRows: [
+        fundTransfer("a", "Mượn quỹ tiết kiệm", 400000, "essential", "2026-07-01"),
+        fundTransfer("b", "Mượn quỹ tiết kiệm", 600000, "essential", "2026-08-01")
+      ],
+      transferRows: [fundTransfer("repay", "Trả lại cho quỹ tiết kiệm", amount, "savings", "2026-09-07")]
+    });
+    assert.deepEqual(result.fundLoans.loans.map((item) => item.outstanding), [0, 0]);
+    assert.deepEqual(result.dataIssues.map((issue) => [issue.type, issue.details]), amount === 1000000 ? [] : [
+      ["history_not_found", ["Không tìm thấy bản ghi gốc liên quan"]]
+    ]);
+    assert.equal(JSON.stringify(result).includes("excess-fund-repayment"), false);
+  }
+});
+
+test("fund reconciliation distinguishes absent history missing party and explicit conflict", () => {
+  const result = buildFinanceLedger_({
+    fundGroupRows: loanFunds,
+    transferRows: [
+      fundTransfer("history", "Trả nợ cho quỹ tiết kiệm", 100000, "savings"),
+      fundTransfer("missing", "Trả lại tiền", 100000, "savings"),
+      fundTransfer("conflict", "Trả lại cho quỹ tiết kiệm", 100000, "essential")
+    ]
+  });
+  assert.deepEqual(result.dataIssues.map((issue) => [issue.rowId, issue.type]), [
+    ["conflict", "conflicting_data"], ["history", "history_not_found"], ["missing", "missing_required_data"]
+  ]);
+  assert.match(result.dataIssues[0].details.join(" "), /Tiết kiệm dài hạn.*Nhu cầu thiết yếu/);
+  assert.deepEqual(result.dataIssues[2].details, ["Quỹ liên quan"]);
+});
+
+test("explicit reimbursements distinguish beneficiary history and conflicting beneficiaries", () => {
+  const result = buildFinanceLedger_({
+    accountRows: [account("bank", "Banking", 0, 0), account("momo", "Momo", 0, 0)],
+    otherIncomeRows: [
+      income("history", "Hoàn lại Banking", "refund", "bank", 100000, "2026-09-07"),
+      income("missing", "Cấp bù", "refund", "bank", 100000, "2026-09-07"),
+      income("conflict", "Hoàn lại Banking và Momo", "refund", "bank", 100000, "2026-09-07")
+    ]
+  });
+  assert.deepEqual(result.dataIssues.map((issue) => [issue.rowId, issue.type]), [
+    ["conflict", "conflicting_data"], ["history", "history_not_found"], ["missing", "missing_required_data"]
+  ]);
+  assert.match(result.dataIssues[0].details.join(" "), /Banking.*Momo/);
+  assert.deepEqual(result.dataIssues[2].details, ["Tài khoản hoặc quỹ cần hoàn"]);
+});
+
+test("reimbursement uses explicit historical obligations without calculated remainder issues", () => {
+  const result = buildFinanceLedger_({
+    accountRows: [account("bank", "Banking", 0, 0)],
+    historicalExpenseRows: [expense("advance", "Dùng tiền tháng trước", "food", "bank", 50000, "2026-07-01")],
+    otherIncomeRows: [income("reimburse", "Cấp bù Banking", "refund", "bank", 100000, "2026-09-07")],
+    options: { sourceAccountNames: ["Banking"] }
+  });
+  assert.deepEqual(result.dataIssues, []);
+  assert.equal(result.previousMonthAdvances.totalOutstanding, 0);
+});
+
+test("source funding shortfalls never become reconciliation warning rows", () => {
+  const result = buildFinanceLedger_({
+    accountRows: [account("bank", "Banking", 0, 0)],
+    expenseRows: [expense("dinner", "Ăn tối", "food", "bank", 35000, "2026-09-07")],
+    transferRows: [transfer("move", "Chuyển tiền", "bank", "momo", 100000, "2026-09-08", "")],
+    options: { sourceAccountNames: ["Banking"] }
+  });
+  assert.deepEqual(result.dataIssues, []);
+  assert.deepEqual(result.previousMonthAdvances.unmatchedSources, []);
+});
+
+test("reimbursement searches chronology and cannot reuse a settled obligation or infer one from a balance", () => {
+  const result = buildFinanceLedger_({
+    accountRows: [account("bank", "Banking", 500000, 500000)],
+    historicalExpenseRows: [expense("old-spending", "Ăn tối", "food", "bank", 100000, "2026-06-01")],
+    expenseRows: [expense("advance", "Dùng tiền tháng trước", "food", "bank", 50000, "2026-09-05")],
+    otherIncomeRows: [
+      income("early", "Hoàn lại Banking", "refund", "bank", 100000, "2026-09-01"),
+      income("settle", "Hoàn lại Banking", "refund", "bank", 100000, "2026-09-06"),
+      income("repeat", "Hoàn lại Banking", "refund", "bank", 100000, "2026-09-07")
+    ]
+  });
+  assert.deepEqual(result.dataIssues.map((issue) => [issue.rowId, issue.type]), [
+    ["early", "history_not_found"], ["repeat", "history_not_found"]
+  ]);
+});
+
+test("missing fund evidence merges with required fields and history language is not a person", () => {
+  const incomplete = fundTransfer("fund", "Mượn tiền", 100000, "");
+  delete incomplete.properties["Loại Chuyển Đổi"];
+  const result = buildFinanceLedger_({
+    categoryRows: loanCategories, fundGroupRows: loanFunds,
+    transferRows: [incomplete],
+    expenseRows: [expense("person", "Trả nợ tháng trước", "loan", "bank", 100000, "2026-09-07")]
+  });
+  assert.deepEqual(result.dataIssues.map((issue) => [issue.rowId, issue.type, issue.details]), [
+    ["fund", "missing_required_data", ["Loại Chuyển Đổi", "Nhóm Quỹ", "Quỹ liên quan"]],
+    ["person", "missing_required_data", ["Người liên quan"]]
+  ]);
+});
+
+test("reimbursement transfer reports an explicit beneficiary conflicting with its receiving relation", () => {
+  const result = buildFinanceLedger_({
+    accountRows: [account("bank", "Banking", 0, 0), account("momo", "Momo", 0, 0)],
+    transferRows: [transfer("conflict", "Cấp bù Banking", "momo", "momo", 100000, "2026-09-07", "")]
+  });
+  assert.deepEqual(result.dataIssues.map((issue) => [issue.type, issue.details]), [
+    ["conflicting_data", ["Bên cần hoàn: Banking; Quan hệ: Momo"]]
+  ]);
+});
+
+test("personal fallback issues retain the original current Notion title", () => {
+  const result = buildFinanceLedger_({
+    otherIncomeRows: [income("return", "Nhận chuyển khoản", "unknown-loan", "bank", 100000, "2026-09-07", "Tuấn trả nợ")]
+  });
+  assert.deepEqual(result.dataIssues.map((issue) => [issue.rowId, issue.title, issue.amount, issue.type]), [
+    ["return", "Nhận chuyển khoản", 100000, "history_not_found"]
+  ]);
+});
+
+test("an unresolved fund phrase does not invent a conflict with the only known borrower", () => {
+  const result = buildFinanceLedger_({
+    fundGroupRows: loanFunds,
+    transferRows: [fundTransfer("unknown", "Quỹ lạ trả lại cho quỹ tiết kiệm từ quỹ thiết yếu", 100000, "savings")]
+  });
+  assert.deepEqual(result.dataIssues, []);
+});
+
 function fundTransfer(id, title, amount, groupId = "essential", date = "2026-09-01") {
   const page = transfer(id, title, "fund-account", "fund-account", amount, date, "");
   page.properties["Nhóm Quỹ"] = { relation: groupId ? [{ id: groupId }] : [] };

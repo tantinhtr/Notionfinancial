@@ -1435,9 +1435,7 @@ test("fund budget never presents a computed source shortfall as a Notion transac
     }
   );
 
-  const shortfall = data.explicitLedger.unmatched.find((row) => row.id === "dinner");
-  assert.equal(shortfall.unmatchedAmount, 26000);
-  assert.equal(shortfall.reason, "source-funding-shortfall");
+  assert.equal(data.explicitLedger.unmatched.some((row) => row.id === "dinner" || row.reason === "source-funding-shortfall"), false);
   const text = fundBudgetText_(data);
   assert.doesNotMatch(text, /Ăn tối|26\.000đ|CHƯA ĐỦ DỮ KIỆN/);
 });
