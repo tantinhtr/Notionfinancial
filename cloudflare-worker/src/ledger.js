@@ -37,6 +37,11 @@ function fundNameKey_(name) {
   return normalizeSearchText_(name).replace(/^quy\s+/, "").trim();
 }
 
+function positiveEvidenceText_(text) {
+  // Decline the entire clause when negation makes its direction/action uncertain.
+  return text.split(/[|;]/).filter((clause) => !/\bkhong\b/.test(clause)).join(" | ").trim();
+}
+
 function resolveFund_(phrase, groups) {
   const key = fundNameKey_(phrase);
   if (!key) return null;
@@ -47,7 +52,7 @@ function resolveFund_(phrase, groups) {
 }
 
 export function buildFundLoanLedger_(rows = [], fundGroups = [], {
-  currentRowIds = new Set(rows.map((row) => row.id)), onIssue = () => {}
+  currentRowIds = new Set(rows.map((row) => row.id)), onIssue = () => {}, accountNamesById = {}
 } = {}) {
   const groups = fundGroups.map((group) => {
     const props = group.properties || {};
@@ -74,7 +79,7 @@ export function buildFundLoanLedger_(rows = [], fundGroups = [], {
 
   for (const row of orderedRows) {
     if (row.kind !== "transfer" || row.amount <= 0) continue;
-    const text = row.normalizedText;
+    const text = positiveEvidenceText_(row.normalizedText);
     const repayment = /\b(tra lai|hoan lai|tra no)\b/.exec(text);
     if (repayment) {
       // A relation on a repayment names its receiving lender, never its borrower.
@@ -94,7 +99,9 @@ export function buildFundLoanLedger_(rows = [], fundGroups = [], {
       } else if (!lender && chronologyOnly_(parts[0].replace(/^(?:tien|quy)\b\s*/, ""))) {
         onIssue(row, "missing_required_data", ["Quỹ liên quan"]);
       }
-      if (!lender || borrower?.id === lender.id || (row.fundGroupId && row.fundGroupId !== lender.id)
+      const validatedVirtualMovement = row.fromAccountId && row.fromAccountId === row.toAccountId
+        && normalizeSearchText_(accountName_(accountNamesById, row.fromAccountId)) === "quy momo";
+      if (!lender || (validatedVirtualMovement && borrower?.id === lender.id) || (row.fundGroupId && row.fundGroupId !== lender.id)
         || borrowers.some((resolved) => !resolved || resolved.id !== borrower?.id)) {
         unmatched.push({ ...row, unmatchedAmount: row.amount, reason: "unidentified-fund-repayment" });
         continue;
@@ -212,7 +219,7 @@ export function buildFinanceLedger_({
       }
     }
   }
-  const fundLoans = buildFundLoanLedger_(semanticRows, fundGroupRows, { currentRowIds, onIssue });
+  const fundLoans = buildFundLoanLedger_(semanticRows, fundGroupRows, { currentRowIds, onIssue, accountNamesById });
   fundLoans.unmatched = fundLoans.unmatched.filter((row) => currentRowIds.has(row.id));
   validateReimbursements_(semanticRows, accountNamesById, fundGroupRows, personalLoans, fundLoans, onIssue);
   const previousMonthAdvances = buildPreviousMonthAdvanceLedger_({ openingPlan, rows: currentRows, accountNamesById, categoryNamesById, personalLoans, fundLoans });
@@ -357,7 +364,8 @@ function validateExplicitConflicts_(rows, accountNamesById, fundGroups, onIssue)
   }));
   const clean = (phrase) => phrase.trim().replace(/[.,]+$/, "");
   for (const row of rows) {
-    const directions = [...row.normalizedText.matchAll(/\b(tu|sang|vao|den|thanh toan bang)\s+(.+?)(?=\s+(?:tu|sang|vao|den|de|chuyen|thanh toan bang)\s+|[|;]|$)/g)];
+    const text = positiveEvidenceText_(row.normalizedText);
+    const directions = [...text.matchAll(/\b(tu|sang|vao|den|thanh toan bang)\s+(.+?)(?=\s+(?:tu|sang|vao|den|de|chuyen|thanh toan bang)\s+|[|;]|$)/g)];
     for (const [, direction, phrase] of directions) {
       const payment = direction === "thanh toan bang";
       if ((row.kind === "transfer") === payment) continue;
@@ -376,7 +384,7 @@ function validateExplicitConflicts_(rows, accountNamesById, fundGroups, onIssue)
     if (!row.fundGroupId) onIssue(row, "missing_required_data", ["Nhóm Quỹ"]);
     const sourcePhrases = directions.filter(([, direction]) => direction === "tu").map((match) => match[2]);
     const destinationPhrases = directions.filter(([, direction]) => ["sang", "vao", "den"].includes(direction)).map((match) => match[2]);
-    for (const clause of row.normalizedText.split(/[|;]/)) {
+    for (const clause of text.split(/[|;]/)) {
       const opening = /\bmuon(?:\s+tien)?(?:\s+cua)?\s+(.+?)(?=\s+(?:chuyen|sang|cho|de)\b|$)/.exec(clause);
       if (opening) sourcePhrases.push(opening[1]);
       const repayment = /\b(?:tra lai|hoan lai|tra no)\b/.exec(clause);
@@ -393,7 +401,6 @@ function validateExplicitConflicts_(rows, accountNamesById, fundGroups, onIssue)
     const conflictingDestinations = related ? destinations.filter((group) => group.id !== related.id) : [];
     if (conflictingDestinations.length) {
       onIssue(row, "conflicting_data", conflictingDestinations.map((group) => `Nội dung: ${group.name}; Nhóm Quỹ: ${related.name}`));
-      continue;
     }
     const sourceIds = new Set(sources.map((group) => group.id));
     if (related && sourceIds.size === 1 && sourceIds.has(related.id)) {
@@ -655,7 +662,9 @@ function validateReimbursements_(rows, accountNamesById, fundGroups, personalLoa
       obligations.push({ accountId: row.accountId || row.fromAccountId, fundId: row.fundGroupId, remaining: row.amount });
     }
     if (!isExplicitReimbursement_(row) || personalIds.has(row.id) || fundIds.has(row.id)) continue;
-    const phrases = [...row.normalizedText.matchAll(/\b(?:tra lai|hoan lai|cap bu)\s*(.*?)(?=\s+(?:tu|bang|thanh toan)\s+|[|;]|$)/g)]
+    const text = positiveEvidenceText_(row.normalizedText);
+    if (!/\b(?:tra lai|hoan lai|cap bu)\b/.test(text)) continue;
+    const phrases = [...text.matchAll(/\b(?:tra lai|hoan lai|cap bu)\s*(.*?)(?=\s+(?:tu|bang|thanh toan)\s+|[|;]|$)/g)]
       .flatMap((match) => match[1].replace(/^(?:[\d.,]+(?![\d.,/-])\s*(?:d|dong)?\s*)?(?:tien\s*)?(?:cho\s*)?/, "").split(/\s+(?:va|hoac)\s+/))
       .map((phrase) => phrase.trim().replace(/[.,]+$/, "")).filter(Boolean);
     const matches = [...new Set(phrases.flatMap((phrase) => {

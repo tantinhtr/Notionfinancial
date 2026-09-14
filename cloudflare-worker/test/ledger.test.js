@@ -156,6 +156,71 @@ test("explicit conflict validation excludes historical rows and does not replace
   ]);
 });
 
+test("review task 4 negated account directions and payment never become positive conflicts", () => {
+  for (const note of ["Không thanh toán bằng Banking", "Không phải thanh toán bằng Banking", "Thanh toán không phải bằng Banking"]) {
+    const result = buildFinanceLedger_({
+      accountRows: [account("bank", "Banking", 0, 0), account("momo", "Momo", 0, 0)],
+      expenseRows: [expense("row", "Chi", "food", "momo", 100, "2026-09-15", note)]
+    });
+    assert.deepEqual(result.dataIssues, [], note);
+  }
+  for (const title of ["Không phải chuyển từ Banking sang Momo", "Không chuyển từ Momo sang Banking", "Chuyển từ Momo không phải sang Banking"]) {
+    const result = buildFinanceLedger_({
+      accountRows: [account("bank", "Banking", 0, 0), account("momo", "Momo", 0, 0)],
+      transferRows: [transfer("row", title, "momo", "momo", 100, "2026-09-15", "")]
+    });
+    assert.deepEqual(result.dataIssues, [], title);
+  }
+});
+
+test("review task 4 negated fund actions cannot supply source destination or loan evidence", () => {
+  for (const [title, group] of [
+    ["Không mượn quỹ tiết kiệm", "savings"],
+    ["Không phải mượn quỹ tiết kiệm", "essential"],
+    ["Không trả lại cho quỹ tiết kiệm", "essential"],
+    ["Nhu cầu thiết yếu không phải trả lại cho quỹ tiết kiệm", "essential"],
+    ["Không hoàn lại cho quỹ tiết kiệm", "essential"],
+    ["Không chuyển từ quỹ thiết yếu sang quỹ tiết kiệm", "essential"]
+  ]) {
+    const result = buildFinanceLedger_({
+      accountRows: [account("fund-account", "Quỹ Momo", 0, 0)], fundGroupRows: loanFunds,
+      transferRows: [fundTransfer("row", title, 100, group)]
+    });
+    assert.deepEqual(result.dataIssues.map((issue) => [issue.type, issue.details]), [
+      ["missing_required_data", ["Quỹ liên quan"]]
+    ], title);
+    assert.deepEqual(result.fundLoans.loans, [], title);
+  }
+});
+
+test("review task 4 destination conflict retains the independent missing counterpart issue", () => {
+  const result = buildFinanceLedger_({
+    accountRows: [account("fund-account", "Quỹ Momo", 0, 0)], fundGroupRows: loanFunds,
+    transferRows: [fundTransfer("row", "Trả lại cho quỹ tiết kiệm", 100, "essential")]
+  });
+  assert.deepEqual(result.dataIssues.map((issue) => [issue.type, issue.details]), [
+    ["conflicting_data", ["Nội dung: Tiết kiệm dài hạn; Nhóm Quỹ: Nhu cầu thiết yếu"]],
+    ["missing_required_data", ["Quỹ liên quan"]]
+  ]);
+});
+
+test("review task 4 same-fund history suppression stays inside the validated Quỹ Momo path", () => {
+  for (const [from, to, expected] of [
+    ["fund-account", "fund-account", "conflicting_data"],
+    ["bank", "momo", "history_not_found"],
+    ["momo", "momo", "history_not_found"]
+  ]) {
+    const row = fundTransfer("row", "Nhu cầu thiết yếu trả lại cho quỹ thiết yếu", 100);
+    row.properties["Từ Tài Khoản"] = { relation: [{ id: from }] };
+    row.properties["Đến Tài Khoản"] = { relation: [{ id: to }] };
+    const result = buildFinanceLedger_({
+      accountRows: [account("fund-account", "Quỹ Momo", 0, 0), account("bank", "Banking", 0, 0), account("momo", "Momo", 0, 0)],
+      fundGroupRows: loanFunds, transferRows: [row]
+    });
+    assert.deepEqual(result.dataIssues.map((issue) => issue.type), [expected], `${from} -> ${to}`);
+  }
+});
+
 test("current personal repayments report history_not_found only after all earlier principal", () => {
   for (const amount of [500000, 1100000]) {
     const result = buildFinanceLedger_({
