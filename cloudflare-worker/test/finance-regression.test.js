@@ -926,8 +926,7 @@ test("fund groups reconcile Notion transfers with spending paid outside the virt
     ],
     transferNeeded: 0,
     transferPlan: [],
-    requiresAllocation: true,
-    unmatchedCategories: []
+    requiresAllocation: true
   });
   assert.equal(youtube.allocated, 555000);
   assert.equal(youtube.spent, 554444);
@@ -988,7 +987,7 @@ test("a fund that spent without identified funding reports a shortfall instead o
   assert.equal(youtube.over, 74444);
   assert.equal(youtube.fundDebt, 0);
   assert.equal(youtube.fundingShortfall, 554444);
-  assert.equal(data.explicitLedger.unmatched.find((row) => row.fundGroupId === "youtube-fund").unmatchedAmount, 554444);
+  assert.equal(data.explicitLedger.unmatched.some((row) => row.fundGroupId === "youtube-fund"), false);
   // 574.444 da tieu bang tui khac cung coi nhu da cap, ma con vuot ngan sach roi
   // nen khong con gi de cap them; viec phai lam la tra lai cho da ung.
   assert.equal(youtube.transferNeeded, 0);
@@ -1220,6 +1219,9 @@ test("September 2026 explicit ledger preserves the complete snapshot and indepen
       income("grab-cash-income", "Grab tiền mặt", "grab-receipt", "grab-cash", 394000, "2026-09-01", "03:30"),
       income("borrow-em", "Em cho mượn tiền", "other-loan", "bank", 500000, "2026-09-06", "08:00"),
       income("tuan-return", "Cháu Tuấn trả nợ", "other-return", "momo", 100000, "2026-09-08", "07:00")
+    ],
+    historicalOtherIncomeRows: [
+      income("to-opening", "Tố cho mượn tiền", "other-loan", "momo", 500000, "2026-08-14", "01:00")
     ]
   };
   const data = buildAccountSpendingData_(
@@ -1232,6 +1234,7 @@ test("September 2026 explicit ledger preserves the complete snapshot and indepen
   const cashAdvance = ledger.previousMonthAdvances.accounts.find((account) => account.accountName === "Tiền Mặt");
   const momoAdvance = ledger.previousMonthAdvances.accounts.find((account) => account.accountName === "Momo");
   const emLiability = ledger.personalLoans.liabilities.find((loan) => loan.party === "em");
+  const toLiability = ledger.personalLoans.liabilities.find((loan) => loan.party === "tố");
   const tuanReceivable = ledger.personalLoans.receivables.find((loan) => loan.party === "cháu tuấn");
 
   assert.equal(ledger.rows.length, 30);
@@ -1267,6 +1270,8 @@ test("September 2026 explicit ledger preserves the complete snapshot and indepen
   assert.equal(emLiability.outstanding, 500000);
   assert.equal(emLiability.repaid, 0);
   assert.deepEqual(emLiability.repaymentRows, []);
+  assert.equal(toLiability.outstanding, 0);
+  assert.deepEqual(toLiability.repaymentRows, ["pay-to"]);
   assert.equal(tuanReceivable.principal, 100000);
   assert.equal(tuanReceivable.repaid, 100000);
   assert.equal(tuanReceivable.outstanding, 0);
@@ -1276,7 +1281,7 @@ test("September 2026 explicit ledger preserves the complete snapshot and indepen
   assert.deepEqual(ledger.personalLoans.repayments.map((row) => [row.id, row.party, row.amount]), [
     ["pay-to", "tố", 500000], ["tuan-return", "cháu tuấn", 100000]
   ]);
-  assert.deepEqual(ledger.unmatched.map((row) => [row.id, row.unmatchedAmount]), [["pay-to", 500000]]);
+  assert.deepEqual(ledger.dataIssues, []);
   assert.deepEqual(data.income, { real: 286581, grabGross: 602000, other: 600000 });
   assert.equal(data.cashOutflowTotal, 4736000);
   assert.equal(data.personalSpendingTotal, 3966000);
@@ -1305,7 +1310,7 @@ test("September 2026 explicit ledger preserves the complete snapshot and indepen
   assert.match(text, /Tiền Mặt: cần cấp bù 1\.356\.000đ/);
   assert.match(text, /Banking: cần cấp bù 170\.000đ/);
   assert.match(text, /Momo: cần cấp bù 100\.000đ/);
-  assert.match(text, /07\/09 — Trả tiền mượn tố tháng trước: 500\.000đ/);
+  assert.doesNotMatch(text, /CHƯA ĐỦ DỮ KIỆN|Tố|26\.000đ/);
   assert.doesNotMatch(text, /616\.996đ|đã trả:? 109\.000đ|có nguồn để trả/i);
 });
 
@@ -1385,7 +1390,94 @@ test("fund budget omits the repeated debt section while keeping advance warnings
   assert.doesNotMatch(text, /đã trả 109\.000đ|có nguồn để trả/);
 });
 
-test("fund budget warns about an unclassified semantic row without changing debt totals", () => {
+test("renders only approved current-row data issues", () => {
+  const text = fundBudgetText_({
+    t: { y: 2026, m: 9, d: 15 },
+    fundGroups: [],
+    explicitLedger: {
+      previousMonthAdvances: { accounts: [] },
+      unmatched: [{
+        id: "legacy-warning",
+        date: "2026-09-01",
+        title: "Synthetic legacy warning",
+        amount: 26000,
+        reason: "source-funding-shortfall"
+      }],
+      dataIssues: [
+        {
+          type: "missing_required_data",
+          rowId: "dinner",
+          date: "2026-09-09",
+          createdTime: "2026-09-09T01:00:00.000Z",
+          title: "Ăn tối",
+          amount: 35000,
+          details: ["Loại Chi Phí"]
+        },
+        {
+          type: "history_not_found",
+          rowId: "refund",
+          date: "2026-09-12",
+          createdTime: "2026-09-12T01:00:00.000Z",
+          title: "Hoàn lại Banking",
+          amount: 100000,
+          details: ["Không tìm thấy bản ghi gốc liên quan"]
+        },
+        {
+          type: "conflicting_data",
+          rowId: "fund-transfer",
+          date: "2026-09-15",
+          createdTime: "2026-09-15T01:00:00.000Z",
+          title: "Chuyển quỹ",
+          amount: 500000,
+          details: ["ghi chú: Banking; tài khoản: Momo"]
+        }
+      ]
+    }
+  });
+
+  assert.equal(text,
+    "📦 QUỸ & NGÂN SÁCH — tháng 9/2026\n" +
+      "\n" +
+      "⚠️ CHƯA ĐỦ DỮ KIỆN\n" +
+      "• 09/09 — Ăn tối — 35.000đ · thiếu Loại Chi Phí\n" +
+      "• 12/09 — Hoàn lại Banking — 100.000đ · không tìm thấy bản ghi gốc liên quan\n" +
+      "• 15/09 — Chuyển quỹ — 500.000đ · ghi chú: Banking; tài khoản: Momo"
+  );
+  assert.doesNotMatch(text, /26\.000đ|trả vượt|source-funding-shortfall|⚠️ thiếu loại chi/);
+});
+
+test("does not duplicate missing category in budget lines", () => {
+  const text = fundBudgetText_({
+    t: { y: 2026, m: 9, d: 9 },
+    fundGroups: [{
+      name: "Chưa Ghép",
+      budget: 100000,
+      spent: 25000,
+      over: 0,
+      allocated: 0,
+      transferNeeded: 0,
+      requiresAllocation: false,
+      unmatchedCategories: ["missing-category"]
+    }],
+    explicitLedger: {
+      previousMonthAdvances: { accounts: [] },
+      dataIssues: [{
+        type: "missing_required_data",
+        rowId: "unclassified",
+        date: "2026-09-09",
+        createdTime: "2026-09-09T01:00:00.000Z",
+        title: "Chi chưa phân loại",
+        amount: 25000,
+        details: ["Loại Chi Phí"]
+      }]
+    }
+  });
+
+  assert.match(text, /• 09\/09 — Chi chưa phân loại — 25\.000đ · thiếu Loại Chi Phí/);
+  assert.doesNotMatch(text, /⚠️ thiếu loại chi/);
+});
+
+test("fund budget renders missing personal data without changing debt totals", () => {
   const fundLoan = {
     borrowerGroupName: "Nhu cầu thiết yếu",
     lender: "Tiết kiệm dài hạn",
@@ -1401,18 +1493,20 @@ test("fund budget warns about an unclassified semantic row without changing debt
       fundLoans: { loans: [fundLoan] },
       personalLoans: { liabilities: [personalLiability] },
       previousMonthAdvances: { accounts: [] },
-      unmatched: [{
-        id: "ambiguous",
+      dataIssues: [{
+        type: "missing_required_data",
+        rowId: "ambiguous",
         date: "2026-09-10",
+        createdTime: "2026-09-10T01:00:00.000Z",
         title: "Em cho mượn tiền và Tố trả nợ",
-        unmatchedAmount: 500000,
-        reason: "unidentified-personal-income"
+        amount: 500000,
+        details: ["Người liên quan"]
       }]
     }
   });
 
   assert.match(text, /⚠️ CHƯA ĐỦ DỮ KIỆN/);
-  assert.match(text, /10\/09 — Em cho mượn tiền và Tố trả nợ: 500\.000đ/);
+  assert.match(text, /10\/09 — Em cho mượn tiền và Tố trả nợ — 500\.000đ · thiếu Người liên quan/);
   assert.doesNotMatch(text, /🤝 NỢ GHI RÕ|Còn nợ:|Nợ Em:/);
   assert.equal(fundLoan.outstanding, 750000);
   assert.equal(personalLiability.outstanding, 500000);
@@ -1440,24 +1534,25 @@ test("fund budget never presents a computed source shortfall as a Notion transac
   assert.doesNotMatch(text, /Ăn tối|26\.000đ|CHƯA ĐỦ DỮ KIỆN/);
 });
 
-test("fund budget uses the original Notion amount for a displayed unresolved record", () => {
+test("fund budget uses the original Notion amount for a displayed data issue", () => {
   const text = fundBudgetText_({
     t: { y: 2026, m: 9, d: 9 },
     fundGroups: [],
     explicitLedger: {
       previousMonthAdvances: { accounts: [] },
-      unmatched: [{
-        id: "unresolved-repayment",
+      dataIssues: [{
+        type: "history_not_found",
+        rowId: "unresolved-repayment",
         date: "2026-09-09",
+        createdTime: "2026-09-09T01:00:00.000Z",
         title: "Trả tiền mượn",
         amount: 500000,
-        unmatchedAmount: 100000,
-        reason: "ambiguous-personal-repayment"
+        details: ["Không tìm thấy bản ghi gốc liên quan"]
       }]
     }
   });
 
-  assert.match(text, /09\/09 — Trả tiền mượn: 500\.000đ/);
+  assert.match(text, /09\/09 — Trả tiền mượn — 500\.000đ · không tìm thấy bản ghi gốc liên quan/);
   assert.doesNotMatch(text, /100\.000đ/);
 });
 
@@ -2409,7 +2504,7 @@ test("fund budget text preserves approved fund statuses and heading", () => {
       "✅ Đi Chợ: 801.000đ / 1.300.000đ · còn 499.000đ\n" +
       "✅ Phát Sinh: 0đ / 600.000đ · chưa cấp\n" +
       "⛔ Làm YouTube: 554.444đ / 500.000đ · vượt 54.444đ · đã cấp 555.000đ\n" +
-      "✅ Chưa Ghép: 25.000đ / 100.000đ · còn 75.000đ · ⚠️ thiếu loại chi\n" +
+      "✅ Chưa Ghép: 25.000đ / 100.000đ · còn 75.000đ\n" +
       "\n" +
       "💰 CẦN CẤP THÊM\n" +
       "• Phát Sinh → Quỹ Momo: 600.000đ"

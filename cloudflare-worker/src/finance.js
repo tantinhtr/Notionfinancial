@@ -886,8 +886,7 @@ export function buildAccountSpendingData_(
       children: [],
       transferNeeded: 0,
       transferPlan: [],
-      requiresAllocation,
-      unmatchedCategories: []
+      requiresAllocation
     };
     const borrowByFund = {};
     const ownKeys = groupAliasKeys[fundGroupRow.id] || {};
@@ -1006,12 +1005,6 @@ export function buildAccountSpendingData_(
     if (requiresAllocation) {
       // Explicit internal movements explain balance changes, not unidentified spending.
       group.fundingShortfall = Math.max(group.paidFromFund - netAllocated, 0);
-      if (group.fundingShortfall > 0) explicitLedger.unmatched.push({
-        fundGroupId: fundGroupRow.id,
-        fundGroupName: group.name,
-        unmatchedAmount: group.fundingShortfall,
-        reason: "funding-shortfall"
-      });
       const bucketToList = (bucket, key) => Object.keys(bucket)
         .map((name) => ({
           [key]: name,
@@ -1166,7 +1159,6 @@ export function accountSpendingText_(data) {
           row += " | đã cấp " + money_(group.allocated);
         }
       }
-      if (group.unmatchedCategories.length) row += " | ⚠️ thiếu loại chi";
       lines.push(row);
     }
   } else {
@@ -1273,9 +1265,6 @@ function budgetLine_(group) {
   } else {
     row += " · còn " + money_(Math.max((group.budget || 0) - (group.spent || 0), 0));
   }
-  if (group.unmatchedCategories && group.unmatchedCategories.length) {
-    row += " · ⚠️ thiếu loại chi";
-  }
   if (group.requiresAllocation) {
     row += (group.allocated || 0) > 0
       ? " · đã cấp " + money_(group.allocated)
@@ -1324,9 +1313,27 @@ function appendPreviousMonthAdvances_(lines, previousMonthAdvances) {
   return true;
 }
 
-function appendUnmatched_(lines, unmatched) {
-  const visible = (unmatched || []).filter((row) =>
-    row.reason !== "source-funding-shortfall" && row.reason !== "funding-shortfall"
+function appendDataIssues_(lines, dataIssues) {
+  const byRowId = new Map();
+  for (const issue of dataIssues || []) {
+    const existing = byRowId.get(issue.rowId);
+    if (existing) {
+      existing.details.push(...(issue.details || []).map((detail) => ({ type: issue.type, detail })));
+      continue;
+    }
+    byRowId.set(issue.rowId, {
+      rowId: issue.rowId,
+      date: issue.date,
+      createdTime: issue.createdTime,
+      title: issue.title,
+      amount: issue.amount,
+      details: (issue.details || []).map((detail) => ({ type: issue.type, detail }))
+    });
+  }
+  const visible = [...byRowId.values()].sort((a, b) =>
+    String(a.date || "").localeCompare(String(b.date || "")) ||
+    String(a.createdTime || "").localeCompare(String(b.createdTime || "")) ||
+    String(a.rowId || "").localeCompare(String(b.rowId || ""))
   );
   if (!visible.length) return false;
   lines.push("", "⚠️ CHƯA ĐỦ DỮ KIỆN");
@@ -1334,9 +1341,12 @@ function appendUnmatched_(lines, unmatched) {
     const day = typeof row.date === "string" && row.date.length >= 10
       ? row.date.slice(8, 10) + "/" + row.date.slice(5, 7)
       : "(không ngày)";
-    const title = row.title || row.fundGroupName || row.reason || "Giao dịch chưa phân loại";
-    const amount = row.amount === undefined ? row.unmatchedAmount : row.amount;
-    lines.push("• " + day + " — " + title + ": " + money_(amount || 0));
+    const details = row.details.map(({ type, detail }) => type === "missing_required_data"
+      ? "thiếu " + detail
+      : String(detail || "").replace(/^./, (character) => character.toLocaleLowerCase("vi-VN"))
+    );
+    lines.push("• " + day + " — " + (row.title || "(không nội dung)") +
+      " — " + money_(row.amount || 0) + (details.length ? " · " + details.join(", ") : ""));
   }
   return true;
 }
@@ -1384,7 +1394,7 @@ export function fundBudgetText_(data) {
 
   const ledger = data.explicitLedger || {};
   appendPreviousMonthAdvances_(lines, ledger.previousMonthAdvances);
-  appendUnmatched_(lines, ledger.unmatched);
+  appendDataIssues_(lines, ledger.dataIssues);
 
   if (!groups.length && !budget && lines.length === 1) {
     lines.push("", "Chưa có dữ liệu tháng này.");
