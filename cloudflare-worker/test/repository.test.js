@@ -346,21 +346,21 @@ test("fund report serves the cached model instead of re-querying Notion", async 
     stateOptions: { cached }
   });
 
-  // Bam lai trong vong 60 giay thi khong duoc goi lai 7 truy van Notion.
+  // Bam lai trong vong 60 giay thi khong duoc goi lai cac truy van Notion.
   assert.equal(await repository.getFundBudgetReport(), cached);
   assert.equal(notion.calls.length, 0);
   assert.deepEqual(state.calls, [["get", "fund-budget:2026-07-29"]]);
 
   const fresh = await repository.getFundBudgetReport(true);
   assert.deepEqual(fresh.t, { y: 2026, m: 7, d: 29 });
-  assert.equal(notion.calls.length, 7);
+  assert.equal(notion.calls.length, 8);
   const put = state.calls.at(-1);
   assert.equal(put[0], "put");
   assert.equal(put[1], "fund-budget:2026-07-29");
   assert.equal(put[3], 60);
 });
 
-test("fund report wires seven current and master Notion queries into the finance builder", async () => {
+test("fund report wires current and master Notion queries into the finance builder", async () => {
   const { notion, repository } = createRepository({ rows: {
     budgets: [], expenses: [], accounts: openingAccountRows(), transfers: [], "fund-groups": [],
     income: [], "other-income": []
@@ -394,7 +394,8 @@ test("fund report wires seven current and master Notion queries into the finance
     ["transfers", monthFilter],
     ["fund-groups", undefined],
     ["income", monthFilter],
-    ["other-income", monthFilter]
+    ["other-income", monthFilter],
+    ["other-income-categories", undefined]
   ]);
 });
 
@@ -478,6 +479,7 @@ test("fund report wires complete pre-month history", async () => {
     ["fund-groups", undefined],
     ["income", currentFilter],
     ["other-income", currentFilter],
+    ["other-income-categories", undefined],
     ["income", historyFilter],
     ["other-income", historyFilter],
     ["expenses", historyFilter],
@@ -515,7 +517,8 @@ test("fund report skips history without a current historical reference", async (
     ["transfers", currentFilter],
     ["fund-groups", undefined],
     ["income", currentFilter],
-    ["other-income", currentFilter]
+    ["other-income", currentFilter],
+    ["other-income-categories", undefined]
   ]);
 });
 
@@ -592,11 +595,11 @@ test("September 2026 explicit ledger renders one debt after the repository JSON 
   });
 
   const fresh = await repository.getFundBudgetReport(true);
-  assert.equal(notion.calls.length, 7);
+  assert.equal(notion.calls.length, 8);
   assert.deepEqual(notion.created, []);
   assert.equal(typeof cachedValues.get("report:fund-budget:2026-09-10"), "string");
   const cached = await repository.getFundBudgetReport();
-  assert.equal(notion.calls.length, 7);
+  assert.equal(notion.calls.length, 8);
   assert.notEqual(cached, fresh);
   assert.deepEqual(cached, fresh);
   assert.equal(cached.openingPlan.sourceTotal, 3849710);

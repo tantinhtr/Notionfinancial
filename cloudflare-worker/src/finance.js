@@ -584,6 +584,7 @@ export function buildAccountSpendingData_(
     expenseRows,
     transferRows,
     categoryRows,
+    otherIncomeCategoryRows: options.otherIncomeCategoryRows,
     fundGroupRows,
     options
   });
@@ -731,6 +732,7 @@ export function buildAccountSpendingData_(
       ? assignedCategoryId !== categoryId
       : (assignedGroupId !== "" && categoryGroupIds[categoryId] !== assignedGroupId);
     const spendRow = {
+      id: expenseRow.id,
       account: accountName,
       amount,
       lender,
@@ -743,6 +745,7 @@ export function buildAccountSpendingData_(
       globalCategoryTotals[target.name] = (globalCategoryTotals[target.name] || 0) + amount;
       target.paidByAccount[accountName] = (target.paidByAccount[accountName] || 0) + amount;
       target.spendRows.push(spendRow);
+      spendRow.childName = target.name;
     } else if (movedAway) {
       if (!extraRowsByGroupId[assignedGroupId]) extraRowsByGroupId[assignedGroupId] = [];
       extraRowsByGroupId[assignedGroupId].push(spendRow);
@@ -752,6 +755,7 @@ export function buildAccountSpendingData_(
         const fixed = fixedIdMap[categoryId];
         fixed.paidByAccount[accountName] = (fixed.paidByAccount[accountName] || 0) + amount;
         fixed.spendRows.push(spendRow);
+        spendRow.childName = fixed.name;
       }
     }
 
@@ -858,6 +862,8 @@ export function buildAccountSpendingData_(
   const knownGroupIds = {};
   for (const row of fundGroupRows) knownGroupIds[row.id] = true;
   const fundLoanRowIds = new Set(explicitLedger.fundLoans.loans.flatMap((loan) => [loan.openedBy, ...loan.repaymentRows]));
+  const expenseSources = explicitLedger.previousMonthAdvances.expenseSources || {};
+  const outstandingByRow = explicitLedger.previousMonthAdvances.outstandingByRow || {};
 
   for (const fundGroupRow of fundGroupRows) {
     const props = fundGroupRow.properties || {};
@@ -934,10 +940,11 @@ export function buildAccountSpendingData_(
           const lender = spendRow.lender !== "" && ownKeys[stripFundPrefix_(spendRow.lender)] !== true
             ? spendRow.lender
             : "";
-          if (lender === "" && spendRow.account !== "" &&
+          const currentMonth = expenseSources[spendRow.id]?.currentMonth || 0;
+          if (lender === "" && currentMonth > 0 && spendRow.account !== "" &&
               spendRow.account !== accountNames[destinationAccountId]) {
             paidOutsideByAccount[spendRow.account] =
-              (paidOutsideByAccount[spendRow.account] || 0) + spendRow.amount;
+              (paidOutsideByAccount[spendRow.account] || 0) + currentMonth;
           }
         }
       }
@@ -975,9 +982,6 @@ export function buildAccountSpendingData_(
     }
     groupRows.sort((a, b) => (a.date < b.date ? -1 : (a.date > b.date ? 1 : 0)));
 
-    // Chi CO MOT truong hop sinh mon no: chi bang tai khoan giu quy ma ghi chu noi
-    // lay tu mot quy con khong thuoc lo nao. Tra bang tai khoan nao khac — Momo,
-    // Banking, Tien Mat... — deu la tien cua chinh minh, khong ai phai tra lai ai.
     for (const spendRow of groupRows) {
       // Ghi chu tro ve chinh nhom thi khong phai muon.
       const lender = spendRow.lender !== "" && ownKeys[stripFundPrefix_(spendRow.lender)] !== true
@@ -989,6 +993,17 @@ export function buildAccountSpendingData_(
         group.paidFromFund += spendRow.amount;
       } else {
         group.paidOutsideFund += spendRow.amount;
+      }
+      const outstanding = outstandingByRow[spendRow.id] || 0;
+      if (outstanding > 0 && lender === "") {
+        group.explicitDebts.push({
+          kind: "account", borrowerGroupId: fundGroupRow.id,
+          borrowerGroupName: group.name, lender: spendRow.account,
+          principal: expenseSources[spendRow.id]?.previousMonth || outstanding,
+          repaid: Math.max((expenseSources[spendRow.id]?.previousMonth || outstanding) - outstanding, 0),
+          outstanding, childName: spendRow.childName || "",
+          rows: [{ name: spendRow.name, amount: outstanding, date: spendRow.date }]
+        });
       }
     }
 
@@ -1014,7 +1029,7 @@ export function buildAccountSpendingData_(
         .filter((entry) => entry.amount > 0)
         .sort((a, b) => b.amount - a.amount);
       group.borrowedFunds = bucketToList(borrowByFund, "fund");
-      group.explicitDebts = group.borrowedFunds.map((debt) => ({
+      group.explicitDebts.push(...group.borrowedFunds.map((debt) => ({
         borrowerGroupId: fundGroupRow.id,
         borrowerGroupName: group.name,
         lender: debt.fund,
@@ -1022,7 +1037,7 @@ export function buildAccountSpendingData_(
         repaid: 0,
         outstanding: debt.amount,
         rows: debt.rows
-      }));
+      })));
       group.fundRemaining = Math.max(group.fundBalance, 0);
       // Tien tieu bang tui khac CUNG COI NHU DA CAP: dang le no phai di qua quy,
       // chi la chua co giao dich chuyen thoi. Viec tra lai cho ben da ung nam o muc
@@ -1243,7 +1258,8 @@ function debtInlineTexts_(debts) {
     .filter((debt) => (debt.outstanding || 0) > 0)
     .map((debt) => {
       const lender = String(debt.lender || "(chưa rõ quỹ)").trim();
-      const fundName = /^quỹ(?:\s|$)/i.test(lender) ? lender : "Quỹ " + lender;
+      const fundName = debt.kind === "account" ? lender
+        : /^quỹ(?:\s|$)/i.test(lender) ? lender : "Quỹ " + lender;
       return "còn nợ " + fundName + " " + money_(debt.outstanding);
     });
 }
@@ -1301,9 +1317,17 @@ function childLines_(group) {
   });
 }
 
-function appendPreviousMonthAdvances_(lines, previousMonthAdvances) {
+function appendPreviousMonthAdvances_(lines, previousMonthAdvances, groups = []) {
+  const shown = {};
+  for (const group of groups) {
+    for (const debt of group.explicitDebts || []) {
+      if (debt.kind !== "account") continue;
+      shown[debt.lender] = (shown[debt.lender] || 0) + debt.outstanding;
+    }
+  }
   const accounts = ((previousMonthAdvances || {}).accounts || [])
-    .filter((account) => (account.outstanding || 0) > 0);
+    .map((account) => ({ ...account, outstanding: Math.max((account.outstanding || 0) - (shown[account.accountName] || 0), 0) }))
+    .filter((account) => account.outstanding > 0);
   if (!accounts.length) return false;
 
   lines.push("", "♻️ CẦN CẤP BÙ TIỀN THÁNG TRƯỚC");
@@ -1393,7 +1417,7 @@ export function fundBudgetText_(data) {
   }
 
   const ledger = data.explicitLedger || {};
-  appendPreviousMonthAdvances_(lines, ledger.previousMonthAdvances);
+  appendPreviousMonthAdvances_(lines, ledger.previousMonthAdvances, groups);
   appendDataIssues_(lines, ledger.dataIssues);
 
   if (!groups.length && !budget && lines.length === 1) {

@@ -164,7 +164,7 @@ export function buildFinanceLedger_({
   accountRows = [], incomeRows = [], otherIncomeRows = [], expenseRows = [],
   transferRows = [], historicalIncomeRows = [], historicalOtherIncomeRows = [],
   historicalExpenseRows = [], historicalTransferRows = [],
-  categoryRows = [], fundGroupRows = [], options = {}
+  categoryRows = [], otherIncomeCategoryRows = [], fundGroupRows = [], options = {}
 } = {}) {
   const currentRows = readFinanceRows_({ incomeRows, otherIncomeRows, expenseRows, transferRows });
   const historicalRows = readFinanceRows_({
@@ -185,6 +185,8 @@ export function buildFinanceLedger_({
   const accountNamesById = new Map(accountRows.map((row) => [row.id, propertyText_(row.properties?.["Phương Thức Thanh Toán"])]));
   validateExplicitConflicts_(currentRows, accountNamesById, fundGroupRows, onIssue);
   const categoryNamesById = new Map(categoryRows.map((row) => [row.id, propertyText_(row.properties?.["Loại Chi Phí"])]));
+  const otherIncomeCategoryNamesById = new Map(otherIncomeCategoryRows.map((row) => [row.id,
+    propertyText_(row.properties?.["Loại Khoản Thu"])]));
   const loanCategoryIds = new Set([...categoryNamesById].filter(([, name]) => normalizeSearchText_(name) === "vay va tra").map(([id]) => id));
   const unresolvedPersonalRows = [];
   const personalRows = [];
@@ -223,7 +225,9 @@ export function buildFinanceLedger_({
   const fundLoans = buildFundLoanLedger_(semanticRows, fundGroupRows, { currentRowIds, onIssue, accountNamesById });
   fundLoans.unmatched = fundLoans.unmatched.filter((row) => currentRowIds.has(row.id));
   validateReimbursements_(semanticRows, accountNamesById, fundGroupRows, personalLoans, fundLoans, onIssue);
-  const previousMonthAdvances = buildPreviousMonthAdvanceLedger_({ openingPlan, rows: currentRows, accountNamesById, categoryNamesById, personalLoans, fundLoans });
+  const previousMonthAdvances = buildPreviousMonthAdvanceLedger_({ openingPlan, rows: currentRows,
+    accountNamesById, categoryNamesById, otherIncomeCategoryNamesById, personalLoans, fundLoans,
+    passThroughKeywords: options.passThroughKeywords, passThroughCategories: options.passThroughCategories });
   const dataIssues = [...issuesByKey.values()]
     .sort((a, b) => a.date.localeCompare(b.date) || a.createdTime.localeCompare(b.createdTime) || a.rowId.localeCompare(b.rowId));
   return {
@@ -639,6 +643,34 @@ function matchingSourceStates_(row, states) {
   return [...states.values()].filter((state) => beneficiaries.includes(normalizeSearchText_(state.account.accountName)));
 }
 
+function isExplicitAccountDebt_(row, state, categoryNamesById) {
+  if (normalizeSearchText_(accountName_(categoryNamesById, row.categoryId)) === "vay va tra") return false;
+  const account = normalizeSearchText_(state.account.accountName);
+  const text = positiveEvidenceText_(row.normalizedText || normalizeSearchText_([row.title, row.note].filter(Boolean).join(" | ")));
+  const note = normalizeSearchText_(row.note);
+  return /\bno\b/.test(text) && (text.includes("no " + account) || /^no(?:\s+\d[\d.,]*(?:\s*(?:d|dong))?)?$/.test(note));
+}
+
+function isNetAppTarget_(row, otherIncomeCategoryNamesById) {
+  const text = normalizeSearchText_([row.title, row.note,
+    accountName_(otherIncomeCategoryNamesById, row.categoryId)].filter(Boolean).join(" | "));
+  return /\b(?:thu nhap rong (?:grap|grab)|(?:grap|grab) thu nhap rong)\b/.test(text);
+}
+
+function isCurrentMonthReceipt_(row, state, otherIncomeCategoryNamesById, passThroughKeywords, passThroughCategories) {
+  const account = normalizeSearchText_(state.account.accountName);
+  if (account !== "momo" && account !== "grap tien mat" && account !== "grab tien mat") return false;
+  const text = positiveEvidenceText_(row.normalizedText || normalizeSearchText_([row.title, row.note].filter(Boolean).join(" | ")));
+  if (isNetAppTarget_(row, otherIncomeCategoryNamesById)) return false;
+  if (row.kind === "income") return true;
+  const category = normalizeSearchText_(accountName_(otherIncomeCategoryNamesById, row.categoryId));
+  if ((passThroughKeywords || []).some((word) => text.includes(normalizeSearchText_(word)))
+    || (passThroughCategories || []).some((name) => category === normalizeSearchText_(name))) return false;
+  if (/\b(?:vay|muon|hoan|tam ung|pass through)\b/.test(category)
+    || /\b(?:vay|muon|hoan lai|tra no|cap bu|chi ho|ung ho)\b/.test(text)) return false;
+  return category !== "" || /\b(?:grap|grab)\s+(?:qr|tien mat)\b/.test(text);
+}
+
 function validateReimbursements_(rows, accountNamesById, fundGroups, personalLoans, fundLoans, onIssue) {
   const beneficiaries = [
     ...[...accountNamesById].map(([id, name]) => ({ id, name, keys: [normalizeSearchText_(name)], kind: "account" })),
@@ -711,6 +743,9 @@ export function buildPreviousMonthAdvanceLedger_({
   rows = [],
   accountNamesById = {},
   categoryNamesById = {},
+  otherIncomeCategoryNamesById = {},
+  passThroughKeywords = [],
+  passThroughCategories = [],
   personalLoans = {},
   fundLoans = {}
 } = {}) {
@@ -730,6 +765,7 @@ export function buildPreviousMonthAdvanceLedger_({
     obligations: []
   }]));
   const unmatchedSources = [];
+  const expenseSources = {};
   const liabilityOpeningIds = new Set((personalLoans.liabilities || []).map((item) => item.openedBy));
   const returnedReceivableRowIds = new Set(
     (personalLoans.receivables || []).flatMap((item) => item.repaymentRows || [])
@@ -767,13 +803,13 @@ export function buildPreviousMonthAdvanceLedger_({
     if (row.kind === "income" || row.kind === "otherIncome") {
       const state = states.get(row.accountId);
       if (!state) continue;
-      const cohort = row.kind === "income"
-        ? "earned"
-        : liabilityOpeningIds.has(row.id)
+      if (isNetAppTarget_(row, otherIncomeCategoryNamesById)) continue;
+      const cohort = liabilityOpeningIds.has(row.id)
           ? "borrowed"
           : returnedReceivableRowIds.has(row.id)
             ? "returned"
-            : "passThrough";
+            : isCurrentMonthReceipt_(row, state, otherIncomeCategoryNamesById,
+              passThroughKeywords, passThroughCategories) ? "earned" : "passThrough";
       addCohort_(state, cohort, row.amount);
       continue;
     }
@@ -786,6 +822,7 @@ export function buildPreviousMonthAdvanceLedger_({
         continue;
       }
 
+      const rentReserveTransfer = isRentReserveTransfer_(row, categoryNamesById);
       const openingUsed = consumeOpening_(fromState, row.amount);
       const currentUse = consumeNonOpening_(fromState, row.amount - openingUsed);
       if (toState && toState !== fromState) {
@@ -795,7 +832,7 @@ export function buildPreviousMonthAdvanceLedger_({
         }
       }
 
-      if (isRentReserveTransfer_(row, categoryNamesById)) {
+      if (rentReserveTransfer) {
         const exempt = Math.min(openingUsed, rentExemptRemaining);
         rentExemptRemaining -= exempt;
         const advanceAmount = openingUsed - exempt;
@@ -810,14 +847,21 @@ export function buildPreviousMonthAdvanceLedger_({
     const state = states.get(row.accountId);
     if (!state) continue;
 
-    if (isExplicitPreviousMonthUse_(row)) {
-      consumeOpening_(state, row.amount);
+    if (isExplicitPreviousMonthUse_(row) || isExplicitAccountDebt_(row, state, categoryNamesById)) {
+      const openingUsed = consumeOpening_(state, row.amount);
+      consumeNonOpening_(state, row.amount - openingUsed);
+      expenseSources[row.id] = { currentMonth: 0, previousMonth: row.amount, unproven: 0 };
       recordAdvance_(state, row, row.amount);
       continue;
     }
 
     const currentUse = consumeNonOpening_(state, row.amount);
     const openingUsed = consumeOpening_(state, currentUse.remaining);
+    expenseSources[row.id] = {
+      currentMonth: currentUse.consumed.earned,
+      previousMonth: openingUsed,
+      unproven: row.amount - currentUse.consumed.earned - openingUsed
+    };
     if (!liabilityRepaymentRowIds.has(row.id)) {
       recordAdvance_(state, row, openingUsed, openingUsed !== row.amount);
     }
@@ -827,9 +871,19 @@ export function buildPreviousMonthAdvanceLedger_({
     account.outstanding = account.principal - account.repaid;
   }
 
+  const outstandingByRow = {};
+  for (const state of states.values()) {
+    for (const obligation of state.obligations) {
+      outstandingByRow[obligation.rowId] = (outstandingByRow[obligation.rowId] || 0)
+        + obligation.principal - obligation.repaid;
+    }
+  }
+
   return {
     totalOutstanding: accounts.reduce((total, account) => total + account.outstanding, 0),
     accounts,
-    unmatchedSources
+    unmatchedSources,
+    expenseSources,
+    outstandingByRow
   };
 }

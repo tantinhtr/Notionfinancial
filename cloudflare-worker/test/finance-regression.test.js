@@ -1775,6 +1775,8 @@ test("a child paid directly outside its fund is covered and names the source", (
       "Phương Thức Thanh Toán": { relation: [{ id: accountId }] }
     }
   });
+  const receipt = cashflowIncomeRow("grab-receipt", "Grap tiền mặt", "grab-receipt", "grab-cash", 70000);
+  receipt.properties["Ngày"] = { date: { start: "2026-09-01" } };
   const data = buildAccountSpendingData_(
     { y: 2026, m: 9, d: 11 },
     [
@@ -1791,7 +1793,11 @@ test("a child paid directly outside its fund is covered and names the source", (
     ],
     5500000,
     [transferRow("fund-rent", "Cấp tiền phòng", 2150000, "momo", "fund", "essential")],
-    [fundGroupRow("essential", "Nhu cầu thiết yếu", "fund", true)]
+    [fundGroupRow("essential", "Nhu cầu thiết yếu", "fund", true)],
+    {
+      sourceAccountNames: ["Grap Tiền Mặt"],
+      otherIncomeRows: [receipt]
+    }
   );
 
   const essential = data.fundGroups[0];
@@ -1925,10 +1931,7 @@ test("a jar keeps its children visible and honours old names in notes", () => {
   assert.deepEqual(nec.children, [
     { name: "Nhà Trọ", budget: 2150000, spent: 2130000, over: 0 },
     { name: "Đi Chợ", budget: 1400000, spent: 669000, over: 0 },
-    {
-      name: "Phát Sinh", budget: 600000, spent: 45000, over: 0,
-      paidOutsideSources: [{ account: "Grap Tiền Mặt", amount: 45000 }]
-    }
+    { name: "Phát Sinh", budget: 600000, spent: 45000, over: 0 }
   ]);
   // Đi Chợ tick "Chi Thẳng Không Qua Quỹ" nen 731.000 chua tieu khong bi doi cap.
   // Con lai: (2.150.000 + 600.000) - (2.130.000 + 45.000) = 575.000, quy dang giu
@@ -1941,7 +1944,7 @@ test("a jar keeps its children visible and honours old names in notes", () => {
   assert.match(text, /   • Nhà Trọ: 2\.130\.000đ \/ 2\.150\.000đ/);
   assert.doesNotMatch(text, /Đi Chợ:[^\n]*đã chi từ/);
   assert.match(text, /   • Phát Sinh: 45\.000đ \/ 600\.000đ/);
-  assert.match(text, /Phát Sinh:[^\n]*đã chi từ Grap Tiền Mặt: 45\.000đ/);
+  assert.doesNotMatch(text, /Phát Sinh:[^\n]*đã chi từ Grap Tiền Mặt: 45\.000đ/);
   assert.doesNotMatch(text, /ỨNG TRƯỚC/);
 });
 
@@ -2167,7 +2170,7 @@ test("the funding line says which child label the money is for", () => {
   assert.match(text, /• Giáo dục phát triển → Quỹ Momo: 397\.164đ\n    Phát triển bản thân: 371\.608đ\n    Affiilate: 25\.556đ/);
 });
 
-test("only a named pot outside the jars creates a debt, never a plain account", () => {
+test("a named fund loan stays distinct when no earlier account funding is proven", () => {
   const paid = (id, name, categoryId, accountId, amount, note = "") => ({
     id,
     properties: {
@@ -2187,8 +2190,7 @@ test("only a named pot outside the jars creates a debt, never a plain account", 
       trackedCategoryRow("incidental", "Phát Sinh", 600000, "essential-fund")
     ],
     [
-      // Tra bang Banking, Tien Mat, Momo — deu la tien cua chinh minh, khong ai
-      // bo tien ra ho, nen khong sinh mon no nao.
+      // No opening cohort or earlier receipt is supplied for these accounts.
       paid("party", "Tiền đi thôi nôi con a Nguyện", "incidental", "bank", 300000),
       paid("rent-aug", "Tiền phòng", "rent", "cash", 2122000),
       // Chi bang chinh tai khoan giu quy va ghi chu noi lay tu mot quy con khong
@@ -2219,6 +2221,69 @@ test("only a named pot outside the jars creates a debt, never a plain account", 
   assert.doesNotMatch(text, /🤝 NỢ GHI RÕ/);
   assert.doesNotMatch(text, /→ Banking/);
   assert.doesNotMatch(text, /→ Tiền Mặt/);
+});
+
+test("September direct Grab expenses are covered once while 550000 Tiền Mặt remains a named account debt", () => {
+  const dated = (page, day, hour) => ({
+    ...page, created_time: `2026-09-${day}T${hour}:00:00.000Z`,
+    properties: { ...page.properties, "Ngày": { date: { start: `2026-09-${day}` } } }
+  });
+  const categoryRows = [
+    trackedCategoryRow("incidental", "Phát Sinh", 600000, "essential"),
+    trackedCategoryRow("haircut", "Cắt Tóc", 70000, "essential"),
+    trackedCategoryRow("market", "Đi Chợ", 1400000, "essential")
+  ];
+  categoryRows[2].properties["Chi Thẳng Không Qua Quỹ"] = { checkbox: true };
+  const accounts = [
+    cashflowAccountRow("cash", "Tiền Mặt"), cashflowAccountRow("grab", "Grap Tiền Mặt"),
+    cashflowAccountRow("momo", "Momo"), cashflowAccountRow("fund", "Quỹ Momo")
+  ];
+  accounts[0].properties["Số Dư Ban Đầu"] = { number: 550000 };
+  const expenses = [
+    dated(namedExpenseRow("owed", "Phát Sinh", "incidental", "cash", 550000, "nợ Tiền Mặt"), "02", "02"),
+    dated(namedExpenseRow("grab-154", "Phát Sinh", "incidental", "grab", 154000), "03", "02"),
+    dated(namedExpenseRow("haircut-70", "Cắt tóc", "haircut", "grab", 70000), "04", "02"),
+    dated(namedExpenseRow("market-63", "Đi chợ", "market", "grab", 63000), "05", "02")
+  ];
+  const income = dated(cashflowIncomeRow("grab-income", "Grap tiền mặt", "grab-receipt", "grab", 300000), "01", "01");
+  const data = buildAccountSpendingData_(
+    { y: 2026, m: 9, d: 6 }, categoryRows, expenses, accounts, 5500000, [],
+    [fundGroupRow("essential", "Nhu cầu thiết yếu", "fund", true)],
+    { sourceAccountNames: ["Tiền Mặt", "Grap Tiền Mặt", "Momo"], otherIncomeRows: [income], rentReserveAmount: 0 }
+  );
+  const group = data.fundGroups[0];
+  assert.equal(group.spent, 837000);
+  assert.equal(group.allocated, 0);
+  assert.equal(group.transferNeeded, 0);
+  assert.deepEqual(group.explicitDebts.map((debt) => ({ lender: debt.lender, outstanding: debt.outstanding, childName: debt.childName })),
+    [{ lender: "Tiền Mặt", outstanding: 550000, childName: "Phát Sinh" }]);
+  assert.deepEqual(group.children.find((child) => child.name === "Phát Sinh").paidOutsideSources,
+    [{ account: "Grap Tiền Mặt", amount: 154000 }]);
+  assert.deepEqual(group.children.find((child) => child.name === "Cắt Tóc").paidOutsideSources,
+    [{ account: "Grap Tiền Mặt", amount: 70000 }]);
+  assert.equal(group.children.find((child) => child.name === "Đi Chợ").paidOutsideSources, undefined);
+  const report = fundBudgetText_(data);
+  assert.match(report, /Phát Sinh:[^\n]*còn nợ Tiền Mặt 550\.000đ/);
+  assert.doesNotMatch(report, /Tiền Mặt: cần cấp bù 550\.000đ/);
+  assert.doesNotMatch(report, /CẦN CẤP THÊM/);
+});
+
+test("an ordinary fund expense using previous-month Tiền Mặt owes that account even without a debt note", () => {
+  const cash = cashflowAccountRow("cash", "Tiền Mặt");
+  cash.properties["Số Dư Ban Đầu"] = { number: 70000 };
+  const expense = namedExpenseRow("spent", "Cắt tóc", "haircut", "cash", 70000);
+  expense.properties["Ngày"] = { date: { start: "2026-09-02" } };
+  const data = buildAccountSpendingData_(
+    { y: 2026, m: 9, d: 3 }, [trackedCategoryRow("haircut", "Cắt Tóc", 70000, "essential")],
+    [expense], [cash, cashflowAccountRow("fund", "Quỹ Momo")], 5500000, [],
+    [fundGroupRow("essential", "Nhu cầu thiết yếu", "fund", true)],
+    { sourceAccountNames: ["Tiền Mặt"], rentReserveAmount: 0 }
+  );
+  assert.deepEqual(data.fundGroups[0].explicitDebts.map((debt) => ({ lender: debt.lender, outstanding: debt.outstanding })),
+    [{ lender: "Tiền Mặt", outstanding: 70000 }]);
+  const report = fundBudgetText_(data);
+  assert.match(report, /còn nợ Tiền Mặt 70\.000đ/);
+  assert.doesNotMatch(report, /Tiền Mặt: cần cấp bù 70\.000đ|CẦN CẤP THÊM/);
 });
 
 test("spending splits into fund groups, loose spending and excluded one-offs", () => {

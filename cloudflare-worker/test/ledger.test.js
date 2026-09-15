@@ -1350,3 +1350,105 @@ test("recognizes using previous-month money even when a current cohort is availa
   assert.equal(result.accounts[0].outstanding, 100000);
   assert.deepEqual(result.accounts[0].rows.map((row) => row.id), ["using-opening"]);
 });
+
+test("traces direct current-month Grab money and explicit Tiền Mặt debt by original row", () => {
+  const result = buildPreviousMonthAdvanceLedger_({
+    openingPlan: {
+      rentReserve: 0,
+      sourceAccounts: [
+        { id: "cash", name: "Tiền Mặt", opening: 550000 },
+        { id: "grab", name: "Grap Tiền Mặt", opening: 0 },
+        { id: "momo", name: "Momo", opening: 0 }
+      ]
+    },
+    rows: [
+      { id: "grab-income", kind: "otherIncome", title: "Grap tiền mặt", amount: 224000, accountId: "grab", date: "2026-09-01", createdTime: "" },
+      { id: "cash-spend", kind: "expense", title: "Phát Sinh", note: "nợ Tiền Mặt", amount: 550000, accountId: "cash", date: "2026-09-02", createdTime: "" },
+      { id: "grab-spend", kind: "expense", title: "Phát Sinh", amount: 154000, accountId: "grab", date: "2026-09-03", createdTime: "" },
+      { id: "haircut", kind: "expense", title: "Cắt tóc", amount: 70000, accountId: "grab", date: "2026-09-04", createdTime: "" },
+      { id: "unrelated", kind: "otherIncome", title: "Thu khác", amount: 550000, accountId: "momo", date: "2026-09-05", createdTime: "" }
+    ],
+    personalLoans: { receivables: [], liabilities: [], repayments: [], unmatched: [] },
+    fundLoans: { loans: [] }
+  });
+
+  assert.deepEqual(result.expenseSources["cash-spend"], { currentMonth: 0, previousMonth: 550000, unproven: 0 });
+  assert.deepEqual(result.expenseSources["grab-spend"], { currentMonth: 154000, previousMonth: 0, unproven: 0 });
+  assert.deepEqual(result.expenseSources.haircut, { currentMonth: 70000, previousMonth: 0, unproven: 0 });
+  assert.equal(result.accounts.find((account) => account.accountId === "cash").outstanding, 550000);
+});
+
+test("traces a dated current-month transfer into Tiền Mặt before spending", () => {
+  const result = buildPreviousMonthAdvanceLedger_({
+    openingPlan: { rentReserve: 0, sourceAccounts: [
+      { id: "momo", name: "Momo", opening: 0 },
+      { id: "cash", name: "Tiền Mặt", opening: 0 }
+    ] },
+    rows: [
+      { id: "earned", kind: "income", title: "Thu nhập", amount: 100000, accountId: "momo", date: "2026-09-01", createdTime: "" },
+      { id: "move", kind: "transfer", title: "Chuyển vào Tiền Mặt", amount: 100000, fromAccountId: "momo", toAccountId: "cash", date: "2026-09-02", createdTime: "" },
+      { id: "spend", kind: "expense", title: "Chi", amount: 70000, accountId: "cash", date: "2026-09-03", createdTime: "" }
+    ],
+    personalLoans: { receivables: [], liabilities: [], repayments: [], unmatched: [] },
+    fundLoans: { loans: [] }
+  });
+  assert.deepEqual(result.expenseSources.spend, { currentMonth: 70000, previousMonth: 0, unproven: 0 });
+  assert.equal(result.totalOutstanding, 0);
+});
+
+test("Grab App net-income target is not a spendable Momo receipt", () => {
+  const result = buildPreviousMonthAdvanceLedger_({
+    openingPlan: { rentReserve: 0, sourceAccounts: [{ id: "momo", name: "Momo", opening: 0 }] },
+    rows: [
+      { id: "app-target", kind: "income", title: "Grap thu nhập ròng", amount: 617261, accountId: "momo", date: "2026-09-01", createdTime: "" },
+      { id: "momo-spend", kind: "expense", title: "Chi Momo", amount: 100000, accountId: "momo", date: "2026-09-02", createdTime: "" }
+    ],
+    personalLoans: { receivables: [], liabilities: [], repayments: [], unmatched: [] },
+    fundLoans: { loans: [] }
+  });
+  assert.deepEqual(result.expenseSources["momo-spend"], { currentMonth: 0, previousMonth: 0, unproven: 100000 });
+});
+
+test("Grab App target cannot hide use of previous-month Momo money", () => {
+  const result = buildPreviousMonthAdvanceLedger_({
+    openingPlan: { rentReserve: 0, sourceAccounts: [{ id: "momo", name: "Momo", opening: 100000 }] },
+    rows: [
+      { id: "app-target", kind: "income", title: "Thu Nhập Ròng Grab (App)", amount: 617261, accountId: "momo", date: "2026-09-01", createdTime: "" },
+      { id: "momo-spend", kind: "expense", title: "Chi Momo", amount: 100000, accountId: "momo", date: "2026-09-02", createdTime: "" }
+    ],
+    personalLoans: { receivables: [], liabilities: [], repayments: [], unmatched: [] },
+    fundLoans: { loans: [] }
+  });
+  assert.deepEqual(result.expenseSources["momo-spend"], { currentMonth: 0, previousMonth: 100000, unproven: 0 });
+  assert.equal(result.accounts[0].outstanding, 100000);
+});
+
+test("uses genuine other income but excludes a structured loan receipt from current-month funding", () => {
+  const result = buildPreviousMonthAdvanceLedger_({
+    openingPlan: { rentReserve: 0, sourceAccounts: [{ id: "momo", name: "Momo", opening: 0 }] },
+    otherIncomeCategoryNamesById: new Map([["extra", "Thu khác"], ["loan", "Vay Và Trả"]]),
+    rows: [
+      { id: "extra", kind: "otherIncome", title: "Khoản thu khác", categoryId: "extra", amount: 70000, accountId: "momo", date: "2026-09-01", createdTime: "" },
+      { id: "borrowed", kind: "otherIncome", title: "Khoản thu khác", categoryId: "loan", amount: 100000, accountId: "momo", date: "2026-09-02", createdTime: "" },
+      { id: "spend", kind: "expense", title: "Chi", amount: 170000, accountId: "momo", date: "2026-09-03", createdTime: "" }
+    ],
+    personalLoans: { receivables: [], liabilities: [], repayments: [], unmatched: [] },
+    fundLoans: { loans: [] }
+  });
+  assert.deepEqual(result.expenseSources.spend, { currentMonth: 70000, previousMonth: 0, unproven: 100000 });
+});
+
+test("pass-through other income cannot be counted as current-month fund money", () => {
+  const result = buildPreviousMonthAdvanceLedger_({
+    openingPlan: { rentReserve: 0, sourceAccounts: [{ id: "momo", name: "Momo", opening: 0 }] },
+    otherIncomeCategoryNamesById: new Map([["extra", "Thu khác"]]),
+    passThroughKeywords: ["code"],
+    rows: [
+      { id: "refund", kind: "otherIncome", title: "Khách hoàn ứng code", categoryId: "extra", amount: 100000, accountId: "momo", date: "2026-09-01", createdTime: "" },
+      { id: "spend", kind: "expense", title: "Chi", amount: 100000, accountId: "momo", date: "2026-09-02", createdTime: "" }
+    ],
+    personalLoans: { receivables: [], liabilities: [], repayments: [], unmatched: [] },
+    fundLoans: { loans: [] }
+  });
+  assert.deepEqual(result.expenseSources.spend, { currentMonth: 0, previousMonth: 0, unproven: 100000 });
+});

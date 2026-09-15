@@ -180,7 +180,7 @@ export function createFinanceRepository({ notion, state, config, now = () => new
 
   async function getFundBudgetReport(forceRefresh = false) {
     const t = createDateParts(now, dateFormatter);
-    // Bao cao nay doc 7 bang Notion, va bang khoan chi vuot 100 dong tu giua thang
+    // Bao cao nay doc cac bang Notion, va bang khoan chi vuot 100 dong tu giua thang
     // nen phai phan trang — cang cuoi thang cang lau. Cache 60 giay giong het
     // monthly-cashflow: bam lai trong vong mot phut la tra ve ngay.
     const cacheKey = `fund-budget:${iso_(t.y, t.m, t.d)}`;
@@ -200,7 +200,8 @@ export function createFinanceRepository({ notion, state, config, now = () => new
       transferRows,
       fundGroupRows,
       incomeRows,
-      otherIncomeRows
+      otherIncomeRows,
+      otherIncomeCategoryRows
     ] = await Promise.all([
       notion.queryDatabase(config.budgetDb),
       notion.queryDatabase(config.expenseDb, filter),
@@ -208,7 +209,8 @@ export function createFinanceRepository({ notion, state, config, now = () => new
       notion.queryDatabase(config.transferDb, filter),
       notion.queryDatabase(config.fundGroupDb),
       notion.queryDatabase(config.incomeDb, filter),
-      notion.queryDatabase(config.otherIncomeDb, filter)
+      notion.queryDatabase(config.otherIncomeDb, filter),
+      notion.queryDatabase(config.otherIncomeCategoryDb)
     ]);
     let historicalIncomeRows = [];
     let historicalOtherIncomeRows = [];
@@ -235,6 +237,7 @@ export function createFinanceRepository({ notion, state, config, now = () => new
       {
         incomeRows,
         otherIncomeRows,
+        otherIncomeCategoryRows,
         historicalIncomeRows,
         historicalOtherIncomeRows,
         historicalExpenseRows,
