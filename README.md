@@ -286,13 +286,13 @@ Cả hai báo cáo nặng đều được cache **60 giây** trong KV, theo ngà
 | `monthly-cashflow:YYYY-MM-DD` | Dòng tiền tháng |
 | `fund-budget:YYYY-MM-DD` | Quỹ & ngân sách |
 
-Quỹ & ngân sách đọc **7 bảng Notion**, và bảng Báo Cáo Khoản Chi vượt 100 dòng từ giữa tháng nên phải phân trang — càng cuối tháng càng lâu. Cache làm lần bấm thứ hai trở đi trả về ngay.
+Quỹ & ngân sách đọc **8 bảng Notion**, và bảng Báo Cáo Khoản Chi vượt 100 dòng từ giữa tháng nên phải phân trang — càng cuối tháng càng lâu. Cache làm lần bấm thứ hai trở đi trả về ngay.
 
 Ghi một khoản thu Grab mới sẽ xoá **cả hai** khoá của ngày đó, vì cả hai báo cáo đều dùng số thu nhập.
 
 ### Gọi Notion
 
-Notion cho trung bình **3 request/giây**. Báo cáo Quỹ & ngân sách bắn 7 truy vấn song song, và bảng Báo Cáo Khoản Chi vượt 100 dòng từ giữa tháng nên phải phân trang — dễ dính **429**.
+Notion cho trung bình **3 request/giây**. Báo cáo Quỹ & ngân sách bắn 8 truy vấn song song, và bảng Báo Cáo Khoản Chi vượt 100 dòng từ giữa tháng nên phải phân trang — dễ dính **429**.
 
 | | |
 |---|---|
@@ -303,7 +303,7 @@ Notion cho trung bình **3 request/giây**. Báo cáo Quỹ & ngân sách bắn 
 
 ### CI
 
-`.github/workflows/ci.yml` chạy mỗi lần push lên `main` và mỗi pull request: `npm ci`, kiểm tra cú pháp, rồi 150 bài test. Kết quả hiện thành dấu ✓ hoặc ✗ ngay cạnh commit trên GitHub.
+`.github/workflows/ci.yml` chạy mỗi lần push lên `main` và mỗi pull request: `npm ci`, kiểm tra cú pháp, rồi toàn bộ bài test. Kết quả hiện thành dấu ✓ hoặc ✗ ngay cạnh commit trên GitHub.
 
 **CI không chặn được deploy.** GitHub Actions và Cloudflare Workers Builds chạy song song, độc lập nhau — test đỏ thì Cloudflare vẫn đẩy code lên. Muốn chặn thật thì đổi deploy command trong Cloudflare dashboard thành:
 

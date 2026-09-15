@@ -37,5 +37,5 @@ jobs:
       - name: Cú pháp
         run: npm run check
 
-      - name: 150 bài test
+      - name: Bài test
         run: npm test
