@@ -399,6 +399,26 @@ test("fund report wires current and master Notion queries into the finance build
   ]);
 });
 
+test("fund report accepts an accountless Grab App target but still flags an accountless real receipt", async () => {
+  const income = (id, categoryId) => row(id, {
+    "Tên Khoản Thu": { title: [{ plain_text: "Grap thu nhập ròng" }] },
+    "Số Tiền": { number: 286581 },
+    "Ngày": { date: { start: "2026-07-07" } },
+    "Loại Khoản Thu": { relation: [{ id: categoryId }] },
+    "Phương Thức Thanh Toán": { relation: [] }
+  });
+  const { repository } = createRepository({ rows: {
+    budgets: [], expenses: [], accounts: [], transfers: [], "fund-groups": [],
+    income: [income("app-target", "grab-goal"), income("real-receipt", "ordinary")],
+    "other-income": []
+  } });
+
+  const model = await repository.getFundBudgetReport();
+  assert.equal(model.explicitLedger.dataIssues.some((issue) => issue.rowId === "app-target"), false);
+  assert.deepEqual(model.explicitLedger.dataIssues.find((issue) => issue.rowId === "real-receipt")?.details,
+    ["Phương Thức Thanh Toán"]);
+});
+
 test("fund report wires complete pre-month history", async () => {
   const currentFilter = {
     and: [

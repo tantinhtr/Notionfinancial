@@ -179,7 +179,7 @@ export function buildFinanceLedger_({
   const issuesByKey = new Map();
   const onIssue = (row, type, details) => mergeDataIssue_(issuesByKey, currentRowIds, currentRowsById.get(row.id) || row, type, details);
   for (const row of currentRows) {
-    const missing = missingFields_(row);
+    const missing = missingFields_(row, options.goalRelationPageId);
     if (missing.length) onIssue(row, "missing_required_data", missing);
   }
   const accountNamesById = new Map(accountRows.map((row) => [row.id, propertyText_(row.properties?.["Phương Thức Thanh Toán"])]));
@@ -212,7 +212,7 @@ export function buildFinanceLedger_({
     if (row.direction) onIssue(row, "history_not_found", ["Không tìm thấy bản ghi gốc liên quan"]);
   }
   for (const row of currentRows) {
-    if (missingFields_(row).length) continue;
+    if (missingFields_(row, options.goalRelationPageId).length) continue;
     if (loanCategoryIds.has(row.categoryId) || unresolvedPersonalRows.some((item) => item.id === row.id)) {
       if ([row.title, row.note].some((text) => {
         const action = normalizeSearchText_(text).match(/^(?:tra(?: lai)? (?:no|tien muon)(?: cho)?|cho muon(?: tien)?|muon(?: tien)?|nhan (?:lai )?(?:tien )?(?:tra no|tra lai))(?:\s+(.+))?$/);
@@ -339,7 +339,7 @@ function mergeDataIssue_(issuesByKey, currentRowIds, row, type, details) {
   else issuesByKey.set(key, dataIssue_(row, type, details));
 }
 
-function missingFields_(row) {
+function missingFields_(row, goalRelationPageId) {
   const missing = [];
   if (!row.titlePresent) missing.push("Nội dung");
   if (!row.datePresent) missing.push("Ngày");
@@ -350,7 +350,9 @@ function missingFields_(row) {
   }
   if (row.kind === "income" || row.kind === "otherIncome") {
     if (!row.categoryId) missing.push("Loại Khoản Thu");
-    if (!row.accountId) missing.push("Phương Thức Thanh Toán");
+    if (!row.accountId && !(row.kind === "income" && row.categoryId === goalRelationPageId)) {
+      missing.push("Phương Thức Thanh Toán");
+    }
   }
   if (row.kind === "transfer") {
     if (!row.transferType) missing.push("Loại Chuyển Đổi");

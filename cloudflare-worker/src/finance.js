@@ -909,6 +909,7 @@ export function buildAccountSpendingData_(
 
     const loanAllocation = explicitLedger.fundLoans.allocationAdjustments[fundGroupRow.id] || 0;
     let netAllocated = loanAllocation;
+    const allocationRows = [];
     for (const transferRow of transferRows) {
       if (fundLoanRowIds.has(transferRow.id)) continue;
       const transferProps = transferRow.properties || {};
@@ -923,15 +924,19 @@ export function buildAccountSpendingData_(
       const toId = toRelation.length ? toRelation[0].id : "";
       const fromId = fromRelation.length ? fromRelation[0].id : "";
       if (toId === fromId) continue;
-      if (toId === destinationAccountId) netAllocated += amount;
-      if (fromId === destinationAccountId) netAllocated -= amount;
+      if (toId === destinationAccountId) {
+        netAllocated += amount;
+        allocationRows.push({ amount, text: ledgerRowsById[transferRow.id]?.normalizedText || plainText_(transferProps["Ghi Chú"]) });
+      }
+      if (fromId === destinationAccountId) {
+        netAllocated -= amount;
+        allocationRows.push({ amount: -amount, text: ledgerRowsById[transferRow.id]?.normalizedText || plainText_(transferProps["Ghi Chú"]) });
+      }
     }
 
     const groupRows = [];
     const fundedChildren = [];
     const debtChildCandidates = [];
-    let unfundedBudget = 0;
-    let unfundedSpent = 0;
     for (const fixed of fixedBudgets) {
       if (fixed.groupId !== fundGroupRow.id) continue;
       const paidOutsideByAccount = {};
@@ -967,10 +972,7 @@ export function buildAccountSpendingData_(
       });
       // Chi nhung nhan con thuc su phai di qua tai khoan giu quy moi tinh vao so
       // can cap them. Đi Chợ tra thang bang tien mat thi khong doi bom truoc.
-      if (fixed.skipsFund) {
-        unfundedBudget += fixed.budget;
-        unfundedSpent += fixed.spent;
-      } else if (fixed.budget > fixed.spent) {
+      if (!fixed.skipsFund && fixed.budget > fixed.spent) {
         fundedChildren.push({ name: fixed.name, remaining: fixed.budget - fixed.spent });
       }
       for (const spendRow of fixed.spendRows) groupRows.push(spendRow);
@@ -978,9 +980,33 @@ export function buildAccountSpendingData_(
     // Khoan chi duoc ghi chu "tinh vao quy X" keo vao day, du Loai Chi Phi khac.
     for (const extraRow of extraRowsByGroupId[fundGroupRow.id] || []) {
       group.spent += extraRow.amount;
+      const source = flowAnalysis.rowsById[extraRow.id];
+      const childName = debtTargetChildName_(extraRow.name + " " + (source?.note || ""), debtChildCandidates)
+        || (group.children.length === 1 ? group.children[0].name : "");
+      if (childName) {
+        extraRow.childName = childName;
+        const child = group.children.find((entry) => entry.name === childName);
+        child.spent += extraRow.amount;
+        child.over = Math.max(child.spent - child.budget, 0);
+        const funded = fundedChildren.find((entry) => entry.name === childName);
+        if (funded) funded.remaining = Math.max(funded.remaining - extraRow.amount, 0);
+      }
       groupRows.push(extraRow);
     }
     groupRows.sort((a, b) => (a.date < b.date ? -1 : (a.date > b.date ? 1 : 0)));
+
+    const childAllocated = {};
+    const assignAllocation = (amount, text) => {
+      const childName = debtTargetChildName_(text, debtChildCandidates)
+        || (group.children.length === 1 ? group.children[0].name : "");
+      if (childName) childAllocated[childName] = (childAllocated[childName] || 0) + amount;
+    };
+    for (const allocation of allocationRows) assignAllocation(allocation.amount, allocation.text);
+    for (const loan of explicitLedger.fundLoans.loans) {
+      if (loan.borrowerGroupId !== fundGroupRow.id || !ledgerRowsById[loan.openedBy]) continue;
+      assignAllocation(loan.principal, ledgerRowsById[loan.openedBy].normalizedText);
+    }
+    const childPaidFromFund = {};
 
     for (const spendRow of groupRows) {
       // Ghi chu tro ve chinh nhom thi khong phai muon.
@@ -991,6 +1017,9 @@ export function buildAccountSpendingData_(
         addDebtRow(borrowByFund, lender, spendRow, spendRow.amount, false);
       } else if (spendRow.account === accountNames[destinationAccountId]) {
         group.paidFromFund += spendRow.amount;
+        if (spendRow.childName) {
+          childPaidFromFund[spendRow.childName] = (childPaidFromFund[spendRow.childName] || 0) + spendRow.amount;
+        }
       } else {
         group.paidOutsideFund += spendRow.amount;
       }
@@ -1015,8 +1044,7 @@ export function buildAccountSpendingData_(
     // Hai khoản này khác bản chất, không được cộng chung:
     //   explicitDebts — only obligations with an explicitly identified lender.
     //   transferNeeded— phần ngân sách CHƯA tiêu, phải CẤP vào quỹ trước khi chi.
-    // Đã ứng trước rồi thì thôi không cần cấp nữa, nên transferNeeded chỉ tính
-    // trên số dư dương của quỹ.
+    // Đã chi rồi không cần cấp lần hai; nợ ứng trước vẫn được giữ riêng.
     if (requiresAllocation) {
       // Explicit internal movements explain balance changes, not unidentified spending.
       group.fundingShortfall = Math.max(group.paidFromFund - netAllocated, 0);
@@ -1039,29 +1067,17 @@ export function buildAccountSpendingData_(
         rows: debt.rows
       })));
       group.fundRemaining = Math.max(group.fundBalance, 0);
-      // Tien tieu bang tui khac CUNG COI NHU DA CAP: dang le no phai di qua quy,
-      // chi la chua co giao dich chuyen thoi. Viec tra lai cho ben da ung nam o muc
-      // UNG TRUOC, khong phai cap lai lan hai. Nen can cap them chi con la phan
-      // ngan sach chua dung toi, tru di so quy dang giu.
-      const remainingBudget = Math.max(
-        (group.budget - unfundedBudget) - (group.spent - unfundedSpent),
-        0
-      );
-      group.transferNeeded = Math.max(
-        remainingBudget - Math.max(group.fundBalance, 0),
-        0
-      );
-      // Tien chuyen vao quy la mot cuc, nhung phai noi ro cuc do danh cho nhan nao.
-      // Chia theo phan ngan sach con lai cua tung nhan, nhan thieu nhieu nhat truoc,
-      // nen cac dong con luon cong dung bang so cua ca lo.
-      let unplanned = group.transferNeeded;
-      fundedChildren.sort((a, b) => b.remaining - a.remaining);
-      for (const child of fundedChildren) {
-        if (unplanned <= 0) break;
-        const share = Math.min(unplanned, child.remaining);
-        if (share <= 0) continue;
-        group.transferPlan.push({ name: child.name, amount: share });
-        unplanned -= share;
+      // Cấp đủ cả ngân sách nhóm chứng minh mọi nhãn đã được cấp, dù ghi chú chung.
+      if (group.allocated < group.budget) {
+        // Tiền còn của nhãn khác không thể tự động bù vào nhãn chưa được cấp.
+        fundedChildren.sort((a, b) => b.remaining - a.remaining);
+        for (const child of fundedChildren) {
+          const held = Math.max((childAllocated[child.name] || 0) - (childPaidFromFund[child.name] || 0), 0);
+          const needed = Math.max(child.remaining - held, 0);
+          if (needed <= 0) continue;
+          group.transferPlan.push({ name: child.name, amount: needed });
+          group.transferNeeded += needed;
+        }
       }
     }
     group.explicitDebts.push(...explicitLedger.fundLoans.loans.filter((loan) => loan.borrowerGroupId === fundGroupRow.id));

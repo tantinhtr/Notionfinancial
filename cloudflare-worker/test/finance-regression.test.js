@@ -1029,6 +1029,31 @@ test("750000 internal loan adds allocation once and keeps debt despite the 13300
   assert.equal(data.explicitLedger.rows.find((row) => row.id === "grab-income").amount, 999999);
 });
 
+test("Internet needs its full unfunded 180000 even when rent and other money remain in Quỹ Momo", () => {
+  const data = buildAccountSpendingData_(
+    { y: 2026, m: 9, d: 10 },
+    [trackedCategoryRow("rent", "Nhà Trọ", 2150000, "essential"),
+      trackedCategoryRow("internet", "Internet", 180000, "essential")],
+    [namedExpenseRow("rent-paid", "Tiền phòng Nhà Trọ", "rent", "fund", 2017000)],
+    [cashflowAccountRow("fund", "Quỹ Momo"), cashflowAccountRow("bank", "Banking"),
+      cashflowAccountRow("momo", "Momo")],
+    5500000,
+    [transferRow("bank-allocation", "Tiền phòng", 1400004, "bank", "fund", "essential"),
+      transferRow("other-allocation", "Tiền quỹ khác", 104000, "momo", "fund", "essential"),
+      transferRow("borrow-750", "Mượn tiền của quỹ tiết kiệm chuyển sang tiền phòng quỹ thiết yếu", 750000, "fund", "fund", "essential")],
+    [fundGroupRow("essential", "Nhu cầu thiết yếu", "fund", true),
+      fundGroupRow("savings", "Tiết kiệm dài hạn", "fund", true)]
+  );
+
+  const essential = data.fundGroups.find((group) => group.name === "Nhu cầu thiết yếu");
+  assert.equal(essential.fundBalance, 237004);
+  assert.equal(essential.transferNeeded, 180000);
+  assert.deepEqual(essential.transferPlan, [{ name: "Internet", amount: 180000 }]);
+  assert.equal(essential.explicitDebts[0].outstanding, 750000);
+  assert.match(fundBudgetText_(data), /Internet: 180\.000đ/);
+  assert.doesNotMatch(fundBudgetText_(data), /Internet: 75\.996đ/);
+});
+
 function finalReviewDatedRow(page, day) {
   const date = `2026-09-${String(day).padStart(2, "0")}`;
   return { ...page, created_time: `${date}T08:00:00.000Z`, properties: {
@@ -1934,10 +1959,13 @@ test("a jar keeps its children visible and honours old names in notes", () => {
     { name: "Phát Sinh", budget: 600000, spent: 45000, over: 0 }
   ]);
   // Đi Chợ tick "Chi Thẳng Không Qua Quỹ" nen 731.000 chua tieu khong bi doi cap.
-  // Con lai: (2.150.000 + 600.000) - (2.130.000 + 45.000) = 575.000, quy dang giu
-  // 2.200.000 - 2.130.000 = 70.000 -> can cap them 505.000.
+  // Ghi chú "Cấp quỹ" không nói 70.000đ còn lại thuộc nhãn nào, nên không
+  // tự lấy số dư chung bù cho Phát Sinh hay Nhà Trọ.
   assert.equal(nec.fundBalance, 70000);
-  assert.equal(nec.transferNeeded, 505000);
+  assert.equal(nec.transferNeeded, 575000);
+  assert.deepEqual(nec.transferPlan, [
+    { name: "Phát Sinh", amount: 555000 }, { name: "Nhà Trọ", amount: 20000 }
+  ]);
 
   const text = fundBudgetText_(data);
   assert.match(text, /✅ Nhu cầu thiết yếu: 2\.844\.000đ \/ 4\.150\.000đ · quỹ còn 70\.000đ/);

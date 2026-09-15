@@ -58,15 +58,15 @@ Additional properties by database kind:
 
 - Expense: `Loại Chi Phí` and `Phương Thức Thanh Toán`.
 - Main income and other income: `Loại Khoản Thu` and
-  `Phương Thức Thanh Toán`.
+  `Phương Thức Thanh Toán`, except the main-income Grab App target identified
+  by its `Loại Khoản Thu` relation does not require a payment account.
 - Account transfer: `Loại Chuyển Đổi`, `Từ Tài Khoản`, and `Đến Tài Khoản`.
 - A same-account Quỹ Momo movement between virtual funds: the structured
   `Nhóm Quỹ` relation and explicit text identifying the other virtual fund.
 
-`Thu Nhập Ròng Grab (App)` is an income record. It never requires
-`Loại Chi Phí` and must not be marked incomplete for lacking that expense-only
-property. It is still validated against the properties belonging to its income
-database.
+`Thu Nhập Ròng Grab (App)` is a target, not an account receipt. It still
+requires its title, date, amount, and `Loại Khoản Thu` relation, but not
+`Loại Chi Phí` or `Phương Thức Thanh Toán`.
 
 One row with several missing properties produces one issue listing every
 missing property. The existing inline `thiếu loại chi` warning is replaced by

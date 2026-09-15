@@ -699,12 +699,23 @@ test("data issues sort same-date rows by creation time then row ID", () => {
   assert.deepEqual(dataIssues.map((issue) => issue.rowId), ["row-earlier", "row-a", "row-b"]);
 });
 
-test("Grab net income does not require expense-only properties", () => {
+test("Grab App target without a payment account is not incomplete data", () => {
   const result = buildFinanceLedger_({
-    incomeRows: [income("grab-net", "Thu Nhập Ròng Grab (App)", "goalRelationPageId", "momo", 286581, "2026-09-08")]
+    incomeRows: [income("grab-net", "Grap thu nhập ròng", "grab-goal", "", 286581, "2026-09-08")],
+    options: { goalRelationPageId: "grab-goal" }
   });
 
   assert.equal(result.dataIssues.some((issue) => issue.rowId === "grab-net"), false);
+});
+
+test("ordinary income without a payment account remains incomplete even with a Grab-like title", () => {
+  const result = buildFinanceLedger_({
+    incomeRows: [income("regular", "Grap thu nhập ròng", "regular-income", "", 286581, "2026-09-08")],
+    options: { goalRelationPageId: "grab-goal" }
+  });
+
+  assert.deepEqual(result.dataIssues.find((issue) => issue.rowId === "regular")?.details,
+    ["Phương Thức Thanh Toán"]);
 });
 
 test("integrated unknown income categories use explicit personal-loan wording", () => {
