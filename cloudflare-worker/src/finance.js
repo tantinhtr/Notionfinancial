@@ -650,6 +650,17 @@ export function buildAccountSpendingData_(
   const fixedIdMap = {};
   const fixedBudgets = [];
   let totalFixedBudget = 0;
+  const historicalChildSources = {};
+  for (const expenseRow of options.historicalExpenseRows || []) {
+    const props = expenseRow.properties || {};
+    const categoryId = ((props["Loại Chi Phí"] && props["Loại Chi Phí"].relation) || [])[0]?.id || "";
+    const source = (
+      plainText_(props["Nội Dung Khoản Chi"]) + " " + plainText_(props["Ghi Chú"])
+    ).trim();
+    if (!categoryId || !source) continue;
+    if (!historicalChildSources[categoryId]) historicalChildSources[categoryId] = [];
+    historicalChildSources[categoryId].push(source);
+  }
 
   for (const categoryRow of categoryRows) {
     const props = categoryRow.properties || {};
@@ -926,11 +937,11 @@ export function buildAccountSpendingData_(
       if (toId === fromId) continue;
       if (toId === destinationAccountId) {
         netAllocated += amount;
-        allocationRows.push({ amount, text: ledgerRowsById[transferRow.id]?.normalizedText || plainText_(transferProps["Ghi Chú"]) });
+        allocationRows.push({ rowId: transferRow.id, amount, text: ledgerRowsById[transferRow.id]?.normalizedText || plainText_(transferProps["Ghi Chú"]) });
       }
       if (fromId === destinationAccountId) {
         netAllocated -= amount;
-        allocationRows.push({ amount: -amount, text: ledgerRowsById[transferRow.id]?.normalizedText || plainText_(transferProps["Ghi Chú"]) });
+        allocationRows.push({ rowId: transferRow.id, amount: -amount, text: ledgerRowsById[transferRow.id]?.normalizedText || plainText_(transferProps["Ghi Chú"]) });
       }
     }
 
@@ -968,7 +979,11 @@ export function buildAccountSpendingData_(
       group.children.push(child);
       debtChildCandidates.push({
         name: fixed.name,
-        sources: [fixed.name, ...fixed.spendRows.map((row) => row.name)]
+        sources: [
+          fixed.name,
+          ...fixed.spendRows.map((row) => row.name),
+          ...(historicalChildSources[fixed.id] || [])
+        ]
       });
       // Chi nhung nhan con thuc su phai di qua tai khoan giu quy moi tinh vao so
       // can cap them. Đi Chợ tra thang bang tien mat thi khong doi bom truoc.
@@ -996,15 +1011,39 @@ export function buildAccountSpendingData_(
     groupRows.sort((a, b) => (a.date < b.date ? -1 : (a.date > b.date ? 1 : 0)));
 
     const childAllocated = {};
-    const assignAllocation = (amount, text) => {
+    const addMissingChildIssue = (rowId) => {
+      const row = ledgerRowsById[rowId];
+      if (!row) return;
+      const existing = explicitLedger.dataIssues.find((issue) =>
+        issue.rowId === rowId && issue.type === "missing_required_data"
+      );
+      if (existing) {
+        if (!existing.details.includes("Nhãn quỹ con")) existing.details.push("Nhãn quỹ con");
+        return;
+      }
+      explicitLedger.dataIssues.push({
+        type: "missing_required_data",
+        rowId,
+        date: row.date,
+        createdTime: row.createdTime,
+        title: row.title,
+        amount: row.amount,
+        details: ["Nhãn quỹ con"]
+      });
+    };
+    const assignAllocation = (amount, text, rowId) => {
       const childName = debtTargetChildName_(text, debtChildCandidates)
         || (group.children.length === 1 ? group.children[0].name : "");
-      if (childName) childAllocated[childName] = (childAllocated[childName] || 0) + amount;
+      if (childName) {
+        childAllocated[childName] = (childAllocated[childName] || 0) + amount;
+        return;
+      }
+      if (group.children.length > 1) addMissingChildIssue(rowId);
     };
-    for (const allocation of allocationRows) assignAllocation(allocation.amount, allocation.text);
+    for (const allocation of allocationRows) assignAllocation(allocation.amount, allocation.text, allocation.rowId);
     for (const loan of explicitLedger.fundLoans.loans) {
       if (loan.borrowerGroupId !== fundGroupRow.id || !ledgerRowsById[loan.openedBy]) continue;
-      assignAllocation(loan.principal, ledgerRowsById[loan.openedBy].normalizedText);
+      assignAllocation(loan.principal, ledgerRowsById[loan.openedBy].normalizedText, loan.openedBy);
     }
     const childPaidFromFund = {};
 
@@ -1095,6 +1134,12 @@ export function buildAccountSpendingData_(
     if (group.budget === 0 && group.spent === 0 && group.allocated === 0) continue;
     fundGroups.push(group);
   }
+
+  explicitLedger.dataIssues.sort((a, b) =>
+    String(a.date || "").localeCompare(String(b.date || "")) ||
+    String(a.createdTime || "").localeCompare(String(b.createdTime || "")) ||
+    String(a.rowId || "").localeCompare(String(b.rowId || ""))
+  );
 
   for (const fixed of fixedBudgets) {
     if (fixed.groupId && !knownGroupIds[fixed.groupId]) fixed.missingCategory = true;

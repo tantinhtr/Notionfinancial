@@ -96,6 +96,20 @@ export function historyLookupRequired_(rows = []) {
   return rows.some((row) => /\b(?:tra no|tra lai|tra tien muon|nhan lai|hoan lai|hoan tien|cap bu|dao giao dich|dieu chinh|thang truoc|truoc do)\b/.test(row.normalizedText));
 }
 
+function fundChildAliasHistoryRequired_(transferRows = [], categoryRows = []) {
+  const childCountByGroup = {};
+  for (const row of categoryRows) {
+    const props = row?.properties || {};
+    if (props["Tính Trong 5,5 Triệu"]?.checkbox !== true) continue;
+    const groupId = props["Nhóm Quỹ"]?.relation?.[0]?.id || "";
+    if (groupId) childCountByGroup[groupId] = (childCountByGroup[groupId] || 0) + 1;
+  }
+  return transferRows.some((row) => {
+    const groupId = row?.properties?.["Nhóm Quỹ"]?.relation?.[0]?.id || "";
+    return (childCountByGroup[groupId] || 0) > 1;
+  });
+}
+
 function numericProperty(row, property) {
   const value = row?.properties?.[property]?.number;
   return Number.isFinite(value) ? value : 0;
@@ -225,6 +239,8 @@ export function createFinanceRepository({ notion, state, config, now = () => new
         notion.queryDatabase(config.expenseDb, historyFilter),
         notion.queryDatabase(config.transferDb, historyFilter)
       ]);
+    } else if (fundChildAliasHistoryRequired_(transferRows, categoryRows)) {
+      historicalExpenseRows = await notion.queryDatabase(config.expenseDb, historyBeforeMonthFilterFor(t));
     }
     const model = buildAccountSpendingData_(
       t,

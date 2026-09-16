@@ -1788,6 +1788,76 @@ test("a group only reports as spare the money actually sitting in its fund", () 
   assert.doesNotMatch(afterText, /CẦN CẤP THÊM/);
 });
 
+test("historical child aliases allocate funding across every multi-child group before current spending", () => {
+  const model = buildAccountSpendingData_(
+    { y: 2026, m: 9, d: 16 },
+    [
+      trackedCategoryRow("rent", "Nhà Trọ", 100000, "essential"),
+      trackedCategoryRow("internet", "Internet", 180000, "essential"),
+      trackedCategoryRow("affiliate", "Affiilate", 600000, "education"),
+      trackedCategoryRow("self", "Phát triển bản thân", 500000, "education")
+    ],
+    [],
+    [cashflowAccountRow("fund", "Quỹ Momo"), cashflowAccountRow("momo", "Momo")],
+    5500000,
+    [
+      transferRow("cap-wifi", "Tiền wifi ở nhà", 180000, "momo", "fund", "essential"),
+      transferRow("cap-course", "Tiền mua khóa học", 500000, "momo", "fund", "education")
+    ],
+    [
+      fundGroupRow("essential", "Nhu cầu thiết yếu", "fund", true),
+      fundGroupRow("education", "Giáo dục phát triển", "fund", true)
+    ],
+    {
+      historicalExpenseRows: [
+        namedExpenseRow("old-wifi", "Thanh toán tiền wifi ở nhà", "internet", "fund", 176400),
+        namedExpenseRow("old-course", "Thanh toán", "self", "fund", 450000, "Mua khóa học chỉnh sửa video")
+      ]
+    }
+  );
+
+  const essential = model.fundGroups.find((group) => group.name === "Nhu cầu thiết yếu");
+  const education = model.fundGroups.find((group) => group.name === "Giáo dục phát triển");
+  assert.equal(essential.allocated, 180000);
+  assert.equal(essential.transferNeeded, 100000);
+  assert.deepEqual(essential.transferPlan, [{ name: "Nhà Trọ", amount: 100000 }]);
+  assert.equal(education.allocated, 500000);
+  assert.equal(education.transferNeeded, 600000);
+  assert.deepEqual(education.transferPlan, [{ name: "Affiilate", amount: 600000 }]);
+  assert.doesNotMatch(fundBudgetText_(model), /Internet: 180\.000đ|Phát triển bản thân: 500\.000đ/);
+});
+
+test("unresolved child allocation stays at group level without fabricating a funded label", () => {
+  const model = buildAccountSpendingData_(
+    { y: 2026, m: 9, d: 16 },
+    [
+      trackedCategoryRow("rent", "Nhà Trọ", 2150000, "essential"),
+      trackedCategoryRow("internet", "Internet", 180000, "essential")
+    ],
+    [],
+    [cashflowAccountRow("fund", "Quỹ Momo"), cashflowAccountRow("momo", "Momo")],
+    5500000,
+    [transferRow("generic-funding", "Cấp quỹ thiết yếu", 180000, "momo", "fund", "essential")],
+    [fundGroupRow("essential", "Nhu cầu thiết yếu", "fund", true)]
+  );
+
+  const essential = model.fundGroups[0];
+  assert.equal(essential.allocated, 180000);
+  assert.equal(essential.transferNeeded, 2330000);
+  assert.deepEqual(essential.transferPlan, [
+    { name: "Nhà Trọ", amount: 2150000 },
+    { name: "Internet", amount: 180000 }
+  ]);
+  assert.deepEqual(
+    model.explicitLedger.dataIssues.find((issue) => issue.rowId === "generic-funding")?.details,
+    ["Nhãn quỹ con"]
+  );
+  const text = fundBudgetText_(model);
+  assert.match(text, /CHƯA ĐỦ DỮ KIỆN/);
+  assert.match(text, /Cấp quỹ thiết yếu[^\n]*thiếu Nhãn quỹ con/);
+  assert.match(text, /Internet: 180\.000đ/);
+});
+
 test("a child paid directly outside its fund is covered and names the source", () => {
   const expense = (id, name, categoryId, accountId, amount) => ({
     id,

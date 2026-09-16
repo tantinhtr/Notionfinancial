@@ -542,6 +542,68 @@ test("fund report skips history without a current historical reference", async (
   ]);
 });
 
+test("fund transfer loads expense history for child aliases without loading unrelated history", async () => {
+  const currentFilter = {
+    and: [
+      { property: "Ngày", date: { on_or_after: "2026-09-01" } },
+      { property: "Ngày", date: { on_or_before: "2026-09-14" } }
+    ]
+  };
+  const historyFilter = {
+    property: "Ngày",
+    date: { on_or_before: "2026-08-31" }
+  };
+  const calls = [];
+  const transfer = row("fund-wifi", {
+    "Ghi Chú": { title: [{ plain_text: "Tiền wifi ở nhà" }] },
+    "Số Tiền": { number: 180000 },
+    "Ngày": { date: { start: "2026-09-16" } },
+    "Loại Chuyển Đổi": { select: { name: "Giao Dịch Giữa Các Tài Khoản" } },
+    "Từ Tài Khoản": { relation: [{ id: "momo" }] },
+    "Đến Tài Khoản": { relation: [{ id: "fund" }] },
+    "Nhóm Quỹ": { relation: [{ id: "essential" }] }
+  });
+  const notion = {
+    calls,
+    async queryDatabase(databaseId, filter) {
+      calls.push([databaseId, filter]);
+      if (databaseId === "budgets") return [
+        row("rent", {
+          "Loại Chi Phí": { title: [{ plain_text: "Nhà Trọ" }] },
+          "Tính Trong 5,5 Triệu": { checkbox: true },
+          "Nhóm Quỹ": { relation: [{ id: "essential" }] }
+        }),
+        row("internet", {
+          "Loại Chi Phí": { title: [{ plain_text: "Internet" }] },
+          "Tính Trong 5,5 Triệu": { checkbox: true },
+          "Nhóm Quỹ": { relation: [{ id: "essential" }] }
+        })
+      ];
+      if (databaseId === "transfers" && filter?.and) return [transfer];
+      return [];
+    },
+    async createPage() { return { id: "unused" }; }
+  };
+  const { repository } = createRepository({
+    notion,
+    now: () => new Date("2026-09-14T12:00:00.000Z")
+  });
+
+  await repository.getFundBudgetReport(true);
+
+  assert.deepEqual(calls, [
+    ["budgets", undefined],
+    ["expenses", currentFilter],
+    ["accounts", undefined],
+    ["transfers", currentFilter],
+    ["fund-groups", undefined],
+    ["income", currentFilter],
+    ["other-income", currentFilter],
+    ["other-income-categories", undefined],
+    ["expenses", historyFilter]
+  ]);
+});
+
 test("September 2026 explicit ledger renders one debt after the repository JSON cache round-trip", async () => {
   const cachedValues = new Map();
   const state = createStateStore({
