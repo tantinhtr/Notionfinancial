@@ -219,7 +219,6 @@ Vài điểm đáng biết:
 - **Chống ghi trùng**: mỗi `update_id` của Telegram được xử lý trong một Durable Object riêng. Telegram gửi lại webhook cũng không tạo ra hai khoản thu.
 - **Cache**: báo cáo dòng tiền cache trong KV 60 giây. Báo cáo quỹ không cache, luôn đọc thẳng Notion.
 - **Cron**: `0 14 * * *` UTC = 21:00 giờ VN.
-- Thư mục `bot/` cùng `requirements.txt` và `test_*.py` ở gốc repo là **bản Python cũ**, không còn chạy nữa. Giữ lại để tham khảo.
 
 ## Deploy
 
@@ -234,7 +233,7 @@ Cấu hình build trong dashboard Cloudflare (Worker `notion-finance-bot` → Se
 | Build command | để trống |
 | Deploy command | `npx wrangler deploy` |
 
-`Root directory` phải là `cloudflare-worker`. Để trống hoặc để `/` thì Cloudflare nhìn vào gốc repo, thấy `requirements.txt` của bản Python cũ rồi tưởng đây là dự án Python và build hỏng.
+`Root directory` phải là `cloudflare-worker` để Cloudflare chạy đúng dự án Worker và dùng đúng `package.json` cùng `wrangler.jsonc`.
 
 Tên Worker trong dashboard phải trùng với `name` trong `cloudflare-worker/wrangler.jsonc` (`notion-finance-bot`), nếu không build cũng hỏng.
 
