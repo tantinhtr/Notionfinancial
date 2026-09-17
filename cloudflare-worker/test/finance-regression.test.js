@@ -1345,7 +1345,7 @@ test("September 2026 explicit ledger preserves the complete snapshot and indepen
   assert.doesNotMatch(text, /↳ đã cấp/);
   assert.match(
     text,
-    /Nhà Trọ: 2\.017\.000đ \/ 2\.150\.000đ · đã cấp 2\.150\.004đ · quỹ còn 133\.004đ · còn nợ Quỹ Tiết kiệm dài hạn 750\.000đ/
+    /Nhà Trọ: 2\.017\.000đ \/ 2\.150\.000đ · quỹ còn 133\.004đ · còn nợ Quỹ Tiết kiệm dài hạn 750\.000đ/
   );
   assert.doesNotMatch(text, /TIỀN DƯ THÁNG TRƯỚC|4 nguồn:|Ba lọ 10%:/);
   assert.doesNotMatch(text, /🤝 NỢ GHI RÕ|Nhu cầu thiết yếu mượn|Đã trả:|Nợ Em:/);
@@ -1790,18 +1790,21 @@ test("a group only reports as spare the money actually sitting in its fund", () 
   const beforeText = fundBudgetText_(before);
   // Chua cap 70.000 thi khong duoc khoe "con 101.600" — trong quy chi co 31.600 that.
   assert.doesNotMatch(beforeText, /✅ Thiết Yếu:[^\n]*quỹ còn/);
-  assert.match(beforeText, /Nhà Trọ:[^\n]*đã cấp 2\.150\.000đ · quỹ còn 28\.000đ/);
-  assert.match(beforeText, /Internet:[^\n]*đã cấp 180\.000đ · quỹ còn 3\.600đ/);
+  assert.match(beforeText, /Nhà Trọ:[^\n]*quỹ còn 28\.000đ/);
+  assert.match(beforeText, /Internet:[^\n]*quỹ còn 3\.600đ/);
+  assert.doesNotMatch(beforeText, /Nhà Trọ:[^\n]*đã cấp/);
+  assert.doesNotMatch(beforeText, /Internet:[^\n]*đã cấp/);
   assert.doesNotMatch(beforeText, /Thiết Yếu:[^\n]*đã cấp 2\.330\.000đ/);
   assert.doesNotMatch(beforeText, /↳ đã cấp/);
   assert.match(beforeText, /• Thiết Yếu → Quỹ Momo: 70\.000đ/);
   assert.doesNotMatch(beforeText, /101\.600đ · quỹ/);
 
-  // Cấp nốt 70.000 vào đúng nhãn Cắt Tóc thì nhãn đó được đánh dấu đã cấp.
+  // Cấp nốt 70.000 vào đúng nhãn Cắt Tóc thì không còn yêu cầu cấp thêm.
   const afterText = fundBudgetText_(build(supplied.concat([
     transferRow("cap-toc", "Tiền cắt tóc", 70000, "momo", "fund", "essential-fund")
   ])));
-  assert.match(afterText, /Cắt Tóc: 0đ \/ 70\.000đ · đã cấp 70\.000đ/);
+  assert.match(afterText, /Cắt Tóc: 0đ \/ 70\.000đ/);
+  assert.doesNotMatch(afterText, /Cắt Tóc:[^\n]*đã cấp/);
   assert.doesNotMatch(afterText, /Thiết Yếu:[^\n]*đã cấp 2\.400\.000đ/);
   assert.doesNotMatch(afterText, /↳ đã cấp/);
   assert.doesNotMatch(afterText, /CẦN CẤP THÊM/);
@@ -1848,9 +1851,56 @@ test("historical child aliases allocate funding across every multi-child group b
   assert.equal(education.transferNeeded, 600000);
   assert.deepEqual(education.transferPlan, [{ name: "Affiilate", amount: 600000 }]);
   const text = fundBudgetText_(model);
-  assert.match(text, /Internet: 0đ \/ 180\.000đ · đã cấp 180\.000đ/);
+  assert.match(text, /Internet: 0đ \/ 180\.000đ/);
+  assert.doesNotMatch(text, /Internet:[^\n]*đã cấp/);
   assert.doesNotMatch(text, /Internet:[^\n]*quỹ còn 180\.000đ/);
   assert.doesNotMatch(text, /Internet: 180\.000đ|Phát triển bản thân: 500\.000đ/);
+});
+
+test("unassigned group funding covers the only child already spending from the shared fund", () => {
+  const model = buildAccountSpendingData_(
+    { y: 2026, m: 9, d: 17 },
+    [
+      trackedCategoryRow("rent", "Nhà Trọ", 2150000, "essential"),
+      trackedCategoryRow("internet", "Internet", 180000, "essential"),
+      trackedCategoryRow("incidental", "Phát Sinh", 600000, "essential")
+    ],
+    [namedExpenseRow("rent-paid", "Tiền phòng tháng 9", "rent", "fund", 2017000)],
+    [
+      cashflowAccountRow("fund", "Quỹ Momo"),
+      cashflowAccountRow("bank", "Banking"),
+      cashflowAccountRow("momo", "Momo")
+    ],
+    5500000,
+    [
+      transferRow("rent-group-funding", "Cấp quỹ thiết yếu", 1400004, "bank", "fund", "essential"),
+      transferRow("internet-funding", "Internet", 180000, "momo", "fund", "essential"),
+      transferRow(
+        "rent-loan",
+        "Mượn tiền của quỹ tiết kiệm chuyển sang tiền phòng quỹ thiết yếu",
+        750000,
+        "fund",
+        "fund",
+        "essential"
+      )
+    ],
+    [
+      fundGroupRow("essential", "Nhu cầu thiết yếu", "fund", true),
+      fundGroupRow("savings", "Tiết kiệm dài hạn", "fund", true)
+    ]
+  );
+
+  const essential = model.fundGroups.find((group) => group.name === "Nhu cầu thiết yếu");
+  const rent = essential.children.find((child) => child.name === "Nhà Trọ");
+  assert.equal(rent.allocated, 2150004);
+  assert.equal(rent.fundRemaining, 133004);
+  assert.equal(rent.transferNeeded, 0);
+  assert.deepEqual(essential.transferPlan, [{ name: "Phát Sinh", amount: 600000 }]);
+  assert.equal(
+    model.explicitLedger.dataIssues.some((issue) => issue.rowId === "rent-group-funding"),
+    false
+  );
+  assert.doesNotMatch(fundBudgetText_(model), /Nhà Trọ: 133\.000đ/);
 });
 
 test("unresolved child allocation stays at group level without fabricating a funded label", () => {

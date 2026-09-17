@@ -1011,6 +1011,7 @@ export function buildAccountSpendingData_(
     groupRows.sort((a, b) => (a.date < b.date ? -1 : (a.date > b.date ? 1 : 0)));
 
     const childAllocated = {};
+    const unassignedAllocations = [];
     const addMissingChildIssue = (rowId) => {
       const row = ledgerRowsById[rowId];
       if (!row) return;
@@ -1031,6 +1032,15 @@ export function buildAccountSpendingData_(
         details: ["Nhãn quỹ con"]
       });
     };
+    const resolveMissingChildIssue = (rowId) => {
+      const issueIndex = explicitLedger.dataIssues.findIndex((issue) =>
+        issue.rowId === rowId && issue.type === "missing_required_data"
+      );
+      if (issueIndex < 0) return;
+      const issue = explicitLedger.dataIssues[issueIndex];
+      issue.details = issue.details.filter((detail) => detail !== "Nhãn quỹ con");
+      if (issue.details.length === 0) explicitLedger.dataIssues.splice(issueIndex, 1);
+    };
     const assignAllocation = (amount, text, rowId) => {
       const childName = debtTargetChildName_(text, debtChildCandidates)
         || (group.children.length === 1 ? group.children[0].name : "");
@@ -1038,7 +1048,10 @@ export function buildAccountSpendingData_(
         childAllocated[childName] = (childAllocated[childName] || 0) + amount;
         return;
       }
-      if (group.children.length > 1) addMissingChildIssue(rowId);
+      if (group.children.length > 1) {
+        if (amount > 0) unassignedAllocations.push({ rowId, amount });
+        addMissingChildIssue(rowId);
+      }
     };
     for (const allocation of allocationRows) assignAllocation(allocation.amount, allocation.text, allocation.rowId);
     for (const loan of explicitLedger.fundLoans.loans) {
@@ -1072,6 +1085,26 @@ export function buildAccountSpendingData_(
           outstanding, childName: spendRow.childName || "",
           rows: [{ name: spendRow.name, amount: outstanding, date: spendRow.date }]
         });
+      }
+    }
+
+    // A group-level transfer can be assigned safely only when exactly one child
+    // has spent more than its named allocations and the combined funding closes
+    // that child's budget (allowing only sub-1,000đ bookkeeping drift).
+    const activeUnfundedChildren = group.children.filter((child) =>
+      (childPaidFromFund[child.name] || 0) > Math.max(childAllocated[child.name] || 0, 0)
+    );
+    if (activeUnfundedChildren.length === 1) {
+      const childName = activeUnfundedChildren[0].name;
+      const unassignedTotal = unassignedAllocations.reduce(
+        (sum, allocation) => sum + allocation.amount,
+        0
+      );
+      const reconciledTotal = Math.max(childAllocated[childName] || 0, 0) + unassignedTotal;
+      if (unassignedTotal > 0 &&
+          Math.abs(reconciledTotal - activeUnfundedChildren[0].budget) < 1000) {
+        childAllocated[childName] = reconciledTotal;
+        for (const allocation of unassignedAllocations) resolveMissingChildIssue(allocation.rowId);
       }
     }
 
@@ -1399,9 +1432,6 @@ function childLines_(group) {
     return "   • " + child.name + ": " +
       money_(child.spent) + " / " + money_(child.budget) +
       (child.over > 0 ? " ⛔ vượt " + money_(child.over) : "") +
-      ((child.allocated || 0) > 0
-        ? " · đã cấp " + money_(child.allocated)
-        : "") +
       ((child.spent || 0) > 0 &&
       ((child.fundRemaining || 0) > 0 || child.name === legacyBalanceChildName)
         ? " · quỹ còn " + money_(
