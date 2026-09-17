@@ -921,12 +921,21 @@ test("fund groups reconcile Notion transfers with spending paid outside the virt
     explicitDebts: [],
     borrowedFunds: [],
     children: [
-      { name: "Nhà Trọ", budget: 2200000, spent: 2101000, over: 0 },
-      { name: "Internet", budget: 200000, spent: 176400, over: 0 }
+      {
+        name: "Nhà Trọ", budget: 2200000, spent: 2101000, over: 0,
+        allocated: 0, paidFromFund: 2101000, paidOutsideFund: 0,
+        covered: 2101000, fundRemaining: 0, transferNeeded: 0
+      },
+      {
+        name: "Internet", budget: 200000, spent: 176400, over: 0,
+        allocated: 0, paidFromFund: 176400, paidOutsideFund: 0,
+        covered: 176400, fundRemaining: 0, transferNeeded: 0
+      }
     ],
     transferNeeded: 0,
     transferPlan: [],
-    requiresAllocation: true
+    requiresAllocation: true,
+    unassignedFundRemaining: 122600
   });
   assert.equal(youtube.allocated, 555000);
   assert.equal(youtube.spent, 554444);
@@ -1276,6 +1285,14 @@ test("September 2026 explicit ledger preserves the complete snapshot and indepen
   assert.equal(essential.allocated, 2150004);
   assert.equal(essential.paidFromFund, 2017000);
   assert.equal(essential.fundRemaining, 133004);
+  assert.equal(
+    essential.transferPlan.find((entry) => entry.name === "Nhà Trọ"),
+    undefined
+  );
+  const rentChild = essential.children.find((child) => child.name === "Nhà Trọ");
+  assert.equal(rentChild.allocated, 2150004);
+  assert.equal(rentChild.fundRemaining, 133004);
+  assert.equal(rentChild.transferNeeded, 0);
   assert.equal(savingsLoan.lender, "Tiết kiệm dài hạn");
   assert.equal(savingsLoan.principal, 750000);
   assert.equal(savingsLoan.repaid, 0);
@@ -1323,12 +1340,12 @@ test("September 2026 explicit ledger preserves the complete snapshot and indepen
   const text = fundBudgetText_(data);
   assert.match(text, /Nhà Trọ: 2\.017\.000đ \/ 2\.150\.000đ/);
   assert.doesNotMatch(text, /Nhu cầu thiết yếu:[^\n]*quỹ còn 133\.004đ/);
-  assert.match(text, /Nhu cầu thiết yếu:[^\n]*đã cấp 2\.150\.004đ/);
+  assert.doesNotMatch(text, /Nhu cầu thiết yếu:[^\n]*đã cấp 2\.150\.004đ/);
   assert.doesNotMatch(text, /Nhu cầu thiết yếu:[^\n]*còn nợ/);
   assert.doesNotMatch(text, /↳ đã cấp/);
   assert.match(
     text,
-    /Nhà Trọ: 2\.017\.000đ \/ 2\.150\.000đ · quỹ còn 133\.004đ · còn nợ Quỹ Tiết kiệm dài hạn 750\.000đ/
+    /Nhà Trọ: 2\.017\.000đ \/ 2\.150\.000đ · đã cấp 2\.150\.004đ · quỹ còn 133\.004đ · còn nợ Quỹ Tiết kiệm dài hạn 750\.000đ/
   );
   assert.doesNotMatch(text, /TIỀN DƯ THÁNG TRƯỚC|4 nguồn:|Ba lọ 10%:/);
   assert.doesNotMatch(text, /🤝 NỢ GHI RÕ|Nhu cầu thiết yếu mượn|Đã trả:|Nợ Em:/);
@@ -1772,18 +1789,20 @@ test("a group only reports as spare the money actually sitting in its fund", () 
 
   const beforeText = fundBudgetText_(before);
   // Chua cap 70.000 thi khong duoc khoe "con 101.600" — trong quy chi co 31.600 that.
-  assert.match(beforeText, /✅ Thiết Yếu: 2\.298\.400đ \/ 2\.400\.000đ · quỹ còn 31\.600đ/);
-  assert.match(beforeText, /Thiết Yếu:[^\n]*đã cấp 2\.330\.000đ/);
+  assert.doesNotMatch(beforeText, /✅ Thiết Yếu:[^\n]*quỹ còn/);
+  assert.match(beforeText, /Nhà Trọ:[^\n]*đã cấp 2\.150\.000đ · quỹ còn 28\.000đ/);
+  assert.match(beforeText, /Internet:[^\n]*đã cấp 180\.000đ · quỹ còn 3\.600đ/);
+  assert.doesNotMatch(beforeText, /Thiết Yếu:[^\n]*đã cấp 2\.330\.000đ/);
   assert.doesNotMatch(beforeText, /↳ đã cấp/);
   assert.match(beforeText, /• Thiết Yếu → Quỹ Momo: 70\.000đ/);
   assert.doesNotMatch(beforeText, /101\.600đ · quỹ/);
 
-  // Cap not 70.000 vao quy roi thi moi duoc bao con du 101.600.
+  // Cấp nốt 70.000 vào đúng nhãn Cắt Tóc thì nhãn đó được đánh dấu đã cấp.
   const afterText = fundBudgetText_(build(supplied.concat([
     transferRow("cap-toc", "Tiền cắt tóc", 70000, "momo", "fund", "essential-fund")
   ])));
-  assert.match(afterText, /✅ Thiết Yếu: 2\.298\.400đ \/ 2\.400\.000đ · quỹ còn 101\.600đ/);
-  assert.match(afterText, /Thiết Yếu:[^\n]*đã cấp 2\.400\.000đ/);
+  assert.match(afterText, /Cắt Tóc: 0đ \/ 70\.000đ · đã cấp 70\.000đ/);
+  assert.doesNotMatch(afterText, /Thiết Yếu:[^\n]*đã cấp 2\.400\.000đ/);
   assert.doesNotMatch(afterText, /↳ đã cấp/);
   assert.doesNotMatch(afterText, /CẦN CẤP THÊM/);
 });
@@ -1818,13 +1837,20 @@ test("historical child aliases allocate funding across every multi-child group b
 
   const essential = model.fundGroups.find((group) => group.name === "Nhu cầu thiết yếu");
   const education = model.fundGroups.find((group) => group.name === "Giáo dục phát triển");
+  const internet = essential.children.find((child) => child.name === "Internet");
   assert.equal(essential.allocated, 180000);
   assert.equal(essential.transferNeeded, 100000);
   assert.deepEqual(essential.transferPlan, [{ name: "Nhà Trọ", amount: 100000 }]);
+  assert.equal(internet.allocated, 180000);
+  assert.equal(internet.fundRemaining, 180000);
+  assert.equal(internet.transferNeeded, 0);
   assert.equal(education.allocated, 500000);
   assert.equal(education.transferNeeded, 600000);
   assert.deepEqual(education.transferPlan, [{ name: "Affiilate", amount: 600000 }]);
-  assert.doesNotMatch(fundBudgetText_(model), /Internet: 180\.000đ|Phát triển bản thân: 500\.000đ/);
+  const text = fundBudgetText_(model);
+  assert.match(text, /Internet: 0đ \/ 180\.000đ · đã cấp 180\.000đ/);
+  assert.doesNotMatch(text, /Internet:[^\n]*quỹ còn 180\.000đ/);
+  assert.doesNotMatch(text, /Internet: 180\.000đ|Phát triển bản thân: 500\.000đ/);
 });
 
 test("unresolved child allocation stays at group level without fabricating a funded label", () => {
@@ -2023,7 +2049,7 @@ test("a jar keeps its children visible and honours old names in notes", () => {
   assert.deepEqual(nec.borrowedFunds, []);
   assert.equal(nec.paidFromFund, 2130000);
   // 45.000 Cà Phê phai nam o dong con Phát Sinh, khong bi gom chung vao lo.
-  assert.deepEqual(nec.children, [
+  assert.deepEqual(nec.children.map(({ name, budget, spent, over }) => ({ name, budget, spent, over })), [
     { name: "Nhà Trọ", budget: 2150000, spent: 2130000, over: 0 },
     { name: "Đi Chợ", budget: 1400000, spent: 669000, over: 0 },
     { name: "Phát Sinh", budget: 600000, spent: 45000, over: 0 }
@@ -2161,7 +2187,7 @@ test("tính vào works without the word quỹ, but a made-up name still matches 
 
   const edu = data.fundGroups[0];
   assert.equal(edu.spent, 218392);
-  assert.deepEqual(edu.children, [
+  assert.deepEqual(edu.children.map(({ name, budget, spent, over }) => ({ name, budget, spent, over })), [
     { name: "Affiilate", budget: 600000, spent: 0, over: 0 },
     { name: "Phát triển bản thân", budget: 500000, spent: 218392, over: 0 }
   ]);

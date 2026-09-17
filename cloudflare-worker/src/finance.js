@@ -1106,18 +1106,41 @@ export function buildAccountSpendingData_(
         rows: debt.rows
       })));
       group.fundRemaining = Math.max(group.fundBalance, 0);
-      // Cấp đủ cả ngân sách nhóm chứng minh mọi nhãn đã được cấp, dù ghi chú chung.
+      for (const child of group.children) {
+        const allocated = Math.max(childAllocated[child.name] || 0, 0);
+        const paidFromFund = childPaidFromFund[child.name] || 0;
+        const paidOutsideFund = Math.max(child.spent - paidFromFund, 0);
+        child.allocated = allocated;
+        child.paidFromFund = paidFromFund;
+        child.paidOutsideFund = paidOutsideFund;
+        child.covered = Math.max(allocated, paidFromFund) + paidOutsideFund;
+        child.fundRemaining = Math.max(allocated - paidFromFund, 0);
+        child.transferNeeded = 0;
+      }
+      // Đã cấp là số cấp gộp của nhãn, không giảm khi nhãn chi tiền. Chi thẳng
+      // từ nguồn khác cũng đã bao phủ phần ngân sách đó; nghĩa vụ hoàn trả nằm ở nợ.
+      fundedChildren.sort((a, b) => b.remaining - a.remaining);
       if (group.allocated < group.budget) {
-        // Tiền còn của nhãn khác không thể tự động bù vào nhãn chưa được cấp.
-        fundedChildren.sort((a, b) => b.remaining - a.remaining);
-        for (const child of fundedChildren) {
-          const held = Math.max((childAllocated[child.name] || 0) - (childPaidFromFund[child.name] || 0), 0);
-          const needed = Math.max(child.remaining - held, 0);
+        for (const plannedChild of fundedChildren) {
+          const child = group.children.find(
+            (entry) => entry.name === plannedChild.name
+          );
+          if (!child) continue;
+          const needed = Math.max(child.budget - child.covered, 0);
+          child.transferNeeded = needed;
           if (needed <= 0) continue;
           group.transferPlan.push({ name: child.name, amount: needed });
           group.transferNeeded += needed;
         }
       }
+      const attributedRemaining = group.children.reduce(
+        (sum, child) => sum + (child.fundRemaining || 0),
+        0
+      );
+      group.unassignedFundRemaining = Math.max(
+        group.fundRemaining - attributedRemaining,
+        0
+      );
     }
     group.explicitDebts.push(...explicitLedger.fundLoans.loans.filter((loan) => loan.borrowerGroupId === fundGroupRow.id));
     for (const debt of group.explicitDebts) {
@@ -1300,8 +1323,9 @@ export function unusualSpendingKeyboard_() {
   };
 }
 
-function fundBalanceChildName_(group) {
+function legacyFundBalanceChildName_(group) {
   const children = group.children || [];
+  if (children.some((child) => Object.hasOwn(child, "fundRemaining"))) return "";
   const held = Math.max(group.fundRemaining || 0, 0);
   if (children.length < 2 || held <= 0) return "";
   // Chỉ gắn số dư xuống nhãn con khi số tiền khớp duy nhất với phần còn lại
@@ -1327,6 +1351,7 @@ function debtInlineTexts_(debts) {
 
 function budgetLine_(group) {
   const over = group.over || 0;
+  const children = group.children || [];
   let row = (over > 0 ? "⛔ " : "✅ ") + group.name + ": " +
     money_(group.spent) + " / " + money_(group.budget);
   if (over > 0) {
@@ -1335,19 +1360,23 @@ function budgetLine_(group) {
     // Nhóm có quỹ riêng thì "còn" phải là TIỀN THẬT đang nằm trong tài khoản giữ
     // quỹ, không phải ngân sách trừ đã tiêu. Phần ngân sách chưa cấp vào quỹ thì
     // chưa phải tiền của nhóm — nó nằm ở mục CẦN CẤP THÊM cho tới khi được cấp.
-    const held = group.fundRemaining || 0;
-    if (held > 0 && fundBalanceChildName_(group) === "") {
+    const hasChildFunding = children.some((child) =>
+      Object.hasOwn(child, "allocated")
+    );
+    const held = children.length > 1 && hasChildFunding
+      ? group.unassignedFundRemaining || 0
+      : group.fundRemaining || 0;
+    if (held > 0 && legacyFundBalanceChildName_(group) === "") {
       row += " · quỹ còn " + money_(held);
     }
   } else {
     row += " · còn " + money_(Math.max((group.budget || 0) - (group.spent || 0), 0));
   }
-  if (group.requiresAllocation) {
+  if (group.requiresAllocation && children.length < 2) {
     row += (group.allocated || 0) > 0
       ? " · đã cấp " + money_(group.allocated)
       : " · chưa cấp";
   }
-  const children = group.children || [];
   const childNames = new Set(children.map((child) => child.name));
   const debts = debtInlineTexts_((group.explicitDebts || []).filter((debt) =>
     children.length < 2 || !debt.childName || !childNames.has(debt.childName)
@@ -1361,7 +1390,7 @@ function budgetLine_(group) {
 function childLines_(group) {
   const children = group.children || [];
   if (children.length < 2) return [];
-  const balanceChildName = fundBalanceChildName_(group);
+  const legacyBalanceChildName = legacyFundBalanceChildName_(group);
   return children.map((child) => {
     const outsideSources = (child.paidOutsideSources || [])
       .map((source) => source.account + ": " + money_(source.amount));
@@ -1370,8 +1399,16 @@ function childLines_(group) {
     return "   • " + child.name + ": " +
       money_(child.spent) + " / " + money_(child.budget) +
       (child.over > 0 ? " ⛔ vượt " + money_(child.over) : "") +
-      (child.name === balanceChildName && (group.fundRemaining || 0) > 0
-        ? " · quỹ còn " + money_(group.fundRemaining)
+      ((child.allocated || 0) > 0
+        ? " · đã cấp " + money_(child.allocated)
+        : "") +
+      ((child.spent || 0) > 0 &&
+      ((child.fundRemaining || 0) > 0 || child.name === legacyBalanceChildName)
+        ? " · quỹ còn " + money_(
+          child.name === legacyBalanceChildName
+            ? group.fundRemaining
+            : child.fundRemaining
+        )
         : "") +
       (debts.length ? " · " + debts.join(", ") : "") +
       (outsideSources.length ? " · đã chi từ " + outsideSources.join(", ") : "");
