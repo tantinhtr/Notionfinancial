@@ -642,7 +642,15 @@ function matchingSourceStates_(row, states) {
   const text = row.normalizedText || normalizeSearchText_(row.text || [row.title, row.note].filter(Boolean).join(" | "));
   const beneficiaries = [...text.matchAll(/\b(?:tra lai|hoan lai|cap bu)\s+(?:[\d.,]+\s*(?:d|dong)?\s*)?(?:tien\s+)?(?:cho\s+)?(.+?)(?=\s+(?:tu|bang|thanh toan)\s+|[|;]|$)/g)]
     .map((match) => match[1].trim().replace(/[.,]+$/, ""));
-  return [...states.values()].filter((state) => beneficiaries.includes(normalizeSearchText_(state.account.accountName)));
+  const named = [...states.values()].filter((state) => beneficiaries.includes(normalizeSearchText_(state.account.accountName)));
+  if (named.length || row.kind !== "transfer") return named.map((state) => ({ state }));
+  const destination = states.get(row.toAccountId);
+  if (!destination) return [];
+  const account = normalizeSearchText_(destination.account.accountName).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  if (!new RegExp("\\bmuon(?:\\s+tien)?\\s+" + account + "\\b").test(text)) return [];
+  const matching = destination.obligations.filter((obligation) =>
+    obligation.principal - obligation.repaid === row.amount);
+  return matching.length === 1 ? [{ state: destination, openedBy: matching[0].rowId }] : [];
 }
 
 function isExplicitAccountDebt_(row, state, categoryNamesById) {
@@ -797,7 +805,7 @@ export function buildPreviousMonthAdvanceLedger_({
       if (matches.length !== 1) {
         unmatchedSources.push({ ...row, unmatchedAmount: row.amount });
       } else {
-        const remaining = applyAdvanceRepayment_(matches[0], row.amount);
+        const remaining = applyAdvanceRepayment_(matches[0].state, row.amount, matches[0].openedBy);
         if (remaining > 0) unmatchedSources.push({ ...row, unmatchedAmount: remaining });
       }
     }

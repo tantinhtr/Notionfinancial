@@ -981,7 +981,7 @@ export function buildAccountSpendingData_(
         name: fixed.name,
         sources: [
           fixed.name,
-          ...fixed.spendRows.map((row) => row.name),
+          ...fixed.spendRows.map((row) => row.name + " " + (ledgerRowsById[row.id]?.note || "")),
           ...(historicalChildSources[fixed.id] || [])
         ]
       });
@@ -1396,10 +1396,11 @@ function budgetLine_(group) {
     const hasChildFunding = children.some((child) =>
       Object.hasOwn(child, "allocated")
     );
+    const attributed = children.reduce((sum, child) => sum + (child.fundRemaining || 0), 0);
     const held = children.length > 1 && hasChildFunding
-      ? group.unassignedFundRemaining || 0
+      ? attributed || group.unassignedFundRemaining || 0
       : group.fundRemaining || 0;
-    if (held > 0 && legacyFundBalanceChildName_(group) === "") {
+    if (held > 0 && (hasChildFunding || legacyFundBalanceChildName_(group) === "")) {
       row += " · quỹ còn " + money_(held);
     }
   } else {

@@ -1339,7 +1339,7 @@ test("September 2026 explicit ledger preserves the complete snapshot and indepen
   assert.deepEqual(withChangedBalances.explicitLedger, ledger);
   const text = fundBudgetText_(data);
   assert.match(text, /Nhà Trọ: 2\.017\.000đ \/ 2\.150\.000đ/);
-  assert.doesNotMatch(text, /Nhu cầu thiết yếu:[^\n]*quỹ còn 133\.004đ/);
+  assert.match(text, /Nhu cầu thiết yếu:[^\n]*quỹ còn 133\.004đ/);
   assert.doesNotMatch(text, /Nhu cầu thiết yếu:[^\n]*đã cấp 2\.150\.004đ/);
   assert.doesNotMatch(text, /Nhu cầu thiết yếu:[^\n]*còn nợ/);
   assert.doesNotMatch(text, /↳ đã cấp/);
@@ -1789,7 +1789,7 @@ test("a group only reports as spare the money actually sitting in its fund", () 
 
   const beforeText = fundBudgetText_(before);
   // Chua cap 70.000 thi khong duoc khoe "con 101.600" — trong quy chi co 31.600 that.
-  assert.doesNotMatch(beforeText, /✅ Thiết Yếu:[^\n]*quỹ còn/);
+  assert.match(beforeText, /✅ Thiết Yếu:[^\n]*quỹ còn 31\.600đ/);
   assert.match(beforeText, /Nhà Trọ:[^\n]*quỹ còn 28\.000đ/);
   assert.match(beforeText, /Internet:[^\n]*quỹ còn 3\.600đ/);
   assert.doesNotMatch(beforeText, /Nhà Trọ:[^\n]*đã cấp/);
@@ -2440,6 +2440,53 @@ test("September direct Grab expenses are covered once while 550000 Tiền Mặt 
   assert.match(report, /Phát Sinh:[^\n]*còn nợ Tiền Mặt 550\.000đ/);
   assert.doesNotMatch(report, /Tiền Mặt: cần cấp bù 550\.000đ/);
   assert.doesNotMatch(report, /CẦN CẤP THÊM/);
+});
+
+test("an explicit transfer returning borrowed cash clears the matching Phát Sinh debt", () => {
+  const cash = cashflowAccountRow("cash", "Tiền Mặt");
+  cash.properties["Số Dư Ban Đầu"] = { number: 650000 };
+  const earlier = namedExpenseRow("earlier-cash", "Khoản chi tiền mặt khác", "other", "cash", 100000);
+  earlier.properties["Ngày"] = { date: { start: "2026-09-02" } };
+  const expense = namedExpenseRow("phone-repair", "Thay chân sạc điện thoại và mua cáp sạc", "incidental", "cash", 550000, "ứng tiền ( nợ )");
+  expense.properties["Ngày"] = { date: { start: "2026-09-12" } };
+  const repayment = transferRow("repay-cash", "Trả lại tiền sửa xe hôm trước mượn tiền mặt", 550000, "grab", "cash", "");
+  repayment.properties["Ngày"] = { date: { start: "2026-09-19" } };
+  const data = buildAccountSpendingData_(
+    { y: 2026, m: 9, d: 20 },
+    [trackedCategoryRow("incidental", "Phát Sinh", 600000, "essential"),
+      trackedCategoryRow("other", "Khác", 100000, "essential")],
+    [earlier, expense],
+    [cash, cashflowAccountRow("grab", "Grap Tiền Mặt"), cashflowAccountRow("fund", "Quỹ Momo")],
+    5500000, [repayment], [fundGroupRow("essential", "Nhu cầu thiết yếu", "fund", true)],
+    { sourceAccountNames: ["Tiền Mặt", "Grap Tiền Mặt"], rentReserveAmount: 0 }
+  );
+  assert.equal(data.explicitLedger.previousMonthAdvances.outstandingByRow["phone-repair"], 0);
+  assert.equal(data.explicitLedger.previousMonthAdvances.outstandingByRow["earlier-cash"], 100000);
+  assert.doesNotMatch(fundBudgetText_(data), /Phát Sinh:[^\n]*còn nợ Tiền Mặt/);
+});
+
+test("group quỹ còn sums funded child labels and keeps an evidenced debt on its child", () => {
+  const data = buildAccountSpendingData_(
+    { y: 2026, m: 9, d: 20 },
+    [trackedCategoryRow("rent", "Nhà Trọ", 2150000, "essential"),
+      trackedCategoryRow("internet", "Internet", 180000, "essential")],
+    [namedExpenseRow("rent-paid", "Tiền phòng", "rent", "fund", 2017000, "nợ quỹ tiết kiệm 750")],
+    [cashflowAccountRow("fund", "Quỹ Momo"), cashflowAccountRow("bank", "Banking"), cashflowAccountRow("momo", "Momo")],
+    5500000,
+    [transferRow("rent-allocation", "Tiền phòng", 1400004, "bank", "fund", "essential"),
+      transferRow("internet-allocation", "Cấp quỹ Internet", 180000, "momo", "fund", "essential"),
+      transferRow("borrow-rent", "Mượn quỹ tiết kiệm cho quỹ thiết yếu", 750000, "fund", "fund", "essential")],
+    [fundGroupRow("essential", "Nhu cầu thiết yếu", "fund", true),
+      fundGroupRow("savings", "Tiết kiệm dài hạn", "fund", true)]
+  );
+  const group = data.fundGroups.find((entry) => entry.name === "Nhu cầu thiết yếu");
+  assert.equal(group.children.find((child) => child.name === "Nhà Trọ").fundRemaining, 133004);
+  assert.equal(group.children.find((child) => child.name === "Internet").fundRemaining, 180000);
+  assert.equal(group.children.reduce((sum, child) => sum + child.fundRemaining, 0), 313004);
+  const report = fundBudgetText_(data);
+  assert.match(report, /Nhu cầu thiết yếu:[^\n]*quỹ còn 313\.004đ/);
+  assert.doesNotMatch(report, /Nhu cầu thiết yếu:[^\n]*còn nợ/);
+  assert.match(report, /Nhà Trọ:[^\n]*còn nợ Quỹ Tiết kiệm dài hạn 750\.000đ/);
 });
 
 test("an ordinary fund expense using previous-month Tiền Mặt owes that account even without a debt note", () => {
