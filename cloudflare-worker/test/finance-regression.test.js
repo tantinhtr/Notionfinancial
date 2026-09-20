@@ -2550,7 +2550,7 @@ test("spending splits into fund groups, loose spending and excluded one-offs", (
   // Thu nhap van duoc tinh de tach thu nhap that khoi tien chay qua, nhung bao cao
   // quy khong in ra — con so do da co o nut khac.
   assert.doesNotMatch(text, /Thu nhập thật/);
-  assert.match(text, /📊 NHÓM QUỸ — 2\.000\.000đ \/ 2\.150\.000đ · ✅ còn 150\.000đ/);
+  assert.match(text, /📊 NHÓM QUỸ — 2\.000\.000đ \/ 2\.150\.000đ\n/);
   // Bao cao quy chi noi ve quy. Chi tieu ngoai lo va tong chi tieu da co o nut
   // Dong tien roi, in lai o day la thua.
   assert.doesNotMatch(text, /NGOÀI NHÓM QUỸ/);
@@ -2738,7 +2738,7 @@ test("fund budget text preserves approved fund statuses and heading", () => {
     text,
     "📦 QUỸ & NGÂN SÁCH — tháng 7/2026\n" +
       "\n" +
-      "📊 NHÓM QUỸ — 3.657.844đ / 4.900.000đ · ✅ còn 1.242.156đ\n" +
+      "📊 NHÓM QUỸ — 3.657.844đ / 4.900.000đ\n" +
       "✅ Thiết Yếu: 2.277.400đ / 2.400.000đ · quỹ còn 122.600đ · đã cấp 2.400.000đ\n" +
       "✅ Đi Chợ: 801.000đ / 1.300.000đ · còn 499.000đ\n" +
       "✅ Phát Sinh: 0đ / 600.000đ · chưa cấp\n" +

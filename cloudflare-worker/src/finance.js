@@ -1507,8 +1507,8 @@ function budgetHeadline_(budget, groups) {
   const spent = (groups || []).reduce((sum, group) => sum + (group.spent || 0), 0);
   const planned = (groups || []).reduce((sum, group) => sum + (group.budget || 0), 0);
   const diff = planned - spent;
-  const mark = diff < 0 ? "⛔ vượt " + money_(-diff) : "✅ còn " + money_(diff);
-  return "📊 NHÓM QUỸ — " + money_(spent) + " / " + money_(planned) + " · " + mark;
+  const mark = diff < 0 ? " · ⛔ vượt " + money_(-diff) : "";
+  return "📊 NHÓM QUỸ — " + money_(spent) + " / " + money_(planned) + mark;
 }
 
 export function fundBudgetText_(data) {
