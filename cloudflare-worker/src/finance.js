@@ -1382,14 +1382,18 @@ function debtInlineTexts_(debts) {
     });
 }
 
-function budgetLine_(group) {
+function budgetLine_(group, allocationTarget) {
   const over = group.over || 0;
   const children = group.children || [];
+  const showsMonthlyAllocation = group.requiresAllocation &&
+    children.length < 2 &&
+    Number.isFinite(allocationTarget);
   let row = (over > 0 ? "⛔ " : "✅ ") + group.name + ": " +
-    money_(group.spent) + " / " + money_(group.budget);
+    money_(showsMonthlyAllocation ? group.fundRemaining || 0 : group.spent) +
+    " / " + money_(showsMonthlyAllocation ? allocationTarget : group.budget);
   if (over > 0) {
     row += " · vượt " + money_(over);
-  } else if (group.requiresAllocation) {
+  } else if (group.requiresAllocation && !showsMonthlyAllocation) {
     // Nhóm có quỹ riêng thì "còn" phải là TIỀN THẬT đang nằm trong tài khoản giữ
     // quỹ, không phải ngân sách trừ đã tiêu. Phần ngân sách chưa cấp vào quỹ thì
     // chưa phải tiền của nhóm — nó nằm ở mục CẦN CẤP THÊM cho tới khi được cấp.
@@ -1406,7 +1410,7 @@ function budgetLine_(group) {
   } else {
     row += " · còn " + money_(Math.max((group.budget || 0) - (group.spent || 0), 0));
   }
-  if (group.requiresAllocation && children.length < 2) {
+  if (group.requiresAllocation && children.length < 2 && !showsMonthlyAllocation) {
     row += (group.allocated || 0) > 0
       ? " · đã cấp " + money_(group.allocated)
       : " · chưa cấp";
@@ -1516,13 +1520,22 @@ export function fundBudgetText_(data) {
   data = data || {};
   const t = data.t || {};
   const groups = data.fundGroups || [];
+  const allocationTargets = new Map(
+    (data.openingPlan?.allocations || []).map((allocation) => [
+      normalizeSearchText_(allocation.fund),
+      allocation.amount
+    ])
+  );
   const lines = ["📦 QUỸ & NGÂN SÁCH — tháng " + t.m + "/" + t.y];
 
   const budget = data.monthlyBudget;
   if (groups.length) {
     lines.push("", budgetHeadline_(budget || { total: 0, limit: 0 }, groups));
     for (const group of groups) {
-      lines.push(budgetLine_(group));
+      lines.push(budgetLine_(
+        group,
+        allocationTargets.get(normalizeSearchText_(group.name))
+      ));
       for (const childLine of childLines_(group)) lines.push(childLine);
     }
   }

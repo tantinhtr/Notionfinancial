@@ -1340,6 +1340,8 @@ test("September 2026 explicit ledger preserves the complete snapshot and indepen
   const text = fundBudgetText_(data);
   assert.match(text, /Nhà Trọ: 2\.017\.000đ \/ 2\.150\.000đ/);
   assert.match(text, /Nhu cầu thiết yếu:[^\n]*quỹ còn 133\.004đ/);
+  assert.match(text, /Tiết kiệm dài hạn: 0đ \/ 566\.570đ/);
+  assert.doesNotMatch(text, /Tiết kiệm dài hạn:[^\n]*đã cấp/);
   assert.doesNotMatch(text, /Nhu cầu thiết yếu:[^\n]*đã cấp 2\.150\.004đ/);
   assert.doesNotMatch(text, /Nhu cầu thiết yếu:[^\n]*còn nợ/);
   assert.doesNotMatch(text, /↳ đã cấp/);
@@ -2795,6 +2797,29 @@ test("fund budget text preserves approved fund statuses and heading", () => {
       "💰 CẦN CẤP THÊM\n" +
       "• Phát Sinh → Quỹ Momo: 600.000đ"
   );
+});
+
+test("rollover fund line shows money held against this month's target without allocated text", () => {
+  const text = fundBudgetText_({
+    t: { y: 2026, m: 9, d: 21 },
+    fundGroups: [{
+      name: "Tiết kiệm dài hạn",
+      spent: 0,
+      budget: 0,
+      over: 0,
+      allocated: 158706,
+      fundRemaining: 158706,
+      transferNeeded: 0,
+      requiresAllocation: true,
+      children: []
+    }],
+    openingPlan: {
+      allocations: [{ fund: "Tiết kiệm dài hạn", amount: 566570 }]
+    }
+  });
+
+  assert.match(text, /Tiết kiệm dài hạn: 158\.706đ \/ 566\.570đ/);
+  assert.doesNotMatch(text, /Tiết kiệm dài hạn:[^\n]*đã cấp/);
 });
 
 test("fund budget text preserves the approved empty state", () => {
