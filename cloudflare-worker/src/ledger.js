@@ -632,7 +632,11 @@ function applyAdvanceRepayment_(state, amount, openedBy = "") {
 
 function isExplicitPreviousMonthUse_(row) {
   const text = row.normalizedText || normalizeSearchText_(row.text || [row.title, row.note].filter(Boolean).join(" | "));
-  return /\b(?:lay|muon|dung|su dung)(?:\s+tien)?(?:\s+(?:tu|cua))?\s+(?:tien\s+)?thang\s+truoc\b/.test(text);
+  return positiveEvidenceText_(text).split("|").some((clause) => {
+    if (/\b(?:lay|dung|su dung)(?:\s+tien)?(?:\s+(?:tu|cua))?\s+(?:tien\s+)?thang\s+truoc\b/.test(clause)) return true;
+    const borrowing = /\bmuon(?:\s+tien)?(?:\s+(?:tu|cua))?\s+(?:tien\s+)?thang\s+truoc\b/.exec(clause);
+    return Boolean(borrowing) && !/\b(?:tra|hoan|thanh toan)\b/.test(clause.slice(0, borrowing.index));
+  });
 }
 
 function isExplicitReimbursement_(row) {
@@ -812,9 +816,6 @@ export function buildPreviousMonthAdvanceLedger_({
   const returnedReceivableRowIds = new Set(
     (personalLoans.receivables || []).flatMap((item) => item.repaymentRows || [])
   );
-  const liabilityRepaymentRowIds = new Set(
-    (personalLoans.repayments || []).filter((row) => row.direction === "liability").map((row) => row.id)
-  );
   const personalRepaymentsById = new Map((personalLoans.repayments || []).map((row) => [row.id, row]));
   const fundRepaymentRowIds = new Set(
     (fundLoans.loans || []).flatMap((item) => item.repaymentRows || [])
@@ -908,9 +909,7 @@ export function buildPreviousMonthAdvanceLedger_({
       previousMonth: openingUsed,
       unproven: row.amount - currentUse.consumed.earned - openingUsed
     };
-    if (!liabilityRepaymentRowIds.has(row.id)) {
-      recordAdvance_(state, row, openingUsed, openingUsed !== row.amount);
-    }
+    recordAdvance_(state, row, openingUsed, openingUsed !== row.amount);
   }
 
   for (const account of accounts) {

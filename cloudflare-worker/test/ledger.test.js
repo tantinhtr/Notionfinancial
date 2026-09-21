@@ -1389,6 +1389,46 @@ test("traces direct current-month Grab money and explicit Tiền Mặt debt by o
   assert.equal(result.accounts.find((account) => account.accountId === "cash").outstanding, 550000);
 });
 
+test("debt chronology uses actual Momo funding instead of forcing previous-month advances", () => {
+  const result = buildFinanceLedger_({
+    accountRows: [account("momo", "Momo", 158706, 0)],
+    categoryRows: loanCategories,
+    historicalOtherIncomeRows: [
+      income("to-loan", "Tố cho mượn tiền", "loan", "momo", 500000, "2026-08-01"),
+      income("binh-loan", "Bình cho mượn tiền", "loan", "momo", 1000000, "2026-08-02")
+    ],
+    incomeRows: [
+      income("current-income", "Thu nhập tháng này", "salary", "momo", 2000000, "2026-09-07")
+    ],
+    expenseRows: [
+      expense("early-momo", "Chuyển tiền nhờ em gửi đồ", "other", "momo", 100000, "2026-09-01"),
+      expense("repay-to", "Trả nợ Tố mượn tháng trước", "loan", "momo", 500000, "2026-09-13"),
+      expense("repay-binh", "Trả nợ cho Bình mượn tháng trước", "loan", "momo", 1000000, "2026-09-19")
+    ],
+    options: { sourceAccountNames: ["Momo"], rentReserveAmount: 0 }
+  });
+  const momo = result.previousMonthAdvances.accounts[0];
+
+  assert.equal(result.personalLoans.liabilities.every((loan) => loan.outstanding === 0), true);
+  assert.equal(momo.principal, 100000);
+  assert.equal(momo.outstanding, 100000);
+  assert.deepEqual(momo.rows.map((row) => row.id), ["early-momo"]);
+
+  const withoutCurrentIncome = buildFinanceLedger_({
+    accountRows: [account("momo", "Momo", 100000, 0)],
+    categoryRows: loanCategories,
+    historicalOtherIncomeRows: [
+      income("old-loan", "Tố cho mượn tiền", "loan", "momo", 100000, "2026-08-01")
+    ],
+    expenseRows: [
+      expense("repay-old-loan", "Trả nợ Tố mượn tháng trước", "loan", "momo", 100000, "2026-09-01")
+    ],
+    options: { sourceAccountNames: ["Momo"], rentReserveAmount: 0 }
+  });
+
+  assert.equal(withoutCurrentIncome.previousMonthAdvances.accounts[0].outstanding, 100000);
+});
+
 test("opening plan deducts only previous-month money actually transferred to rent", () => {
   const result = buildFinanceLedger_({
     accountRows: [
