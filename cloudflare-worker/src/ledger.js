@@ -228,16 +228,18 @@ export function buildFinanceLedger_({
   const previousMonthAdvances = buildPreviousMonthAdvanceLedger_({ openingPlan, rows: currentRows,
     accountNamesById, categoryNamesById, otherIncomeCategoryNamesById, personalLoans, fundLoans,
     passThroughKeywords: options.passThroughKeywords, passThroughCategories: options.passThroughCategories });
+  const actualOpeningPlan = buildOpeningPlan_(accountRows, options,
+    previousMonthAdvances.rentReserveObserved ? previousMonthAdvances.rentReserveUsed : undefined);
   const dataIssues = [...issuesByKey.values()]
     .sort((a, b) => a.date.localeCompare(b.date) || a.createdTime.localeCompare(b.createdTime) || a.rowId.localeCompare(b.rowId));
   return {
-    rows: currentRows, openingPlan, personalLoans, previousMonthAdvances, fundLoans,
+    rows: currentRows, openingPlan: actualOpeningPlan, personalLoans, previousMonthAdvances, fundLoans,
     dataIssues,
     unmatched: [...personalLoans.unmatched, ...previousMonthAdvances.unmatchedSources, ...fundLoans.unmatched]
   };
 }
 
-export function buildOpeningPlan_(accountRows = [], options = {}) {
+export function buildOpeningPlan_(accountRows = [], options = {}, rentReserveUsed) {
   const sourceAccountNames = options.sourceAccountNames || [];
   const sourceNameKeys = new Set(sourceAccountNames.map(normalizeSearchText_));
   const sourceAccounts = [];
@@ -257,7 +259,9 @@ export function buildOpeningPlan_(accountRows = [], options = {}) {
   const rentReserveAmount = Number.isFinite(options.rentReserveAmount)
     ? options.rentReserveAmount
     : 0;
-  const rentReserve = Math.min(sourceTotal, rentReserveAmount);
+  const rentReserve = Number.isFinite(rentReserveUsed)
+    ? Math.min(sourceTotal, rentReserveAmount, Math.max(rentReserveUsed, 0))
+    : Math.min(sourceTotal, rentReserveAmount);
   const rentShortfall = Math.max(rentReserveAmount - sourceTotal, 0);
   const remainder = Math.max(sourceTotal - rentReserve, 0);
   const rolloverFundNames = options.rolloverFundNames || [];
@@ -816,6 +820,8 @@ export function buildPreviousMonthAdvanceLedger_({
     (fundLoans.loans || []).flatMap((item) => item.repaymentRows || [])
   );
   let rentExemptRemaining = Math.max(Number(openingPlan.rentReserve) || 0, 0);
+  let rentReserveUsed = 0;
+  let rentReserveObserved = false;
 
   for (const row of orderedFinanceRows_(rows)) {
     if (!(row.amount > 0)) continue;
@@ -853,6 +859,8 @@ export function buildPreviousMonthAdvanceLedger_({
     }
 
     if (row.kind === "transfer") {
+      const rentReserveTransfer = isRentReserveTransfer_(row, categoryNamesById);
+      if (rentReserveTransfer) rentReserveObserved = true;
       const fromState = states.get(row.fromAccountId);
       const toState = states.get(row.toAccountId);
       if (!fromState) {
@@ -860,7 +868,6 @@ export function buildPreviousMonthAdvanceLedger_({
         continue;
       }
 
-      const rentReserveTransfer = isRentReserveTransfer_(row, categoryNamesById);
       const openingUsed = consumeOpening_(fromState, row.amount);
       const currentUse = consumeNonOpening_(fromState, row.amount - openingUsed);
       if (toState && toState !== fromState) {
@@ -873,6 +880,7 @@ export function buildPreviousMonthAdvanceLedger_({
       if (rentReserveTransfer) {
         const exempt = Math.min(openingUsed, rentExemptRemaining);
         rentExemptRemaining -= exempt;
+        rentReserveUsed += exempt;
         const advanceAmount = openingUsed - exempt;
         recordAdvance_(fromState, row, advanceAmount, advanceAmount !== row.amount);
       } else if (isExplicitPreviousMonthUse_(row)) {
@@ -918,6 +926,8 @@ export function buildPreviousMonthAdvanceLedger_({
   }
 
   return {
+    rentReserveUsed,
+    rentReserveObserved,
     totalOutstanding: accounts.reduce((total, account) => total + account.outstanding, 0),
     accounts,
     unmatchedSources,

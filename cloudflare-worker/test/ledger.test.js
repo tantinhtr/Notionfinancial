@@ -1389,6 +1389,36 @@ test("traces direct current-month Grab money and explicit Tiền Mặt debt by o
   assert.equal(result.accounts.find((account) => account.accountId === "cash").outstanding, 550000);
 });
 
+test("opening plan deducts only previous-month money actually transferred to rent", () => {
+  const result = buildFinanceLedger_({
+    accountRows: [
+      account("cash", "Tiền Mặt", 2021000, 665000),
+      account("bank", "Banking", 1670004, 0),
+      account("grab-cash", "Grap Tiền Mặt", 0, 9000),
+      account("momo", "Momo", 158706, 100000),
+      account("fund", "Quỹ Momo", 706166, 247876)
+    ],
+    transferRows: [
+      transfer("rent-from-bank", "Chuyển tiền phòng vào quỹ thiết yếu", "bank", "fund", 1400004, "2026-09-08", "2026-09-08T01:00:00.000Z"),
+      transfer("rent-from-savings", "Mượn tiền của quỹ tiết kiệm chuyển sang tiền phòng quỹ thiết yếu", "fund", "fund", 750000, "2026-09-08", "2026-09-08T02:00:00.000Z")
+    ],
+    options: {
+      ...OPENING_OPTIONS,
+      rolloverFundNames: ["Tiết kiệm dài hạn", "Đầu tư tài chính", "Hưởng thụ", "Cho đi"]
+    }
+  });
+
+  assert.equal(result.openingPlan.sourceTotal, 3849710);
+  assert.equal(result.openingPlan.rentReserve, 1400004);
+  assert.equal(result.openingPlan.remainder, 2449706);
+  assert.deepEqual(result.openingPlan.allocations, [
+    { fund: "Tiết kiệm dài hạn", amount: 612428 },
+    { fund: "Đầu tư tài chính", amount: 612426 },
+    { fund: "Hưởng thụ", amount: 612426 },
+    { fund: "Cho đi", amount: 612426 }
+  ]);
+});
+
 test("an advance note opens debt for the structured payment account", () => {
   const result = buildPreviousMonthAdvanceLedger_({
     openingPlan: {

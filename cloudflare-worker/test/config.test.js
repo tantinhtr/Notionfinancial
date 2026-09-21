@@ -41,7 +41,8 @@ test("getConfig parses the allowed user and stable defaults", () => {
   assert.deepEqual(config.rolloverFundNames, [
     "Tiết kiệm dài hạn",
     "Đầu tư tài chính",
-    "Hưởng thụ"
+    "Hưởng thụ",
+    "Cho đi"
   ]);
   assert.equal(config.timezone, "Asia/Ho_Chi_Minh");
   assert.equal(config.updateCoordinator, updateCoordinator);
