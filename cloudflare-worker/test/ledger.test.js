@@ -1389,6 +1389,29 @@ test("traces direct current-month Grab money and explicit Tiền Mặt debt by o
   assert.equal(result.accounts.find((account) => account.accountId === "cash").outstanding, 550000);
 });
 
+test("an advance note opens debt for the structured payment account", () => {
+  const result = buildPreviousMonthAdvanceLedger_({
+    openingPlan: {
+      rentReserve: 0,
+      sourceAccounts: [{ id: "cash", name: "Tiền Mặt", opening: 0 }]
+    },
+    categoryNamesById: new Map([["incidental", "Phát Sinh"]]),
+    rows: [{
+      id: "phone-repair", kind: "expense",
+      title: "Thay chân sạc điện thoại và mua cáp sạc",
+      note: "ứng tiền ( nợ )",
+      normalizedText: "thay chan sac dien thoai va mua cap sac | ung tien no",
+      amount: 550000, accountId: "cash", categoryId: "incidental",
+      date: "2026-09-12", createdTime: ""
+    }],
+    personalLoans: { receivables: [], liabilities: [], repayments: [], unmatched: [] },
+    fundLoans: { loans: [] }
+  });
+
+  assert.equal(result.outstandingByRow["phone-repair"], 550000);
+  assert.equal(result.accounts[0].outstanding, 550000);
+});
+
 test("traces a dated current-month transfer into Tiền Mặt before spending", () => {
   const result = buildPreviousMonthAdvanceLedger_({
     openingPlan: { rentReserve: 0, sourceAccounts: [

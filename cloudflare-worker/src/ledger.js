@@ -598,7 +598,12 @@ function consumeOpening_(state, amount) {
 function recordAdvance_(state, row, amount, ambiguous = false) {
   if (amount <= 0) return;
   state.account.principal += amount;
-  state.obligations.push({ rowId: row.id, principal: amount, repaid: 0 });
+  state.obligations.push({
+    rowId: row.id,
+    principal: amount,
+    repaid: 0,
+    normalizedText: row.normalizedText || normalizeSearchText_([row.title, row.note].filter(Boolean).join(" | "))
+  });
   if (ambiguous) {
     state.account.ambiguousRows.push({ ...row, advanceAmount: amount });
   } else {
@@ -648,9 +653,31 @@ function matchingSourceStates_(row, states) {
   if (!destination) return [];
   const account = normalizeSearchText_(destination.account.accountName).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   if (!new RegExp("\\bmuon(?:\\s+tien)?\\s+" + account + "\\b").test(text)) return [];
-  const matching = destination.obligations.filter((obligation) =>
-    obligation.principal - obligation.repaid === row.amount);
-  return matching.length === 1 ? [{ state: destination, openedBy: matching[0].rowId }] : [];
+  const noise = new Set(["tra", "lai", "tien", "no", "muon", "hom", "truoc", "ung", "cho", "cap", "bu", "hoan"]);
+  const accountWords = new Set(normalizeSearchText_(destination.account.accountName).match(/[a-z0-9]+/g) || []);
+  const words = (value) => (normalizeSearchText_(value).match(/[a-z0-9]+/g) || [])
+    .filter((word) => !noise.has(word) && !accountWords.has(word));
+  const repaymentWords = words(text);
+  const phraseScore = (obligation) => {
+    const debtWords = words(obligation.normalizedText);
+    let best = 0;
+    for (let left = 0; left < repaymentWords.length; left += 1) {
+      for (let right = 0; right < debtWords.length; right += 1) {
+        let length = 0;
+        while (repaymentWords[left + length]
+          && repaymentWords[left + length] === debtWords[right + length]) length += 1;
+        best = Math.max(best, length);
+      }
+    }
+    return best;
+  };
+  const ranked = destination.obligations
+    .filter((obligation) => obligation.principal - obligation.repaid > 0)
+    .map((obligation) => ({ obligation, score: phraseScore(obligation) }))
+    .filter((entry) => entry.score >= 2)
+    .sort((a, b) => b.score - a.score);
+  if (!ranked.length || (ranked[1] && ranked[1].score === ranked[0].score)) return [];
+  return [{ state: destination, openedBy: ranked[0].obligation.rowId }];
 }
 
 function isExplicitAccountDebt_(row, state, categoryNamesById) {
@@ -658,7 +685,8 @@ function isExplicitAccountDebt_(row, state, categoryNamesById) {
   const account = normalizeSearchText_(state.account.accountName);
   const text = positiveEvidenceText_(row.normalizedText || normalizeSearchText_([row.title, row.note].filter(Boolean).join(" | ")));
   const note = normalizeSearchText_(row.note);
-  return /\bno\b/.test(text) && (text.includes("no " + account) || /^no(?:\s+\d[\d.,]*(?:\s*(?:d|dong))?)?$/.test(note));
+  return /\bung(?:\s+truoc)?\s+tien\b/.test(text)
+    || (/\bno\b/.test(text) && (text.includes("no " + account) || /^no(?:\s+\d[\d.,]*(?:\s*(?:d|dong))?)?$/.test(note)));
 }
 
 function isNetAppTarget_(row, otherIncomeCategoryNamesById) {

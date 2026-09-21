@@ -2442,14 +2442,14 @@ test("September direct Grab expenses are covered once while 550000 Tiền Mặt 
   assert.doesNotMatch(report, /CẦN CẤP THÊM/);
 });
 
-test("an explicit transfer returning borrowed cash clears the matching Phát Sinh debt", () => {
+test("an explicit transfer partially repays the matching Phát Sinh cash debt", () => {
   const cash = cashflowAccountRow("cash", "Tiền Mặt");
   cash.properties["Số Dư Ban Đầu"] = { number: 650000 };
   const earlier = namedExpenseRow("earlier-cash", "Khoản chi tiền mặt khác", "other", "cash", 100000);
   earlier.properties["Ngày"] = { date: { start: "2026-09-02" } };
   const expense = namedExpenseRow("phone-repair", "Thay chân sạc điện thoại và mua cáp sạc", "incidental", "cash", 550000, "ứng tiền ( nợ )");
   expense.properties["Ngày"] = { date: { start: "2026-09-12" } };
-  const repayment = transferRow("repay-cash", "Trả lại tiền sửa xe hôm trước mượn tiền mặt", 550000, "grab", "cash", "");
+  const repayment = transferRow("repay-cash", "Trả lại tiền sửa điện thoại hôm trước mượn tiền mặt", 200000, "grab", "cash", "");
   repayment.properties["Ngày"] = { date: { start: "2026-09-19" } };
   const data = buildAccountSpendingData_(
     { y: 2026, m: 9, d: 20 },
@@ -2460,9 +2460,9 @@ test("an explicit transfer returning borrowed cash clears the matching Phát Sin
     5500000, [repayment], [fundGroupRow("essential", "Nhu cầu thiết yếu", "fund", true)],
     { sourceAccountNames: ["Tiền Mặt", "Grap Tiền Mặt"], rentReserveAmount: 0 }
   );
-  assert.equal(data.explicitLedger.previousMonthAdvances.outstandingByRow["phone-repair"], 0);
+  assert.equal(data.explicitLedger.previousMonthAdvances.outstandingByRow["phone-repair"], 350000);
   assert.equal(data.explicitLedger.previousMonthAdvances.outstandingByRow["earlier-cash"], 100000);
-  assert.doesNotMatch(fundBudgetText_(data), /Phát Sinh:[^\n]*còn nợ Tiền Mặt/);
+  assert.match(fundBudgetText_(data), /Phát Sinh:[^\n]*còn nợ Tiền Mặt 350\.000đ/);
 });
 
 test("group quỹ còn sums funded child labels and keeps an evidenced debt on its child", () => {
