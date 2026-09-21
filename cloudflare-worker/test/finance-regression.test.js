@@ -1261,6 +1261,14 @@ test("September 2026 explicit ledger preserves the complete snapshot and indepen
   const data = buildAccountSpendingData_(
     { y: 2026, m: 9, d: 10 }, categories, expenses, accounts, 5500000, transfers, groups, options
   );
+  assert.deepEqual(data.fundGroups.map((group) => group.name), [
+    "Nhu cầu thiết yếu",
+    "Giáo dục phát triển",
+    "Tiết kiệm dài hạn",
+    "Đầu tư tài chính",
+    "Hưởng thụ",
+    "Cho đi"
+  ]);
   const ledger = data.explicitLedger;
   const essential = data.fundGroups.find((group) => group.name === "Nhu cầu thiết yếu");
   const savingsLoan = ledger.fundLoans.loans.find((loan) => loan.openedBy === "borrow-750");
@@ -1341,6 +1349,9 @@ test("September 2026 explicit ledger preserves the complete snapshot and indepen
   assert.match(text, /Nhà Trọ: 2\.017\.000đ \/ 2\.150\.000đ/);
   assert.match(text, /Nhu cầu thiết yếu:[^\n]*quỹ còn 133\.004đ/);
   assert.match(text, /Tiết kiệm dài hạn: 158\.706đ \/ 566\.570đ/);
+  assert.match(text, /Đầu tư tài chính: 0đ \/ 566\.570đ/);
+  assert.match(text, /Hưởng thụ: 0đ \/ 566\.570đ/);
+  assert.match(text, /Cho đi: 0đ \/ 0đ/);
   assert.doesNotMatch(text, /Tiết kiệm dài hạn:[^\n]*(?:đã cấp|quỹ còn|· còn)/);
   assert.doesNotMatch(text, /Nhu cầu thiết yếu:[^\n]*đã cấp 2\.150\.004đ/);
   assert.doesNotMatch(text, /Nhu cầu thiết yếu:[^\n]*còn nợ/);
