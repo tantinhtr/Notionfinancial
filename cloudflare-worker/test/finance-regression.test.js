@@ -2857,9 +2857,10 @@ test("fund report separates jar groups and keeps the outside-fund total after H�
 
   const enjoymentIndex = lines.findIndex((line) => line.includes("Hưởng thụ:"));
   assert.equal(lines[enjoymentIndex - 1], "");
-  assert.equal(lines[enjoymentIndex + 1], "• Tổng chi ngoài quỹ: 5.484.000đ");
-  assert.equal(lines[enjoymentIndex + 2], "");
-  assert.match(lines[enjoymentIndex + 3], /Cho đi:/);
+  assert.equal(lines[enjoymentIndex + 1], "");
+  assert.equal(lines[enjoymentIndex + 2], "• Tổng chi ngoài quỹ: 5.484.000đ");
+  assert.equal(lines[enjoymentIndex + 3], "");
+  assert.match(lines[enjoymentIndex + 4], /Cho đi:/);
 });
 
 test("rollover fund line shows money held against this month's target without allocated text", () => {

@@ -1534,7 +1534,7 @@ export function fundBudgetText_(data) {
       ));
       for (const childLine of childLines_(group)) lines.push(childLine);
       if (outsideFundLine && normalizeSearchText_(group.name) === "huong thu") {
-        lines.push(outsideFundLine);
+        lines.push("", outsideFundLine);
         outsideFundInserted = true;
       }
     }
