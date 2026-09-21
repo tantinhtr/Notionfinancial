@@ -1008,8 +1008,8 @@ test("a fund that spent without identified funding reports a shortfall instead o
     "📦 QUỸ & NGÂN SÁCH — tháng 8/2026\n" +
       "\n" +
       "📊 NHÓM QUỸ — 574.444đ / 500.000đ · ⛔ vượt 74.444đ\n" +
-      "• Tổng chi ngoài quỹ: 0đ\n" +
-      "⛔ Làm YouTube: 574.444đ / 500.000đ · vượt 74.444đ · chưa cấp"
+      "⛔ Làm YouTube: 574.444đ / 500.000đ · vượt 74.444đ · chưa cấp\n" +
+      "• Tổng chi ngoài quỹ: 0đ"
   );
 });
 
@@ -2836,6 +2836,28 @@ test("fund report totals every real expense outside the jars regardless of amoun
 
   assert.equal(model.monthlyBudget.outsideFundSpending, 1001000);
   assert.match(fundBudgetText_(model), /\n• Tổng chi ngoài quỹ: 1\.001\.000đ\n/);
+});
+
+test("fund report places the outside-fund total immediately after Hưởng thụ", () => {
+  const fund = (name) => ({
+    name,
+    spent: 0,
+    budget: 0,
+    over: 0,
+    allocated: 0,
+    transferNeeded: 0,
+    requiresAllocation: false,
+    children: []
+  });
+  const lines = fundBudgetText_({
+    t: { y: 2026, m: 9, d: 21 },
+    monthlyBudget: { outsideFundSpending: 5484000 },
+    fundGroups: [fund("Nhu cầu thiết yếu"), fund("Hưởng thụ"), fund("Cho đi")]
+  }).split("\n");
+
+  const enjoymentIndex = lines.findIndex((line) => line.includes("Hưởng thụ:"));
+  assert.equal(lines[enjoymentIndex + 1], "• Tổng chi ngoài quỹ: 5.484.000đ");
+  assert.match(lines[enjoymentIndex + 2], /Cho đi:/);
 });
 
 test("rollover fund line shows money held against this month's target without allocated text", () => {

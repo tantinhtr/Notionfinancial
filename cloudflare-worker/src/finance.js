@@ -1522,16 +1522,22 @@ export function fundBudgetText_(data) {
   const budget = data.monthlyBudget;
   if (groups.length) {
     lines.push("", budgetHeadline_(budget || { total: 0, limit: 0 }, groups));
-    if (Number.isFinite(budget?.outsideFundSpending)) {
-      lines.push("• Tổng chi ngoài quỹ: " + money_(budget.outsideFundSpending));
-    }
+    const outsideFundLine = Number.isFinite(budget?.outsideFundSpending)
+      ? "• Tổng chi ngoài quỹ: " + money_(budget.outsideFundSpending)
+      : "";
+    let outsideFundInserted = false;
     for (const group of groups) {
       lines.push(budgetLine_(
         group,
         allocationTargets.get(normalizeSearchText_(group.name))
       ));
       for (const childLine of childLines_(group)) lines.push(childLine);
+      if (outsideFundLine && normalizeSearchText_(group.name) === "huong thu") {
+        lines.push(outsideFundLine);
+        outsideFundInserted = true;
+      }
     }
+    if (outsideFundLine && !outsideFundInserted) lines.push(outsideFundLine);
   }
 
   const funding = groups.filter((group) => (group.transferNeeded || 0) > 0);
