@@ -263,7 +263,10 @@ export function buildOpeningPlan_(accountRows = [], options = {}, rentReserveUse
     ? Math.min(sourceTotal, rentReserveAmount, Math.max(rentReserveUsed, 0))
     : Math.min(sourceTotal, rentReserveAmount);
   const rentShortfall = Math.max(rentReserveAmount - sourceTotal, 0);
-  const remainder = Math.max(sourceTotal - rentReserve, 0);
+  const rolloverCarryover = Number.isFinite(options.rolloverCarryoverAmount)
+    ? Math.max(options.rolloverCarryoverAmount, 0)
+    : 0;
+  const remainder = Math.max(sourceTotal - rentReserve, 0) + rolloverCarryover;
   const rolloverFundNames = options.rolloverFundNames || [];
   const equalShare = rolloverFundNames.length
     ? Math.floor(remainder / rolloverFundNames.length)
@@ -274,7 +277,7 @@ export function buildOpeningPlan_(accountRows = [], options = {}, rentReserveUse
     amount: equalShare + (index === 0 ? indivisibleRemainder : 0)
   }));
 
-  return {
+  const plan = {
     sourceTotal,
     rentReserve,
     rentShortfall,
@@ -282,6 +285,8 @@ export function buildOpeningPlan_(accountRows = [], options = {}, rentReserveUse
     sourceAccounts,
     allocations
   };
+  if (rolloverCarryover > 0) plan.rolloverCarryover = rolloverCarryover;
+  return plan;
 }
 
 function row_(kind, page, titleProperty) {

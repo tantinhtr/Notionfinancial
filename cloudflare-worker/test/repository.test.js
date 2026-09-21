@@ -399,6 +399,99 @@ test("fund report wires current and master Notion queries into the finance build
   ]);
 });
 
+test("fund report carries only funded child balances from the two rollover source groups into next-month allocations", async () => {
+  const historicalFilter = {
+    property: "Ngày",
+    date: { on_or_before: "2026-06-30" }
+  };
+  const trackedCategory = (id, name, budget, groupId) => row(id, {
+    "Loại Chi Phí": { title: [{ plain_text: name }] },
+    "Ngân Sách Tháng": { number: budget },
+    "Tính Trong 5,5 Triệu": { checkbox: true },
+    "Nhóm Quỹ": { relation: [{ id: groupId }] }
+  });
+  const fundGroup = (id, name) => row(id, {
+    "Tên Nhóm Quỹ": { title: [{ plain_text: name }] },
+    "Tài Khoản Giữ Quỹ": { relation: [{ id: "fund" }] },
+    "Bắt Buộc Cấp Quỹ": { checkbox: true }
+  });
+  const transfer = (id, name, amount, groupId) => row(id, {
+    "Ghi Chú": { title: [{ plain_text: name }] },
+    "Số Tiền": { number: amount },
+    "Ngày": { date: { start: "2026-06-10" } },
+    "Từ Tài Khoản": { relation: [{ id: "momo" }] },
+    "Đến Tài Khoản": { relation: [{ id: "fund" }] },
+    "Nhóm Quỹ": { relation: [{ id: groupId }] }
+  });
+  const expense = (id, name, amount, categoryId) => row(id, {
+    "Nội Dung Khoản Chi": { title: [{ plain_text: name }] },
+    "Số Tiền": { number: amount },
+    "Ngày": { date: { start: "2026-06-20" } },
+    "Loại Chi Phí": { relation: [{ id: categoryId }] },
+    "Phương Thức Thanh Toán": { relation: [{ id: "fund" }] }
+  });
+  const rows = {
+    budgets: [
+      trackedCategory("internet", "Internet", 1000000, "essential"),
+      trackedCategory("course", "Khóa học", 500000, "education"),
+      trackedCategory("trip", "Du lịch", 900000, "enjoyment")
+    ],
+    accounts: openingAccountRows(),
+    "fund-groups": [
+      fundGroup("essential", "Nhu cầu thiết yếu"),
+      fundGroup("education", "Giáo dục phát triển"),
+      fundGroup("enjoyment", "Hưởng thụ")
+    ],
+    expenses: [
+      expense("internet-paid", "Thanh toán Internet", 30000, "internet"),
+      expense("course-paid", "Mua khóa học", 20000, "course")
+    ],
+    transfers: [
+      transfer("internet-funded", "Cấp quỹ Internet", 180000, "essential"),
+      transfer("course-funded", "Cấp quỹ Khóa học", 100000, "education"),
+      transfer("trip-funded", "Cấp quỹ Du lịch", 900000, "enjoyment")
+    ],
+    income: [],
+    "other-income": [],
+    "other-income-categories": []
+  };
+  const notion = {
+    async queryDatabase(databaseId, filter) {
+      if (databaseId === "expenses" || databaseId === "transfers") {
+        return filter?.date?.on_or_before === "2026-06-30" ? rows[databaseId] : [];
+      }
+      return rows[databaseId] || [];
+    },
+    async createPage() { return { id: "unused" }; }
+  };
+  const repository = createFinanceRepository({
+    notion,
+    state: createState(),
+    config: {
+      ...config,
+      rolloverFundNames: ["Tiết kiệm dài hạn", "Đầu tư tài chính", "Hưởng thụ", "Cho đi"],
+      rolloverSourceGroupNames: ["Nhu cầu thiết yếu", "Giáo dục phát triển"]
+    },
+    now: FIXED_NOW
+  });
+
+  const model = await repository.getFundBudgetReport(true);
+
+  assert.equal(model.openingPlan.sourceTotal, 3849710);
+  assert.equal(model.openingPlan.rolloverCarryover, 230000);
+  assert.equal(model.openingPlan.remainder, 1929710);
+  assert.deepEqual(model.openingPlan.allocations, [
+    { fund: "Tiết kiệm dài hạn", amount: 482429 },
+    { fund: "Đầu tư tài chính", amount: 482427 },
+    { fund: "Hưởng thụ", amount: 482427 },
+    { fund: "Cho đi", amount: 482427 }
+  ]);
+  assert.deepEqual(model.rolloverCarryover.groups, [
+    { name: "Nhu cầu thiết yếu", amount: 150000 },
+    { name: "Giáo dục phát triển", amount: 80000 }
+  ]);
+});
+
 test("fund report accepts an accountless Grab App target but still flags an accountless real receipt", async () => {
   const income = (id, categoryId) => row(id, {
     "Tên Khoản Thu": { title: [{ plain_text: "Grap thu nhập ròng" }] },

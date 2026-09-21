@@ -1,7 +1,8 @@
 import {
   buildAccountSpendingData_,
   buildMonthlyCashflowData_,
-  iso_
+  iso_,
+  normalizeSearchText_
 } from "./finance.js";
 import { readFinanceRows_ } from "./ledger.js";
 
@@ -94,6 +95,24 @@ function historyBeforeMonthFilterFor(t) {
 
 export function historyLookupRequired_(rows = []) {
   return rows.some((row) => /\b(?:tra no|tra lai|tra tien muon|nhan lai|hoan lai|hoan tien|cap bu|dao giao dich|dieu chinh|thang truoc|truoc do)\b/.test(row.normalizedText));
+}
+
+function rolloverCarryoverFromGroups_(fundGroups, sourceGroupNames) {
+  const allowed = new Set((sourceGroupNames || []).map(normalizeSearchText_));
+  const groups = (fundGroups || [])
+    .filter((group) => allowed.has(normalizeSearchText_(group.name)))
+    .map((group) => ({
+      name: group.name,
+      amount: (group.children || []).reduce(
+        (total, child) => total + Math.max(Number(child.fundRemaining) || 0, 0),
+        0
+      )
+    }))
+    .filter((group) => group.amount > 0);
+  return {
+    total: groups.reduce((total, group) => total + group.amount, 0),
+    groups
+  };
 }
 
 function fundChildAliasHistoryRequired_(transferRows = [], categoryRows = []) {
@@ -226,21 +245,61 @@ export function createFinanceRepository({ notion, state, config, now = () => new
       notion.queryDatabase(config.otherIncomeDb, filter),
       notion.queryDatabase(config.otherIncomeCategoryDb)
     ]);
+    const historyFilter = historyBeforeMonthFilterFor(t);
+    const needsRolloverHistory = (config.rolloverSourceGroupNames || []).length > 0;
+    let rolloverExpenseRows = [];
+    let rolloverTransferRows = [];
     let historicalIncomeRows = [];
     let historicalOtherIncomeRows = [];
     let historicalExpenseRows = [];
     let historicalTransferRows = [];
     const currentRows = readFinanceRows_({ incomeRows, otherIncomeRows, expenseRows, transferRows });
+    const needsChildAliasHistory = fundChildAliasHistoryRequired_(transferRows, categoryRows);
     if (historyLookupRequired_(currentRows)) {
-      const historyFilter = historyBeforeMonthFilterFor(t);
       [historicalIncomeRows, historicalOtherIncomeRows, historicalExpenseRows, historicalTransferRows] = await Promise.all([
         notion.queryDatabase(config.incomeDb, historyFilter),
         notion.queryDatabase(config.otherIncomeDb, historyFilter),
         notion.queryDatabase(config.expenseDb, historyFilter),
         notion.queryDatabase(config.transferDb, historyFilter)
       ]);
-    } else if (fundChildAliasHistoryRequired_(transferRows, categoryRows)) {
-      historicalExpenseRows = await notion.queryDatabase(config.expenseDb, historyBeforeMonthFilterFor(t));
+      rolloverExpenseRows = historicalExpenseRows;
+      rolloverTransferRows = historicalTransferRows;
+    } else if (needsRolloverHistory) {
+      [rolloverExpenseRows, rolloverTransferRows] = await Promise.all([
+        notion.queryDatabase(config.expenseDb, historyFilter),
+        notion.queryDatabase(config.transferDb, historyFilter)
+      ]);
+    } else if (needsChildAliasHistory) {
+      historicalExpenseRows = await notion.queryDatabase(config.expenseDb, historyFilter);
+    }
+    if (needsRolloverHistory && needsChildAliasHistory && historicalExpenseRows.length === 0) {
+      historicalExpenseRows = rolloverExpenseRows;
+    }
+    let rolloverCarryover = { total: 0, groups: [] };
+    if (needsRolloverHistory) {
+      const historicalFundModel = buildAccountSpendingData_(
+        t,
+        categoryRows,
+        rolloverExpenseRows,
+        accountRows,
+        config.monthlyExpenseLimit,
+        rolloverTransferRows,
+        fundGroupRows,
+        {
+          outsideThreshold: config.outsideBudgetThreshold,
+          passThroughKeywords: config.passThroughKeywords,
+          passThroughCategories: config.passThroughCategories,
+          spendableSubFunds: config.spendableSubFunds,
+          sourceAccountNames: [],
+          goalRelationPageId: config.goalRelationPageId,
+          rentReserveAmount: 0,
+          rolloverFundNames: []
+        }
+      );
+      rolloverCarryover = rolloverCarryoverFromGroups_(
+        historicalFundModel.fundGroups,
+        config.rolloverSourceGroupNames
+      );
     }
     const model = buildAccountSpendingData_(
       t,
@@ -265,9 +324,11 @@ export function createFinanceRepository({ notion, state, config, now = () => new
         sourceAccountNames: config.sourceAccountNames,
         goalRelationPageId: config.goalRelationPageId,
         rentReserveAmount: config.rentReserveAmount,
-        rolloverFundNames: config.rolloverFundNames
+        rolloverFundNames: config.rolloverFundNames,
+        rolloverCarryoverAmount: rolloverCarryover.total
       }
     );
+    model.rolloverCarryover = rolloverCarryover;
     try {
       await state.putReportCache(cacheKey, model, 60);
     } catch {

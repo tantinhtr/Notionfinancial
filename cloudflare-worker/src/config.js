@@ -52,6 +52,7 @@ export function getConfig(env) {
     sourceAccountNames: ["Tiền Mặt", "Banking", "Grap Tiền Mặt", "Momo"],
     rentReserveAmount: 2150000,
     rolloverFundNames: ["Tiết kiệm dài hạn", "Đầu tư tài chính", "Hưởng thụ", "Cho đi"],
+    rolloverSourceGroupNames: ["Nhu cầu thiết yếu", "Giáo dục phát triển"],
     // Giao dich le ngoai nhom quy tu muc nay tro len khong tinh vao tran 5tr5:
     // no la khoan bat thuong, khong phai chi tieu dinh ky cua thang.
     outsideBudgetThreshold: 500000,
