@@ -1008,6 +1008,7 @@ test("a fund that spent without identified funding reports a shortfall instead o
     "📦 QUỸ & NGÂN SÁCH — tháng 8/2026\n" +
       "\n" +
       "📊 NHÓM QUỸ — 574.444đ / 500.000đ · ⛔ vượt 74.444đ\n" +
+      "• Tổng chi ngoài quỹ: 0đ\n" +
       "⛔ Làm YouTube: 574.444đ / 500.000đ · vượt 74.444đ · chưa cấp"
   );
 });
@@ -2809,6 +2810,42 @@ test("fund budget text preserves approved fund statuses and heading", () => {
       "💰 CẦN CẤP THÊM\n" +
       "• Phát Sinh → Quỹ Momo: 600.000đ"
   );
+});
+
+test("fund report totals every real expense outside the jars regardless of amount", () => {
+  const model = buildAccountSpendingData_(
+    { y: 2026, m: 9, d: 21 },
+    [
+      trackedCategoryRow("inside", "Nhà Trọ", 0, "essential"),
+      cashflowCategoryRow("grab", "Loại Chi Phí", "Grap"),
+      cashflowCategoryRow("family", "Loại Chi Phí", "Người Thân"),
+      cashflowCategoryRow("loan", "Loại Chi Phí", "Vay Và Trả"),
+      cashflowCategoryRow("other", "Loại Chi Phí", "Khác")
+    ],
+    [
+      namedExpenseRow("grab-topup", "Nạp ví Grap", "grab", "momo", 501000),
+      namedExpenseRow("family-gift", "Cho má tiền", "family", "cash", 500000),
+      namedExpenseRow("loan-payment", "Trả nợ", "loan", "momo", 900000),
+      namedExpenseRow("customer-code", "Tiền code đơn hàng", "other", "momo", 200000),
+      namedExpenseRow("saved-pot", "Mua máy tính", "other", "momo", 300000, "lấy từ quỹ máy tính")
+    ],
+    [
+      cashflowAccountRow("momo", "Momo"),
+      cashflowAccountRow("cash", "Tiền Mặt"),
+      cashflowAccountRow("fund", "Quỹ Momo")
+    ],
+    5500000,
+    [],
+    [fundGroupRow("essential", "Nhu cầu thiết yếu", "fund", false)],
+    {
+      outsideThreshold: 500000,
+      passThroughKeywords: ["code"],
+      passThroughCategories: ["Vay Và Trả"]
+    }
+  );
+
+  assert.equal(model.monthlyBudget.outsideFundSpending, 1001000);
+  assert.match(fundBudgetText_(model), /\n• Tổng chi ngoài quỹ: 1\.001\.000đ\n/);
 });
 
 test("rollover fund line shows money held against this month's target without allocated text", () => {

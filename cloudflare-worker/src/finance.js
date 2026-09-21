@@ -520,6 +520,7 @@ function buildMonthlyBudget_(tiers, monthlyLimit) {
     limit: monthlyLimit,
     groupSpending: tiers.groupSpending,
     looseSpending: tiers.looseSpending,
+    outsideFundSpending: tiers.outsideFundSpending,
     looseByCategory: Object.keys(tiers.looseByCategory)
       .map((category) => ({ category, amount: tiers.looseByCategory[category] }))
       .sort((a, b) => b.amount - a.amount),
@@ -641,6 +642,7 @@ export function buildAccountSpendingData_(
   const tiers = {
     groupSpending: 0,
     looseSpending: 0,
+    outsideFundSpending: 0,
     looseByCategory: {},
     outsideLargeRows: []
   };
@@ -779,23 +781,25 @@ export function buildAccountSpendingData_(
       : "";
     if (ownGroupId !== "" || assignedGroupId !== "") {
       tiers.groupSpending += amount;
-    } else if (
-      amount >= outsideThreshold ||
-      passThroughCategoryKeys[normalizeSearchText_(categoryName)] === true ||
-      isPassThrough(rowInfo.name + " " + rowInfo.note) ||
-      spentFromSavedPot(lender)
-    ) {
-      tiers.outsideLargeRows.push({
-        name: rowInfo.name,
-        amount,
-        date: rowInfo.date,
-        account: accountName,
-        category: categoryName
-      });
     } else {
-      tiers.looseSpending += amount;
-      tiers.looseByCategory[categoryName] =
-        (tiers.looseByCategory[categoryName] || 0) + amount;
+      const isPassThroughExpense =
+        passThroughCategoryKeys[normalizeSearchText_(categoryName)] === true ||
+        isPassThrough(rowInfo.name + " " + rowInfo.note) ||
+        spentFromSavedPot(lender);
+      if (!isPassThroughExpense) tiers.outsideFundSpending += amount;
+      if (amount >= outsideThreshold || isPassThroughExpense) {
+        tiers.outsideLargeRows.push({
+          name: rowInfo.name,
+          amount,
+          date: rowInfo.date,
+          account: accountName,
+          category: categoryName
+        });
+      } else {
+        tiers.looseSpending += amount;
+        tiers.looseByCategory[categoryName] =
+          (tiers.looseByCategory[categoryName] || 0) + amount;
+      }
     }
 
     if (!accountMap[accountId]) {
@@ -1528,6 +1532,9 @@ export function fundBudgetText_(data) {
   const budget = data.monthlyBudget;
   if (groups.length) {
     lines.push("", budgetHeadline_(budget || { total: 0, limit: 0 }, groups));
+    if (Number.isFinite(budget?.outsideFundSpending)) {
+      lines.push("• Tổng chi ngoài quỹ: " + money_(budget.outsideFundSpending));
+    }
     for (const group of groups) {
       lines.push(budgetLine_(
         group,
