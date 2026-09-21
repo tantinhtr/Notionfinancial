@@ -48,6 +48,19 @@ test("getConfig parses the allowed user and stable defaults", () => {
   assert.equal(config.updateCoordinator, updateCoordinator);
 });
 
+test("pass-through expenses are identified by record text instead of an amount threshold", () => {
+  const config = getConfig({
+    TELEGRAM_TOKEN: "telegram",
+    NOTION_TOKEN: "notion",
+    WEBHOOK_SECRET: "secret",
+    ALLOWED_USER_ID: "42",
+    BOT_STATE: {},
+    UPDATE_COORDINATOR: {}
+  });
+  assert.deepEqual(config.passThroughKeywords, ["code", "tiền đơn hàng đồ ăn"]);
+  assert.equal("outsideBudgetThreshold" in config, false);
+});
+
 test("getConfig rejects a non-finite allowed user ID", () => {
   const env = {
     TELEGRAM_TOKEN: "telegram",

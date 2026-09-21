@@ -1243,7 +1243,6 @@ test("September 2026 explicit ledger preserves the complete snapshot and indepen
     sourceAccountNames: ["Tiền Mặt", "Banking", "Grap Tiền Mặt", "Momo"],
     rentReserveAmount: 2150000,
     rolloverFundNames: ["Tiết kiệm dài hạn", "Đầu tư tài chính", "Hưởng thụ", "Cho đi"],
-    outsideThreshold: 500000,
     passThroughKeywords: ["code"],
     passThroughCategories: ["Vay Và Trả"],
     spendableSubFunds: ["sửa xe"],
@@ -2163,7 +2162,7 @@ test("a code advance is pass-through money, excluded at any size", () => {
     { y: 2026, m: 8, d: 25 },
     [loose("grap", "Grap"), loose("market", "Siêu Thị"), loose("loan", "Vay Và Trả")],
     [
-      // Duoi nguong 500k nhung la tien ung mua ho khach -> van phai loai.
+      // Tien ung mua ho khach phai loai du so tien lon hay nho.
       noted("advance", "Nạp ví grap ( trừ tiền ứng code )", "grap", 120000),
       // Ghi chu o cot Ghi Chu cung tinh.
       noted("advance2", "Nạp ví grap", "grap", 80000, "ứng code đơn hàng"),
@@ -2181,8 +2180,7 @@ test("a code advance is pass-through money, excluded at any size", () => {
     [],
     {
       passThroughKeywords: ["code"],
-      passThroughCategories: ["Vay Và Trả"],
-      outsideThreshold: 500000
+      passThroughCategories: ["Vay Và Trả"]
     }
   );
 
@@ -2297,7 +2295,7 @@ test("only a sub fund funded this month counts as spending when drawn on", () =>
     5500000,
     [],
     [],
-    { spendableSubFunds: ["sửa xe"], outsideThreshold: 500000 }
+    { spendableSubFunds: ["sửa xe"] }
   );
 
   assert.equal(data.monthlyBudget.looseSpending, 100000);
@@ -2522,7 +2520,7 @@ test("an ordinary fund expense using previous-month Tiền Mặt owes that accou
   assert.doesNotMatch(report, /Tiền Mặt: cần cấp bù 70\.000đ|CẦN CẤP THÊM/);
 });
 
-test("spending splits into fund groups, loose spending and excluded one-offs", () => {
+test("large outside-fund expenses count unless the record says they are pass-through", () => {
   const spend = (id, name, categoryId, accountId, amount) => ({
     id,
     properties: {
@@ -2583,27 +2581,20 @@ test("spending splits into fund groups, loose spending and excluded one-offs", (
         earn("o1", "Grap tiền mặt", 1310000),
         earn("o2", "Bình cho mượn tiền", 1000000)
       ],
-      outsideThreshold: 500000
+      passThroughCategories: ["Vay Và Trả"]
     }
   );
 
-  // Trong tran: nhom quy 2.000.000 + chi le duoi 500k 15.000.
   assert.equal(data.monthlyBudget.groupSpending, 2000000);
-  // Ngoai nhom quy, duoi 500k: xang 60.000 + sua xe 150.000 + ca phe 15.000.
-  assert.equal(data.monthlyBudget.looseSpending, 225000);
-  assert.equal(data.monthlyBudget.total, 2225000);
+  // So tien khong quyet dinh viec loai: nap vi Grab 650k va an uong 850k van la chi that.
+  assert.equal(data.monthlyBudget.looseSpending, 1725000);
+  assert.equal(data.monthlyBudget.total, 3725000);
 
-  // Moi giao dich le ngoai nhom quy tu 500k tro len deu bi loai, khong phan biet
-  // no la nap vi Grab, cho muon hay an uong.
   assert.deepEqual(
     data.excluded.rows.map((row) => ({ name: row.name, amount: row.amount })),
-    [
-      { name: "Cho c Thủy mượn", amount: 3000000 },
-      { name: "Đi ăn với em", amount: 850000 },
-      { name: "Nạp tiền ví grap", amount: 650000 }
-    ]
+    [{ name: "Cho c Thủy mượn", amount: 3000000 }]
   );
-  assert.equal(data.excluded.total, 4500000);
+  assert.equal(data.excluded.total, 3000000);
 
   // Thu nhap that chi la bang Bao Cao Thu Nhap; Grab gop va tien muon khong tinh.
   assert.deepEqual(data.income, { real: 7876709, grabGross: 1310000, other: 1000000 });
@@ -2838,7 +2829,6 @@ test("fund report totals every real expense outside the jars regardless of amoun
     [],
     [fundGroupRow("essential", "Nhu cầu thiết yếu", "fund", false)],
     {
-      outsideThreshold: 500000,
       passThroughKeywords: ["code"],
       passThroughCategories: ["Vay Và Trả"]
     }

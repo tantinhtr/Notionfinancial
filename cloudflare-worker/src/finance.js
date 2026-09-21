@@ -530,15 +530,9 @@ function buildMonthlyBudget_(tiers, monthlyLimit) {
   };
 }
 
-function attachThreshold_(excluded, outsideThreshold) {
-  excluded.threshold = outsideThreshold;
-  return excluded;
-}
-
-// Giao dich le ngoai nhom quy tu nguong tro len: khong tinh la chi tieu cua thang,
-// chi liet ke ra de anh tu quyet.
+// Tien di qua duoc noi dung/loai nghiep vu xac nhan: khong tinh la chi tieu cua thang.
 function buildExcluded_(tiers) {
-  const rows = tiers.outsideLargeRows.slice().sort((a, b) => b.amount - a.amount);
+  const rows = tiers.excludedRows.slice().sort((a, b) => b.amount - a.amount);
   return { rows, total: rows.reduce((sum, row) => sum + row.amount, 0) };
 }
 
@@ -606,9 +600,6 @@ export function buildAccountSpendingData_(
     const haystack = normalizeSearchText_(text);
     return passThroughNeedles.some((needle) => haystack.indexOf(needle) >= 0);
   };
-  const outsideThreshold = Number.isFinite(options.outsideThreshold)
-    ? options.outsideThreshold
-    : 500000;
   const categoryNames = {};
   const categoryGroupIds = {};
   const fundGroupIdByName = {};
@@ -644,7 +635,7 @@ export function buildAccountSpendingData_(
     looseSpending: 0,
     outsideFundSpending: 0,
     looseByCategory: {},
-    outsideLargeRows: []
+    excludedRows: []
   };
   const accountNames = {};
   const globalCategoryTotals = {};
@@ -773,9 +764,8 @@ export function buildAccountSpendingData_(
     }
 
     // Hai nhom duy nhat: trong nhom quy va ngoai nhom quy.
-    // Khoan trong nhom quy luon tinh, du to nho. Khoan ngoai nhom quy bi loai khi
-    // tung giao dich tu nguong tro len, HOAC khi ghi chu noi ro do la tien ung code
-    // mua ho khach — thu do se duoc hoan lai nen khong phai chi tieu, du to hay nho.
+    // So tien va nhan Grab khong quyet dinh viec loai. Chi loai khi noi dung hoac
+    // loai nghiep vu noi ro day la tien di qua nhu ung code, mua ho hay vay/tra.
     const ownGroupId = fixedIdMap[categoryId] && groupIdSet[categoryGroupIds[categoryId]]
       ? categoryGroupIds[categoryId]
       : "";
@@ -787,8 +777,8 @@ export function buildAccountSpendingData_(
         isPassThrough(rowInfo.name + " " + rowInfo.note) ||
         spentFromSavedPot(lender);
       if (!isPassThroughExpense) tiers.outsideFundSpending += amount;
-      if (amount >= outsideThreshold || isPassThroughExpense) {
-        tiers.outsideLargeRows.push({
+      if (isPassThroughExpense) {
+        tiers.excludedRows.push({
           name: rowInfo.name,
           amount,
           date: rowInfo.date,
@@ -1220,7 +1210,7 @@ export function buildAccountSpendingData_(
     monthlyLimit,
     fundGroups,
     monthlyBudget: buildMonthlyBudget_(tiers, monthlyLimit),
-    excluded: attachThreshold_(buildExcluded_(tiers), outsideThreshold),
+    excluded: buildExcluded_(tiers),
     income: buildIncomeSplit_(options.incomeRows, options.otherIncomeRows),
     openingPlan: explicitLedger.openingPlan,
     explicitLedger

@@ -53,16 +53,13 @@ export function getConfig(env) {
     rentReserveAmount: 2150000,
     rolloverFundNames: ["Tiết kiệm dài hạn", "Đầu tư tài chính", "Hưởng thụ", "Cho đi"],
     rolloverSourceGroupNames: ["Nhu cầu thiết yếu", "Giáo dục phát triển"],
-    // Giao dich le ngoai nhom quy tu muc nay tro len khong tinh vao tran 5tr5:
-    // no la khoan bat thuong, khong phai chi tieu dinh ky cua thang.
-    outsideBudgetThreshold: 500000,
     // Giao dich nhac toi mot trong may tu nay la tien di roi quay ve, khong phai chi
     // tieu: ung tien mua ho khach roi duoc hoan lai. Loai du to hay nho.
     // Khong dung tu "ung" tran: "1 vi trung ga" cung khop.
     //
     // Nap vi Grab CO tinh la chi tieu: do la tien that su ra khoi vi de chay xe.
     // Bao cao nay do dong tien di ra, khong phai tinh lai lo, nen khong tru no di.
-    passThroughKeywords: ["code"],
+    passThroughKeywords: ["code", "tiền đơn hàng đồ ăn"],
     // Nhan nay khong bao gio la chi tieu: cho muon roi doi lai, hoac tra no cu.
     // Tien di roi ve, khong phai tieu mat.
     passThroughCategories: ["Vay Và Trả"],

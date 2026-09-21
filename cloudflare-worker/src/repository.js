@@ -286,7 +286,6 @@ export function createFinanceRepository({ notion, state, config, now = () => new
         rolloverTransferRows,
         fundGroupRows,
         {
-          outsideThreshold: config.outsideBudgetThreshold,
           passThroughKeywords: config.passThroughKeywords,
           passThroughCategories: config.passThroughCategories,
           spendableSubFunds: config.spendableSubFunds,
@@ -317,7 +316,6 @@ export function createFinanceRepository({ notion, state, config, now = () => new
         historicalOtherIncomeRows,
         historicalExpenseRows,
         historicalTransferRows,
-        outsideThreshold: config.outsideBudgetThreshold,
         passThroughKeywords: config.passThroughKeywords,
         passThroughCategories: config.passThroughCategories,
         spendableSubFunds: config.spendableSubFunds,
