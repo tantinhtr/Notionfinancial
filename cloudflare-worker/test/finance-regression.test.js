@@ -2792,10 +2792,10 @@ test("fund budget text preserves approved fund statuses and heading", () => {
     "📦 QUỸ & NGÂN SÁCH — tháng 7/2026\n" +
       "\n" +
       "📊 NHÓM QUỸ — 3.657.844đ / 4.900.000đ\n" +
-      "✅ Thiết Yếu: 2.277.400đ / 2.400.000đ · quỹ còn 122.600đ · đã cấp 2.400.000đ\n" +
-      "✅ Đi Chợ: 801.000đ / 1.300.000đ · còn 499.000đ\n" +
-      "✅ Phát Sinh: 0đ / 600.000đ · chưa cấp\n" +
-      "⛔ Làm YouTube: 554.444đ / 500.000đ · vượt 54.444đ · đã cấp 555.000đ\n" +
+      "✅ Thiết Yếu: 2.277.400đ / 2.400.000đ · quỹ còn 122.600đ · đã cấp 2.400.000đ\n\n" +
+      "✅ Đi Chợ: 801.000đ / 1.300.000đ · còn 499.000đ\n\n" +
+      "✅ Phát Sinh: 0đ / 600.000đ · chưa cấp\n\n" +
+      "⛔ Làm YouTube: 554.444đ / 500.000đ · vượt 54.444đ · đã cấp 555.000đ\n\n" +
       "✅ Chưa Ghép: 25.000đ / 100.000đ · còn 75.000đ\n" +
       "\n" +
       "💰 CẦN CẤP THÊM\n" +
@@ -2838,7 +2838,7 @@ test("fund report totals every real expense outside the jars regardless of amoun
   assert.match(fundBudgetText_(model), /\n• Tổng chi ngoài quỹ: 1\.001\.000đ\n/);
 });
 
-test("fund report places the outside-fund total immediately after Hưởng thụ", () => {
+test("fund report separates jar groups and keeps the outside-fund total after Hưởng thụ", () => {
   const fund = (name) => ({
     name,
     spent: 0,
@@ -2856,8 +2856,10 @@ test("fund report places the outside-fund total immediately after Hưởng thụ
   }).split("\n");
 
   const enjoymentIndex = lines.findIndex((line) => line.includes("Hưởng thụ:"));
+  assert.equal(lines[enjoymentIndex - 1], "");
   assert.equal(lines[enjoymentIndex + 1], "• Tổng chi ngoài quỹ: 5.484.000đ");
-  assert.match(lines[enjoymentIndex + 2], /Cho đi:/);
+  assert.equal(lines[enjoymentIndex + 2], "");
+  assert.match(lines[enjoymentIndex + 3], /Cho đi:/);
 });
 
 test("rollover fund line shows money held against this month's target without allocated text", () => {

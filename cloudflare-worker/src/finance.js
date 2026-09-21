@@ -1526,7 +1526,8 @@ export function fundBudgetText_(data) {
       ? "• Tổng chi ngoài quỹ: " + money_(budget.outsideFundSpending)
       : "";
     let outsideFundInserted = false;
-    for (const group of groups) {
+    for (const [groupIndex, group] of groups.entries()) {
+      if (groupIndex > 0) lines.push("");
       lines.push(budgetLine_(
         group,
         allocationTargets.get(normalizeSearchText_(group.name))
