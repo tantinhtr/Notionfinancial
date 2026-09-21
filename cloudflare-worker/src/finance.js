@@ -1389,7 +1389,7 @@ function budgetLine_(group, allocationTarget) {
     children.length < 2 &&
     Number.isFinite(allocationTarget);
   let row = (over > 0 ? "⛔ " : "✅ ") + group.name + ": " +
-    money_(showsMonthlyAllocation ? group.fundRemaining || 0 : group.spent) +
+    money_(showsMonthlyAllocation ? group.allocated || 0 : group.spent) +
     " / " + money_(showsMonthlyAllocation ? allocationTarget : group.budget);
   if (over > 0) {
     row += " · vượt " + money_(over);
@@ -1407,7 +1407,7 @@ function budgetLine_(group, allocationTarget) {
     if (held > 0 && (hasChildFunding || legacyFundBalanceChildName_(group) === "")) {
       row += " · quỹ còn " + money_(held);
     }
-  } else {
+  } else if (!showsMonthlyAllocation) {
     row += " · còn " + money_(Math.max((group.budget || 0) - (group.spent || 0), 0));
   }
   if (group.requiresAllocation && children.length < 2 && !showsMonthlyAllocation) {
