@@ -1,0 +1,51 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { readFile, readdir } from "node:fs/promises";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import {
+  iso_ as facadeIso,
+  money_ as facadeMoney,
+  normalizeSearchText_ as facadeNormalize
+} from "../src/finance.js";
+import {
+  iso_,
+  money_,
+  normalizeSearchText_
+} from "../src/domain/finance/shared.js";
+
+test("finance facade preserves shared utility exports", () => {
+  assert.equal(facadeIso, iso_);
+  assert.equal(facadeMoney, money_);
+  assert.equal(facadeNormalize, normalizeSearchText_);
+  assert.equal(iso_(2026, 9, 3), "2026-09-03");
+  assert.equal(money_(1250000), "1.250.000đ");
+  assert.equal(normalizeSearchText_("Phát  Sinh"), "phat sinh");
+});
+
+test("domain modules never import outward layers", async () => {
+  const root = fileURLToPath(new URL("../src/domain/", import.meta.url));
+  const forbidden = [
+    "cloudflare:workers",
+    "/adapters/",
+    "/repositories/",
+    "/features/",
+    "/app/"
+  ];
+  async function files(directory) {
+    const entries = await readdir(directory, { withFileTypes: true });
+    const nested = await Promise.all(entries.map((entry) => {
+      const path = join(directory, entry.name);
+      return entry.isDirectory() ? files(path) : [path];
+    }));
+    return nested.flat();
+  }
+  for (const path of await files(root)) {
+    if (!path.endsWith(".js")) continue;
+    const source = (await readFile(path, "utf8")).replaceAll("\\", "/");
+    for (const token of forbidden) {
+      assert.equal(source.includes(token), false, path + " imports " + token);
+    }
+  }
+});
