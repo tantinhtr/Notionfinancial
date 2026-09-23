@@ -78,3 +78,16 @@ test("ledger public builders remain available through compatibility facade", asy
     for (const name of names) assert.equal(facade[name], direct[name], name);
   }
 });
+
+test("infrastructure facades preserve exactly the previous public exports", async () => {
+  for (const [facadeFile, directFile] of [
+    ["repository", "repositories/finance-repository"],
+    ["notion", "adapters/notion"], ["telegram", "adapters/telegram"],
+    ["state", "adapters/state"], ["coordinator", "app/coordinator-handler"]
+  ]) {
+    const facade = await import("../src/" + facadeFile + ".js");
+    const direct = await import("../src/" + directFile + ".js");
+    assert.deepEqual(Object.keys(facade), Object.keys(direct));
+    for (const name of Object.keys(facade)) assert.equal(facade[name], direct[name]);
+  }
+});

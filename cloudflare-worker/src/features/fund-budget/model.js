@@ -1,4 +1,4 @@
-import { buildFinanceLedger_ } from "../../ledger.js";
+import { buildFinanceLedger_ } from "../../domain/ledger/finance-ledger.js";
 import { normalizeSearchText_, num_ } from "../../domain/finance/shared.js";
 import { analyzeExpenseRows_ } from "../../domain/finance/expense-classifier.js";
 

@@ -818,3 +818,21 @@ test("scheduled passes the real reminder promise to waitUntil without network ac
   assert.equal(telegramPayloads[0].chat_id, 42);
   assert.match(telegramPayloads[0].text, /Hôm nay chưa ghi thu nhập nào/);
 });
+
+test("runtime wires routed goal and reminder to the same repository and Telegram adapter", async () => {
+  const { createRuntime } = await import("../src/app/runtime.js");
+  const { goalFixture } = await import("./helpers/feature-fixtures.js");
+  const runtime = createRuntime(createEnv(), () => new Date("2026-07-29T03:15:00Z"));
+  const sent = [];
+  let reads = 0;
+  runtime.repository.getGoalStatus = async () => { reads++; return goalFixture(); };
+  runtime.telegram.sendMessage = async (...args) => { sent.push(args); };
+  await runtime.bot.processUpdate({ update_id: 1, message: {
+    text: "/muctieu", from: { id: 42 }, chat: { id: 9001 }
+  } });
+  await runtime.bot.sendDailyReminder();
+  assert.equal(reads, 2);
+  assert.deepEqual(sent.map(args => args[0]), [9001, 42]);
+  assert.match(sent[0][1], /Mục tiêu Thu Nhập Ròng Grab/);
+  assert.match(sent[1][1], /^💪 Hôm nay kiếm/);
+});
