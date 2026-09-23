@@ -4,33 +4,6 @@ import { buildFinanceLedger_ } from './ledger.js';
 import { iso_, money_, normalizeSearchText_, notionIdToken_, num_ } from "./domain/finance/shared.js";
 export { iso_, money_, normalizeSearchText_ };
 
-export function progressText_(status) {
-  const fraction = status.goal ? status.earnedMonth / status.goal : 0;
-  const lines = [
-    '📅 Mục tiêu Thu Nhập Ròng Grab (App) — tháng ' +
-      status.t.m +
-      '/' +
-      status.t.y,
-    'Mục tiêu tháng: ' + money_(status.goal),
-    '📈 Tiến độ: ' + (fraction * 100).toFixed(1).replace('.', ',') + '%',
-    '✅ Đã kiếm: ' + money_(status.earnedMonth),
-    '💰 Còn thiếu: ' + money_(status.remaining),
-    '',
-    '🎯 Mục tiêu mỗi ngày (đều): ' + money_(status.baseDaily),
-  ];
-  if (status.daysLeftIncludingToday > 0) {
-    lines.push(
-      '🔥 Còn ' +
-        status.daysLeftIncludingToday +
-        ' ngày (tính cả hôm nay) → mỗi ngày cần: ' +
-        money_(status.requiredPerDay),
-    );
-  } else {
-    lines.push('🏁 Hôm nay là ngày cuối tháng!');
-  }
-  return lines.join('\n');
-}
-
 function isRoutineExpenseCategory_(normalizedCategory) {
   return !!{
     'di cho': true,
@@ -1184,3 +1157,5 @@ export { cashflowCallbackData_, parseCashflowCategoryCallback_, parseCashflowDir
 export { monthlyCashflowText_, monthlyCashflowKeyboard_, cashflowAccountText_, cashflowAccountKeyboard_, cashflowCategoryText_, cashflowCategoryKeyboard_, cashflowDirectionText_, cashflowDirectionKeyboard_ } from "./features/cashflow/presenter.js";
 
 export { accountSpendingText_, accountSpendingKeyboard_, unusualSpendingText_, unusualSpendingKeyboard_, fundBudgetText_, fundBudgetKeyboard_ } from "./features/fund-budget/presenter.js";
+
+export { progressText_ } from "./features/income-goal/presenter.js";

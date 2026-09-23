@@ -675,3 +675,26 @@ test("daily reminder text covers met, partial, and no-income states", async () =
     assert.match(harness.sent[0].text, /Mục tiêu Thu Nhập Ròng Grab \(App\)/);
   }
 });
+
+test("router acknowledges callbacks before authorized feature work", async () => {
+  const { createBotRouter } = await import("../src/bot.js");
+  const calls = [];
+  const cashflow = {
+    handlesCallback: () => true,
+    async handleCallback() { calls.push("cashflow"); },
+    async showHome() { calls.push("home"); }
+  };
+  const fundBudget = { handlesCallback: () => false, async handleCallback() {} };
+  const incomeGoal = { handlesCommand: () => false, async show() {}, async recordIncome() {},
+    async completeReconciledIncome() {}, async sendDailyReminder() {} };
+  const bot = createBotRouter({
+    config: { allowedUserId: 42 },
+    telegram: { async answerCallbackQuery() { calls.push("ack"); }, async sendMessage() { calls.push("send"); } },
+    cashflow, fundBudget, incomeGoal
+  });
+  await bot.processUpdate(callbackUpdate(1, "cash_home", 99));
+  assert.deepEqual(calls, ["ack"]);
+  calls.length = 0;
+  await bot.processUpdate(callbackUpdate(2, "cash_home"));
+  assert.deepEqual(calls, ["ack", "cashflow"]);
+});
