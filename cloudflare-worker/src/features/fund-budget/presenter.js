@@ -1,4 +1,4 @@
-import { money_, normalizeSearchText_ } from "../../domain/finance/shared.js";
+import { money_, normalizeSearchText_, notionIdToken_ } from "../../domain/finance/shared.js";
 
 function expenseBudgetOverviewLines_(data, monthlyLimit, heading) {
   const spendingTotal =
