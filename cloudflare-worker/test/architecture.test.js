@@ -49,3 +49,16 @@ test("domain modules never import outward layers", async () => {
     }
   }
 });
+
+import { buildAccountSpendingData_ as facadeFundModel } from "../src/finance.js";
+import { buildAccountSpendingData_ } from "../src/features/fund-budget/model.js";
+import { classifyExpenseNature_ } from "../src/domain/finance/expense-classifier.js";
+test("fund model facade preserves the public builder", () => {
+  assert.equal(facadeFundModel, buildAccountSpendingData_);
+});
+test("expense classification keeps loan principal outside personal spending", () => {
+  assert.deepEqual(classifyExpenseNature_("Vay Và Trả", "Cho Tuấn mượn", "", false),
+    { kind: "loan", loanType: "lent", isUnusual: false });
+  assert.deepEqual(classifyExpenseNature_("Phát Sinh", "Mua thuốc", "", false),
+    { kind: "personal", isUnusual: true });
+});
