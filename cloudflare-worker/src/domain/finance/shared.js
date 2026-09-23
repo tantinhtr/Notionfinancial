@@ -18,3 +18,11 @@ export function normalizeSearchText_(value) {
   }
   return text.replace(/đ/g, 'd').replace(/\s+/g, ' ').trim();
 }
+export function notionIdToken_(id, fallback) {
+  const normalized = String(id || '').replace(/-/g, '');
+  if (!normalized || normalized.charAt(0) === '(') return fallback;
+  return normalized.slice(-8);
+}
+export function num_(prop) {
+  return (prop && prop.number) || 0;
+}
