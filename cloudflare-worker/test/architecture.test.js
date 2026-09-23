@@ -62,3 +62,19 @@ test("expense classification keeps loan principal outside personal spending", ()
   assert.deepEqual(classifyExpenseNature_("Phát Sinh", "Mua thuốc", "", false),
     { kind: "personal", isUnusual: true });
 });
+
+test("ledger public builders remain available through compatibility facade", async () => {
+  const facade = await import("../src/ledger.js");
+  const modules = {
+    "rows": ["readFinanceRows_"],
+    "fund-loan-ledger": ["buildFundLoanLedger_"],
+    "personal-loan-ledger": ["buildPersonalLoanLedger_"],
+    "previous-month-ledger": ["buildPreviousMonthAdvanceLedger_"],
+    "opening-plan": ["buildOpeningPlan_"],
+    "finance-ledger": ["buildFinanceLedger_"]
+  };
+  for (const [file, names] of Object.entries(modules)) {
+    const direct = await import("../src/domain/ledger/" + file + ".js");
+    for (const name of names) assert.equal(facade[name], direct[name], name);
+  }
+});
