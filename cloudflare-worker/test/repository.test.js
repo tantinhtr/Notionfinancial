@@ -399,7 +399,7 @@ test("fund report wires current and master Notion queries into the finance build
   ]);
 });
 
-test("fund report carries unused child budgets from the previous month into next-month allocations", async () => {
+test("fund report nets overspent child labels against unused labels before rollover", async () => {
   const historicalFilter = {
     property: "Ngày",
     date: { on_or_before: "2026-06-30" }
@@ -433,6 +433,7 @@ test("fund report carries unused child budgets from the previous month into next
   const rows = {
     budgets: [
       trackedCategory("internet", "Internet", 1000000, "essential"),
+      trackedCategory("incidental", "Phát Sinh", 500000, "essential"),
       trackedCategory("course", "Khóa học", 500000, "education"),
       trackedCategory("trip", "Du lịch", 900000, "enjoyment")
     ],
@@ -443,7 +444,8 @@ test("fund report carries unused child budgets from the previous month into next
       fundGroup("enjoyment", "Hưởng thụ")
     ],
     expenses: [
-      expense("internet-paid", "Thanh toán Internet", 30000, "internet"),
+      expense("internet-paid", "Thanh toán Internet", 134400, "internet"),
+      expense("incidental-paid", "Phát Sinh", 1228628, "incidental"),
       expense("course-paid", "Mua khóa học", 20000, "course"),
       expense("internet-old", "Internet tháng 5", 200000, "internet", "2026-05-20")
     ],
@@ -481,16 +483,16 @@ test("fund report carries unused child budgets from the previous month into next
   const model = await repository.getFundBudgetReport(true);
 
   assert.equal(model.openingPlan.sourceTotal, 3849710);
-  assert.equal(model.openingPlan.rolloverCarryover, 1450000);
-  assert.equal(model.openingPlan.remainder, 3149710);
+  assert.equal(model.openingPlan.rolloverCarryover, 616972);
+  assert.equal(model.openingPlan.remainder, 2316682);
   assert.deepEqual(model.openingPlan.allocations, [
-    { fund: "Tiết kiệm dài hạn", amount: 899917 },
-    { fund: "Đầu tư tài chính", amount: 899917 },
-    { fund: "Hưởng thụ", amount: 899917 },
-    { fund: "Cho đi", amount: 449959 }
+    { fund: "Tiết kiệm dài hạn", amount: 661909 },
+    { fund: "Đầu tư tài chính", amount: 661909 },
+    { fund: "Hưởng thụ", amount: 661909 },
+    { fund: "Cho đi", amount: 330955 }
   ]);
   assert.deepEqual(model.rolloverCarryover.groups, [
-    { name: "Nhu cầu thiết yếu", amount: 970000 },
+    { name: "Nhu cầu thiết yếu", amount: 136972 },
     { name: "Giáo dục phát triển", amount: 480000 }
   ]);
 });

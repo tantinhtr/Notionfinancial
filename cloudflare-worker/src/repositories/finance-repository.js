@@ -107,10 +107,7 @@ function rolloverCarryoverFromGroups_(fundGroups, sourceGroupNames) {
     .filter((group) => group.spent > 0 || group.allocated > 0)
     .map((group) => ({
       name: group.name,
-      amount: (group.children || []).reduce(
-        (total, child) => total + Math.max(child.budget - child.spent, 0),
-        0
-      )
+      amount: Math.max(group.budget - group.spent, 0)
     }))
     .filter((group) => group.amount > 0);
   return {
