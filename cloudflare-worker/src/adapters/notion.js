@@ -51,7 +51,7 @@ export function createNotionClient(config, fetchImpl = fetch) {
 
   // retryable chi bat cho lenh DOC. Khong bao gio thu lai lenh ghi: mot lan ghi
   // lai la mot khoan thu trung, dung thu ma coordinator sinh ra de chong.
-  async function request(operation, path, payload, retryable = false) {
+  async function request(operation, path, payload, retryable = false, method = "POST") {
     let response;
     let lastStatus;
     let lastMessage;
@@ -62,9 +62,9 @@ export function createNotionClient(config, fetchImpl = fetch) {
       }
       try {
         response = await fetchImpl(`https://api.notion.com/v1${path}`, {
-          method: "POST",
+          method,
           headers,
-          body: JSON.stringify(payload),
+          ...(payload === undefined ? {} : { body: JSON.stringify(payload) }),
           signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
         });
       } catch {
@@ -94,6 +94,15 @@ export function createNotionClient(config, fetchImpl = fetch) {
   }
 
   return {
+    retrieveDatabase(databaseId) {
+      return request("retrieveDatabase", "/databases/" + databaseId, undefined, true, "GET");
+    },
+    updateDatabase(databaseId, payload) {
+      return request("updateDatabase", "/databases/" + databaseId, payload, false, "PATCH");
+    },
+    updatePage(pageId, payload) {
+      return request("updatePage", "/pages/" + pageId, payload, false, "PATCH");
+    },
     async queryDatabase(databaseId, filter) {
       const rows = [];
       let cursor;

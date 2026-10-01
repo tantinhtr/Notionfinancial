@@ -807,7 +807,7 @@ test("scheduled passes the real reminder promise to waitUntil without network ac
       }
     };
 
-    const result = worker.scheduled({}, createEnv(), ctx);
+    const result = worker.scheduled({ cron: "0 14 * * *" }, createEnv(), ctx);
 
     assert.equal(result, undefined);
     assert.equal(promises.length, 1);

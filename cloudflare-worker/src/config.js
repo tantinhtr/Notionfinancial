@@ -6,6 +6,7 @@ const STABLE_IDS = Object.freeze({
   accountDb: "1178ffb5-256b-8175-9c74-cc19002c06fa",
   transferDb: "1178ffb5-256b-81cf-ae08-eb24b25d56dc",
   fundGroupDb: "c6dffa2b-d0b3-46a1-8200-12bbb0c66402",
+  sixJarDb: "1b18ffb5-256b-80cd-bd34-eb2cc5f5daf6",
   otherIncomeDb: "1358ffb5-256b-8088-98b8-e613306c995d",
   otherIncomeCategoryDb: "1348ffb5-256b-80c1-ae97-c0115a1baf83",
   goalRelationPageId: "39c8ffb5-256b-806f-a710-e022aabf703d",

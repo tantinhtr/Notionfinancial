@@ -40,3 +40,15 @@ test("fund component validates required dependencies", () => {
   assert.throws(() => createFundBudgetComponent({ repository: {}, telegram: {} }), TypeError);
   assert.throws(() => createFundBudgetComponent({ repository: { getFundBudgetReport() {} }, telegram: {} }), TypeError);
 });
+
+test("fund view syncs Notion from the same fresh report before sending", async () => {
+  const calls = [];
+  const data = fundFixture();
+  const component = createFundBudgetComponent({
+    repository: { async getFundBudgetReport(refresh) { calls.push(["read", refresh]); return data; } },
+    syncSixJar: async (report) => { calls.push(["sync", report]); },
+    telegram: { async sendMessage() { calls.push(["send"]); } }
+  });
+  await component.show(7, { refresh: true });
+  assert.deepEqual(calls, [["read", true], ["sync", data], ["send"]]);
+});

@@ -6,6 +6,7 @@ import { createStateStore } from "../adapters/state.js";
 import { createFinanceRepository } from "../repositories/finance-repository.js";
 import { createCashflowComponent } from "../features/cashflow/component.js";
 import { createFundBudgetComponent } from "../features/fund-budget/component.js";
+import { syncSixJarTable } from "../features/fund-budget/six-jar-sync.js";
 import { createIncomeGoalComponent } from "../features/income-goal/component.js";
 
 export function createRuntime(env, now = () => new Date()) {
@@ -15,8 +16,11 @@ export function createRuntime(env, now = () => new Date()) {
   const state = createStateStore(config.botState);
   const repository = createFinanceRepository({ notion, state, config, now });
   const cashflow = createCashflowComponent({ repository, telegram });
-  const fundBudget = createFundBudgetComponent({ repository, telegram });
+  const syncSixJar = (report) => syncSixJarTable(notion, config.sixJarDb, report);
+  const fundBudget = createFundBudgetComponent({ repository, telegram, syncSixJar });
   const incomeGoal = createIncomeGoalComponent({ repository, telegram, config, now });
   const bot = createBotRouter({ telegram, config, cashflow, fundBudget, incomeGoal });
-  return { bot, config, repository, telegram };
+  return { bot, config, repository, telegram, async syncLatestSixJar() {
+    return syncSixJar(await repository.getFundBudgetReport(true));
+  } };
 }

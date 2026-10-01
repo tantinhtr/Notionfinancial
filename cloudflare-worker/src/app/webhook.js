@@ -152,8 +152,12 @@ export default {
     return handleFetch(request, env, ctx);
   },
 
-  scheduled(_controller, env, ctx) {
-    const { bot } = createRuntime(env);
-    ctx.waitUntil(bot.sendDailyReminder());
+  scheduled(controller, env, ctx) {
+    const runtime = createRuntime(env);
+    if (controller.cron === "0 14 * * *") {
+      ctx.waitUntil(runtime.bot.sendDailyReminder());
+    } else {
+      ctx.waitUntil(runtime.syncLatestSixJar());
+    }
   }
 };

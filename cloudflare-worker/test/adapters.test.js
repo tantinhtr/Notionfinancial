@@ -297,3 +297,22 @@ test("state store deletes malformed cached JSON and returns a cache miss", async
 test("state store validates required KV methods", () => {
   assert.throws(() => createStateStore({ get() {}, put() {} }), /delete/);
 });
+
+test("Notion schema and page updates use GET and PATCH without replaying writes", async () => {
+  const calls = [];
+  const notion = createNotionClient(config, async (url, options) => {
+    calls.push([url, options]);
+    return jsonResponse({ properties: {} });
+  });
+  await notion.retrieveDatabase("jars");
+  await notion.updateDatabase("jars", { properties: { Savings: { number: {} } } });
+  await notion.updatePage("october", { properties: { Savings: { number: 25 } } });
+  assert.deepEqual(calls.map(([url, options]) => [url, options.method]), [
+    ["https://api.notion.com/v1/databases/jars", "GET"],
+    ["https://api.notion.com/v1/databases/jars", "PATCH"],
+    ["https://api.notion.com/v1/pages/october", "PATCH"]
+  ]);
+  assert.equal("body" in calls[0][1], false);
+  assert.deepEqual(JSON.parse(calls[1][1].body), { properties: { Savings: { number: {} } } });
+  assert.deepEqual(JSON.parse(calls[2][1].body), { properties: { Savings: { number: 25 } } });
+});
