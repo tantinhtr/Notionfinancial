@@ -390,16 +390,26 @@ test("cash_account callback reports a missing account with cash-home navigation"
   });
 });
 
-test("/start opens the cached monthly cashflow report", async () => {
+test("/start shows only Dòng tiền before loading accounts", async () => {
   const harness = createHarness();
 
   await harness.bot.processUpdate(messageUpdate(125, "/start"));
 
-  assert.deepEqual(harness.events.slice(0, 2), [
-    ["monthly", false],
-    ["send", 9001]
+  assert.deepEqual(harness.events, [["send", 9001]]);
+  assert.deepEqual(harness.sent, [{
+    chatId: 9001,
+    text: "🏠 Trang chính",
+    replyMarkup: {
+      inline_keyboard: [[{ text: "📊 Dòng tiền", callback_data: "cash_home" }]]
+    }
+  }]);
+
+  await harness.bot.processUpdate(callbackUpdate(133, "cash_home"));
+  assert.deepEqual(harness.events.slice(1, 3), [
+    ["ack", "callback-133"],
+    ["monthly", false]
   ]);
-  assert.equal(harness.sent.length, 1);
+  assert.equal(harness.sent[1].text, "📊 Dòng tiền tháng 7/2026");
 });
 
 test("start handling delegates once and never sends removed help text", async () => {
@@ -407,7 +417,7 @@ test("start handling delegates once and never sends removed help text", async ()
 
   await harness.bot.processUpdate(messageUpdate(126, "/start@finance_bot"));
 
-  assert.equal(harness.events.filter(([name]) => name === "monthly").length, 1);
+  assert.equal(harness.events.filter(([name]) => name === "monthly").length, 0);
   assert.equal(harness.sent.length, 1);
   assert.doesNotMatch(harness.sent[0].text, /\/thang|tiền vào|tiền ra/i);
 });

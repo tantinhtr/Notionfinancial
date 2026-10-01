@@ -50,11 +50,6 @@ export function monthlyCashflowKeyboard_(data) {
     return aOrder - bOrder;
   });
   for (const account of accounts) {
-    const moneyIn = (account.moneyIn && account.moneyIn.total) || 0;
-    const moneyOut = (account.moneyOut && account.moneyOut.total) || 0;
-    const transfersIn = account.transfersIn || 0;
-    const transfersOut = account.transfersOut || 0;
-    if (!moneyIn && !moneyOut && !transfersIn && !transfersOut) continue;
     const callbackData = cashflowCallbackData_(
       account.token ? 'cash_account:' + account.token : '',
     );

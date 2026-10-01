@@ -223,7 +223,7 @@ function budgetLine_(group, allocationTarget) {
   } else if (group.requiresAllocation && !showsMonthlyAllocation) {
     // Nhóm có quỹ riêng thì "còn" phải là TIỀN THẬT đang nằm trong tài khoản giữ
     // quỹ, không phải ngân sách trừ đã tiêu. Phần ngân sách chưa cấp vào quỹ thì
-    // chưa phải tiền của nhóm — nó nằm ở mục CẦN CẤP THÊM cho tới khi được cấp.
+    // chưa phải tiền của nhóm cho tới khi được cấp.
     const hasChildFunding = children.some((child) =>
       Object.hasOwn(child, 'allocated'),
     );
@@ -433,28 +433,6 @@ export function fundBudgetText_(data) {
       }
     }
     if (outsideFundLine && !outsideFundInserted) lines.push(outsideFundLine);
-  }
-
-  const funding = groups.filter((group) => (group.transferNeeded || 0) > 0);
-  if (funding.length) {
-    lines.push('', '💰 CẦN CẤP THÊM');
-    for (const group of funding) {
-      lines.push(
-        '• ' +
-          group.name +
-          ' → ' +
-          (group.destinationAccount || 'Tài khoản giữ quỹ') +
-          ': ' +
-          money_(group.transferNeeded),
-      );
-      // Lo nao co nhieu nhan con thi noi ro cuc tien do danh cho nhan nao.
-      const plan = group.transferPlan || [];
-      if ((group.children || []).length > 1) {
-        for (const entry of plan) {
-          lines.push('    ' + entry.name + ': ' + money_(entry.amount));
-        }
-      }
-    }
   }
 
   const ledger = data.explicitLedger || {};

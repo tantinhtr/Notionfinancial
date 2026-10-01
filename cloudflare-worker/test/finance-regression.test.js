@@ -459,12 +459,13 @@ test("level 1 cashflow hides categories and transaction titles", () => {
   }
 });
 
-test("level 1 cashflow keyboard lists active accounts followed by goal and fund navigation rows", () => {
+test("level 1 cashflow keyboard lists all accounts followed by goal and fund navigation rows", () => {
   const keyboard = monthlyCashflowKeyboard_(levelOneCashflowData());
   assert.deepEqual(keyboard, {
     inline_keyboard: [
       [{ text: "Grap Tien Mat · 2.774.000đ", callback_data: "cash_account:cash" }],
       [{ text: "Momo · 270.000đ", callback_data: "cash_account:momo" }],
+      [{ text: "Tai khoan trong · 0đ", callback_data: "cash_account:inactive" }],
       [{ text: "🎯 Mục tiêu", callback_data: "show_goal" }],
       [{ text: "📦 Quỹ & ngân sách", callback_data: "show_funds" }]
     ]
@@ -472,7 +473,7 @@ test("level 1 cashflow keyboard lists active accounts followed by goal and fund 
   assertCallbacksUnderLimit(keyboard);
 });
 
-test("level 1 cashflow orders the five active accounts and shows balances only", () => {
+test("level 1 cashflow orders all accounts and shows balances only", () => {
   const account = (name, currentBalance, token, active = true) => ({
     name,
     currentBalance,
@@ -499,10 +500,10 @@ test("level 1 cashflow orders the five active accounts and shows balances only",
     "Banking · 150.336đ",
     "Grap Tiền Mặt · 2.774.000đ",
     "Momo · 1.030.000đ",
-    "Quỹ Momo · 1.342.556đ"
+    "Quỹ Momo · 1.342.556đ",
+    "PayPal · 0đ"
   ]);
   assert.ok(labels.every((label) => !label.includes("Vào") && !label.includes("Ra")));
-  assert.ok(labels.every((label) => !label.includes("PayPal")));
 });
 
 test("cashflow callback data accepts 63 UTF-8 bytes and rejects 64", () => {
@@ -1060,8 +1061,6 @@ test("Internet needs its full unfunded 180000 even when rent and other money rem
   assert.equal(essential.transferNeeded, 180000);
   assert.deepEqual(essential.transferPlan, [{ name: "Internet", amount: 180000 }]);
   assert.equal(essential.explicitDebts[0].outstanding, 750000);
-  assert.match(fundBudgetText_(data), /Internet: 180\.000đ/);
-  assert.doesNotMatch(fundBudgetText_(data), /Internet: 75\.996đ/);
 });
 
 function finalReviewDatedRow(page, day) {
@@ -1810,10 +1809,10 @@ test("a group only reports as spare the money actually sitting in its fund", () 
   assert.doesNotMatch(beforeText, /Internet:[^\n]*đã cấp/);
   assert.doesNotMatch(beforeText, /Thiết Yếu:[^\n]*đã cấp 2\.330\.000đ/);
   assert.doesNotMatch(beforeText, /↳ đã cấp/);
-  assert.match(beforeText, /• Thiết Yếu → Quỹ Momo: 70\.000đ/);
+  assert.doesNotMatch(beforeText, /CẦN CẤP THÊM/);
   assert.doesNotMatch(beforeText, /101\.600đ · quỹ/);
 
-  // Cấp nốt 70.000 vào đúng nhãn Cắt Tóc thì không còn yêu cầu cấp thêm.
+  // Cấp nốt 70.000 vào đúng nhãn Cắt Tóc thì quỹ ghi nhận đủ.
   const afterText = fundBudgetText_(build(supplied.concat([
     transferRow("cap-toc", "Tiền cắt tóc", 70000, "momo", "fund", "essential-fund")
   ])));
@@ -1944,7 +1943,6 @@ test("unresolved child allocation stays at group level without fabricating a fun
   );
   const text = fundBudgetText_(model);
   assert.doesNotMatch(text, /CHƯA ĐỦ DỮ KIỆN|thiếu Nhãn quỹ con/);
-  assert.match(text, /Internet: 180\.000đ/);
 });
 
 test("fund withdrawal with a group does not require a Notion child label", () => {
@@ -2324,7 +2322,7 @@ test("only a sub fund funded this month counts as spending when drawn on", () =>
   assert.equal(data.excluded.rows[0].name, "Mua hoa tặng em");
 });
 
-test("the funding line says which child label the money is for", () => {
+test("funding plan keeps child amounts without rendering a separate section", () => {
   const noted = (id, name, categoryId, amount) => ({
     id,
     properties: {
@@ -2374,7 +2372,7 @@ test("the funding line says which child label the money is for", () => {
   );
 
   const text = fundBudgetText_(data);
-  assert.match(text, /• Giáo dục phát triển → Quỹ Momo: 397\.164đ\n    Phát triển bản thân: 371\.608đ\n    Affiilate: 25\.556đ/);
+  assert.doesNotMatch(text, /CẦN CẤP THÊM|• Giáo dục phát triển → Quỹ Momo/);
 });
 
 test("a named fund loan stays distinct when no earlier account funding is proven", () => {
@@ -2839,10 +2837,7 @@ test("fund budget text preserves approved fund statuses and heading", () => {
       "✅ Đi Chợ: 801.000đ / 1.300.000đ · còn 499.000đ\n\n" +
       "✅ Phát Sinh: 0đ / 600.000đ · chưa cấp\n\n" +
       "⛔ Làm YouTube: 554.444đ / 500.000đ · vượt 54.444đ · đã cấp 555.000đ\n\n" +
-      "✅ Chưa Ghép: 25.000đ / 100.000đ · còn 75.000đ\n" +
-      "\n" +
-      "💰 CẦN CẤP THÊM\n" +
-      "• Phát Sinh → Quỹ Momo: 600.000đ"
+      "✅ Chưa Ghép: 25.000đ / 100.000đ · còn 75.000đ"
   );
 });
 

@@ -105,7 +105,9 @@ export function createBotRouter({ telegram, config, cashflow, fundBudget, income
     const text = message.text.trim();
     const command = commandFrom(text);
     if (command === "/start") {
-      await cashflow.showHome(chatId, { refresh: false });
+      await telegram.sendMessage(chatId, "🏠 Trang chính", {
+        inline_keyboard: [[{ text: "📊 Dòng tiền", callback_data: "cash_home" }]]
+      });
       return;
     }
     if (incomeGoal.handlesCommand(command) && command === "/muctieu") {
