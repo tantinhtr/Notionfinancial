@@ -320,6 +320,7 @@ export function createFinanceRepository({ notion, state, config, now = () => new
         goalRelationPageId: config.goalRelationPageId,
         rentReserveAmount: config.rentReserveAmount,
         rolloverFundNames: config.rolloverFundNames,
+        rolloverFundWeights: config.rolloverFundWeights,
         rolloverCarryoverAmount: rolloverCarryover.total
       }
     );

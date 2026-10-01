@@ -30,14 +30,28 @@ export function buildOpeningPlan_(accountRows = [], options = {}, rentReserveUse
     : 0;
   const remainder = Math.max(sourceTotal - rentReserve, 0) + rolloverCarryover;
   const rolloverFundNames = options.rolloverFundNames || [];
-  const equalShare = rolloverFundNames.length
-    ? Math.floor(remainder / rolloverFundNames.length)
-    : 0;
-  const indivisibleRemainder = remainder - equalShare * rolloverFundNames.length;
-  const allocations = rolloverFundNames.map((fund, index) => ({
-    fund,
-    amount: equalShare + (index === 0 ? indivisibleRemainder : 0)
-  }));
+  let allocations;
+  const weights = options.rolloverFundWeights;
+  if (weights && weights.length === rolloverFundNames.length) {
+    const totalWeight = weights.reduce((total, weight) => total + weight, 0);
+    const amounts = weights.map((weight) => Math.floor(remainder * weight / totalWeight));
+    const unallocated = remainder - amounts.reduce((total, amount) => total + amount, 0);
+    const order = weights.map((weight, index) => ({
+      index,
+      fraction: (remainder * weight) % totalWeight
+    })).sort((a, b) => b.fraction - a.fraction || a.index - b.index);
+    for (let i = 0; i < unallocated; i++) amounts[order[i].index]++;
+    allocations = rolloverFundNames.map((fund, index) => ({ fund, amount: amounts[index] }));
+  } else {
+    const equalShare = rolloverFundNames.length
+      ? Math.floor(remainder / rolloverFundNames.length)
+      : 0;
+    const indivisibleRemainder = remainder - equalShare * rolloverFundNames.length;
+    allocations = rolloverFundNames.map((fund, index) => ({
+      fund,
+      amount: equalShare + (index === 0 ? indivisibleRemainder : 0)
+    }));
+  }
 
   const plan = {
     sourceTotal,

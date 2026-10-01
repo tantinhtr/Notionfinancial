@@ -470,6 +470,7 @@ test("fund report carries only funded child balances from the two rollover sourc
     config: {
       ...config,
       rolloverFundNames: ["Tiết kiệm dài hạn", "Đầu tư tài chính", "Hưởng thụ", "Cho đi"],
+      rolloverFundWeights: [2, 2, 2, 1],
       rolloverSourceGroupNames: ["Nhu cầu thiết yếu", "Giáo dục phát triển"]
     },
     now: FIXED_NOW
@@ -481,10 +482,10 @@ test("fund report carries only funded child balances from the two rollover sourc
   assert.equal(model.openingPlan.rolloverCarryover, 230000);
   assert.equal(model.openingPlan.remainder, 1929710);
   assert.deepEqual(model.openingPlan.allocations, [
-    { fund: "Tiết kiệm dài hạn", amount: 482429 },
-    { fund: "Đầu tư tài chính", amount: 482427 },
-    { fund: "Hưởng thụ", amount: 482427 },
-    { fund: "Cho đi", amount: 482427 }
+    { fund: "Tiết kiệm dài hạn", amount: 551346 },
+    { fund: "Đầu tư tài chính", amount: 551346 },
+    { fund: "Hưởng thụ", amount: 551345 },
+    { fund: "Cho đi", amount: 275673 }
   ]);
   assert.deepEqual(model.rolloverCarryover.groups, [
     { name: "Nhu cầu thiết yếu", amount: 150000 },

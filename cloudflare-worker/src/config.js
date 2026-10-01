@@ -52,6 +52,7 @@ export function getConfig(env) {
     sourceAccountNames: ["Tiền Mặt", "Banking", "Grap Tiền Mặt", "Momo"],
     rentReserveAmount: 2150000,
     rolloverFundNames: ["Tiết kiệm dài hạn", "Đầu tư tài chính", "Hưởng thụ", "Cho đi"],
+    rolloverFundWeights: [2, 2, 2, 1],
     rolloverSourceGroupNames: ["Nhu cầu thiết yếu", "Giáo dục phát triển"],
     // Giao dich nhac toi mot trong may tu nay la tien di roi quay ve, khong phai chi
     // tieu: ung tien mua ho khach roi duoc hoan lai. Loai du to hay nho.
