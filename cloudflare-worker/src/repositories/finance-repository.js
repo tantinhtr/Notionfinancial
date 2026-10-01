@@ -104,10 +104,9 @@ function rolloverCarryoverFromGroups_(fundGroups, sourceGroupNames) {
   const allowed = new Set((sourceGroupNames || []).map(normalizeSearchText_));
   const groups = (fundGroups || [])
     .filter((group) => allowed.has(normalizeSearchText_(group.name)))
-    .filter((group) => group.spent > 0 || group.allocated > 0)
     .map((group) => ({
       name: group.name,
-      amount: Math.max(group.budget - group.spent, 0)
+      amount: Math.max(group.fundRemaining, 0)
     }))
     .filter((group) => group.amount > 0);
   return {
