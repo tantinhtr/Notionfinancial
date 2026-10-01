@@ -413,12 +413,6 @@ export function fundBudgetText_(data) {
     ]),
   );
   const lines = ['📦 QUỸ & NGÂN SÁCH — tháng ' + t.m + '/' + t.y];
-  if (data.rolloverCarryover?.total > 0) {
-    lines.push('', '♻️ Dư nhãn nhỏ tháng trước: ' + money_(data.rolloverCarryover.total));
-    for (const group of data.rolloverCarryover.groups || []) {
-      lines.push('• ' + group.name + ': ' + money_(group.amount));
-    }
-  }
 
   const budget = data.monthlyBudget;
   if (groups.length) {

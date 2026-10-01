@@ -2926,19 +2926,14 @@ test("fund budget keyboard keeps only the cashflow navigation", () => {
   });
 });
 
-test("fund report shows each previous-month child remainder included in allocations", () => {
+test("fund report keeps the prior-month remainder out of the bot message", () => {
   const text = fundBudgetText_({
     t: { y: 2026, m: 10 },
     fundGroups: [],
     rolloverCarryover: {
-      total: 865600,
-      groups: [
-        { name: "Nhu cầu thiết yếu", amount: 136972 },
-        { name: "Giáo dục phát triển", amount: 728628 }
-      ]
+      total: 136972,
+      groups: [{ name: "Nhu cầu thiết yếu", amount: 136972 }]
     }
   });
-  assert.match(text, /Dư nhãn nhỏ tháng trước: 865\.600đ/);
-  assert.match(text, /Nhu cầu thiết yếu: 136\.972đ/);
-  assert.match(text, /Giáo dục phát triển: 728\.628đ/);
+  assert.equal(text, "📦 QUỸ & NGÂN SÁCH — tháng 10/2026\n\nChưa có dữ liệu tháng này.");
 });
