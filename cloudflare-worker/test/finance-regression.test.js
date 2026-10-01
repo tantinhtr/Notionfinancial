@@ -2502,6 +2502,29 @@ test("group quỹ còn sums funded child labels and keeps an evidenced debt on i
   assert.match(report, /Nhà Trọ:[^\n]*còn nợ Quỹ Tiết kiệm dài hạn 750\.000đ/);
 });
 
+test("prior-month fund loan is not shown as a new-month budget debt", () => {
+  const oldLoan = transferRow("borrow-750", "Mượn tiền của quỹ tiết kiệm chuyển sang tiền phòng quỹ thiết yếu", 750000, "fund", "fund", "essential");
+  oldLoan.properties["Ngày"] = { date: { start: "2026-09-08" } };
+  const rollover = transferRow("rollover", "Tiền nhãn nhà trọ dư tháng trước", 136972, "fund", "momo", "essential");
+  rollover.properties["Ngày"] = { date: { start: "2026-10-01" } };
+  const data = buildAccountSpendingData_(
+    { y: 2026, m: 10, d: 1 },
+    [trackedCategoryRow("rent", "Nhà Trọ", 2150000, "essential"),
+      trackedCategoryRow("internet", "Internet", 180000, "essential")],
+    [],
+    [cashflowAccountRow("fund", "Quỹ Momo"), cashflowAccountRow("momo", "Momo")],
+    5500000,
+    [rollover],
+    [fundGroupRow("essential", "Nhu cầu thiết yếu", "fund", true),
+      fundGroupRow("savings", "Tiết kiệm dài hạn", "fund", true)],
+    { historicalTransferRows: [oldLoan] }
+  );
+  const essential = data.fundGroups.find((group) => group.name === "Nhu cầu thiết yếu");
+  assert.equal(data.explicitLedger.fundLoans.loans[0].outstanding, 750000);
+  assert.deepEqual(essential.explicitDebts, []);
+  assert.doesNotMatch(fundBudgetText_(data), /Nhu cầu thiết yếu:[^\n]*còn nợ Quỹ Tiết kiệm dài hạn 750\.000đ/);
+});
+
 test("an ordinary fund expense using previous-month Tiền Mặt owes that account even without a debt note", () => {
   const cash = cashflowAccountRow("cash", "Tiền Mặt");
   cash.properties["Số Dư Ban Đầu"] = { number: 70000 };

@@ -938,7 +938,8 @@ export function buildAccountSpendingData_(
     }
     group.explicitDebts.push(
       ...explicitLedger.fundLoans.loans.filter(
-        (loan) => loan.borrowerGroupId === fundGroupRow.id,
+        (loan) => loan.borrowerGroupId === fundGroupRow.id
+          && Object.hasOwn(ledgerRowsById, loan.openedBy),
       ),
     );
     for (const debt of group.explicitDebts) {
