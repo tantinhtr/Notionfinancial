@@ -91,7 +91,7 @@ function historyBeforeMonthFilterFor(t) {
 }
 
 export function historyLookupRequired_(rows = []) {
-  return rows.some((row) => /\b(?:tra no|tra lai|tra tien muon|nhan lai|hoan lai|hoan tien|cap bu|dao giao dich|dieu chinh|thang truoc|truoc do)\b/.test(row.normalizedText));
+  return rows.some((row) => /\b(?:tra no|tra lai|tra tien muon|nhan lai|hoan lai|hoan tien|cap bu|dao giao dich|dieu chinh|truoc do)\b/.test(row.normalizedText));
 }
 
 function previousMonthRows_(rows, t) {

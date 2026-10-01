@@ -5,6 +5,7 @@ import { fundBudgetText_ } from "../src/finance.js";
 import { createStateStore } from "../src/state.js";
 import {
   AmbiguousIncomeWriteError,
+  historyLookupRequired_,
   createFinanceRepository
 } from "../src/repository.js";
 
@@ -639,6 +640,15 @@ test("fund report wires complete pre-month history", async () => {
     ["expenses", historyFilter],
     ["transfers", historyFilter]
   ]);
+});
+
+test("a previous-month rollover label does not request debt history", () => {
+  assert.equal(historyLookupRequired_([
+    { normalizedText: "tien nhan nha tro du thang truoc" }
+  ]), false);
+  assert.equal(historyLookupRequired_([
+    { normalizedText: "tra no to muon thang truoc" }
+  ]), true);
 });
 
 test("fund report skips history without a current historical reference", async () => {
