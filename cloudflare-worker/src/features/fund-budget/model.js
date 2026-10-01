@@ -629,7 +629,6 @@ export function buildAccountSpendingData_(
       if (toId === destinationAccountId) {
         netAllocated += amount;
         allocationRows.push({
-          rowId: transferRow.id,
           amount,
           text:
             ledgerRowsById[transferRow.id]?.normalizedText ||
@@ -639,7 +638,6 @@ export function buildAccountSpendingData_(
       if (fromId === destinationAccountId) {
         netAllocated -= amount;
         allocationRows.push({
-          rowId: transferRow.id,
           amount: -amount,
           text:
             ledgerRowsById[transferRow.id]?.normalizedText ||
@@ -731,42 +729,7 @@ export function buildAccountSpendingData_(
 
     const childAllocated = {};
     const unassignedAllocations = [];
-    const addMissingChildIssue = (rowId) => {
-      const row = ledgerRowsById[rowId];
-      if (!row) return;
-      const existing = explicitLedger.dataIssues.find(
-        (issue) =>
-          issue.rowId === rowId && issue.type === 'missing_required_data',
-      );
-      if (existing) {
-        if (!existing.details.includes('Nhãn quỹ con'))
-          existing.details.push('Nhãn quỹ con');
-        return;
-      }
-      explicitLedger.dataIssues.push({
-        type: 'missing_required_data',
-        rowId,
-        date: row.date,
-        createdTime: row.createdTime,
-        title: row.title,
-        amount: row.amount,
-        details: ['Nhãn quỹ con'],
-      });
-    };
-    const resolveMissingChildIssue = (rowId) => {
-      const issueIndex = explicitLedger.dataIssues.findIndex(
-        (issue) =>
-          issue.rowId === rowId && issue.type === 'missing_required_data',
-      );
-      if (issueIndex < 0) return;
-      const issue = explicitLedger.dataIssues[issueIndex];
-      issue.details = issue.details.filter(
-        (detail) => detail !== 'Nhãn quỹ con',
-      );
-      if (issue.details.length === 0)
-        explicitLedger.dataIssues.splice(issueIndex, 1);
-    };
-    const assignAllocation = (amount, text, rowId) => {
+    const assignAllocation = (amount, text) => {
       const childName =
         debtTargetChildName_(text, debtChildCandidates) ||
         (group.children.length === 1 ? group.children[0].name : '');
@@ -774,13 +737,11 @@ export function buildAccountSpendingData_(
         childAllocated[childName] = (childAllocated[childName] || 0) + amount;
         return;
       }
-      if (group.children.length > 1) {
-        if (amount > 0) unassignedAllocations.push({ rowId, amount });
-        addMissingChildIssue(rowId);
-      }
+      if (group.children.length > 1 && amount > 0)
+        unassignedAllocations.push(amount);
     };
     for (const allocation of allocationRows)
-      assignAllocation(allocation.amount, allocation.text, allocation.rowId);
+      assignAllocation(allocation.amount, allocation.text);
     for (const loan of explicitLedger.fundLoans.loans) {
       if (
         loan.borrowerGroupId !== fundGroupRow.id ||
@@ -790,7 +751,6 @@ export function buildAccountSpendingData_(
       assignAllocation(
         loan.principal,
         ledgerRowsById[loan.openedBy].normalizedText,
-        loan.openedBy,
       );
     }
     const childPaidFromFund = {};
@@ -846,7 +806,7 @@ export function buildAccountSpendingData_(
     if (activeUnfundedChildren.length === 1) {
       const childName = activeUnfundedChildren[0].name;
       const unassignedTotal = unassignedAllocations.reduce(
-        (sum, allocation) => sum + allocation.amount,
+        (sum, amount) => sum + amount,
         0,
       );
       const reconciledTotal =
@@ -856,8 +816,6 @@ export function buildAccountSpendingData_(
         Math.abs(reconciledTotal - activeUnfundedChildren[0].budget) < 1000
       ) {
         childAllocated[childName] = reconciledTotal;
-        for (const allocation of unassignedAllocations)
-          resolveMissingChildIssue(allocation.rowId);
       }
     }
 

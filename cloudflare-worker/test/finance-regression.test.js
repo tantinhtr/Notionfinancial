@@ -1938,14 +1938,34 @@ test("unresolved child allocation stays at group level without fabricating a fun
     { name: "Nhà Trọ", amount: 2150000 },
     { name: "Internet", amount: 180000 }
   ]);
-  assert.deepEqual(
-    model.explicitLedger.dataIssues.find((issue) => issue.rowId === "generic-funding")?.details,
-    ["Nhãn quỹ con"]
+  assert.equal(
+    model.explicitLedger.dataIssues.some((issue) => issue.rowId === "generic-funding"),
+    false
   );
   const text = fundBudgetText_(model);
-  assert.match(text, /CHƯA ĐỦ DỮ KIỆN/);
-  assert.match(text, /Cấp quỹ thiết yếu[^\n]*thiếu Nhãn quỹ con/);
+  assert.doesNotMatch(text, /CHƯA ĐỦ DỮ KIỆN|thiếu Nhãn quỹ con/);
   assert.match(text, /Internet: 180\.000đ/);
+});
+
+test("fund withdrawal with a group does not require a Notion child label", () => {
+  const model = buildAccountSpendingData_(
+    { y: 2026, m: 10, d: 2 },
+    [
+      trackedCategoryRow("rent", "Nhà Trọ", 2150000, "essential"),
+      trackedCategoryRow("internet", "Internet", 180000, "essential")
+    ],
+    [],
+    [cashflowAccountRow("fund", "Quỹ Momo"), cashflowAccountRow("momo", "Momo")],
+    5500000,
+    [transferRow("previous-month-remainder", "Tiền nhãn nhà trọ dư tháng trước", 136972, "fund", "momo", "essential")],
+    [fundGroupRow("essential", "Nhu cầu thiết yếu", "fund", true)]
+  );
+
+  assert.equal(
+    model.explicitLedger.dataIssues.some((issue) => issue.rowId === "previous-month-remainder"),
+    false
+  );
+  assert.doesNotMatch(fundBudgetText_(model), /CHƯA ĐỦ DỮ KIỆN|thiếu Nhãn quỹ con/);
 });
 
 test("a child paid directly outside its fund is covered and names the source", () => {
