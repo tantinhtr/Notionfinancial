@@ -399,7 +399,7 @@ test("fund report wires current and master Notion queries into the finance build
   ]);
 });
 
-test("fund report carries only funded child balances from the two rollover source groups into next-month allocations", async () => {
+test("fund report carries unused child budgets from the previous month into next-month allocations", async () => {
   const historicalFilter = {
     property: "Ngày",
     date: { on_or_before: "2026-06-30" }
@@ -415,18 +415,18 @@ test("fund report carries only funded child balances from the two rollover sourc
     "Tài Khoản Giữ Quỹ": { relation: [{ id: "fund" }] },
     "Bắt Buộc Cấp Quỹ": { checkbox: true }
   });
-  const transfer = (id, name, amount, groupId) => row(id, {
+  const transfer = (id, name, amount, groupId, date = "2026-06-10") => row(id, {
     "Ghi Chú": { title: [{ plain_text: name }] },
     "Số Tiền": { number: amount },
-    "Ngày": { date: { start: "2026-06-10" } },
+    "Ngày": { date: { start: date } },
     "Từ Tài Khoản": { relation: [{ id: "momo" }] },
     "Đến Tài Khoản": { relation: [{ id: "fund" }] },
     "Nhóm Quỹ": { relation: [{ id: groupId }] }
   });
-  const expense = (id, name, amount, categoryId) => row(id, {
+  const expense = (id, name, amount, categoryId, date = "2026-06-20") => row(id, {
     "Nội Dung Khoản Chi": { title: [{ plain_text: name }] },
     "Số Tiền": { number: amount },
-    "Ngày": { date: { start: "2026-06-20" } },
+    "Ngày": { date: { start: date } },
     "Loại Chi Phí": { relation: [{ id: categoryId }] },
     "Phương Thức Thanh Toán": { relation: [{ id: "fund" }] }
   });
@@ -444,12 +444,14 @@ test("fund report carries only funded child balances from the two rollover sourc
     ],
     expenses: [
       expense("internet-paid", "Thanh toán Internet", 30000, "internet"),
-      expense("course-paid", "Mua khóa học", 20000, "course")
+      expense("course-paid", "Mua khóa học", 20000, "course"),
+      expense("internet-old", "Internet tháng 5", 200000, "internet", "2026-05-20")
     ],
     transfers: [
       transfer("internet-funded", "Cấp quỹ Internet", 180000, "essential"),
       transfer("course-funded", "Cấp quỹ Khóa học", 100000, "education"),
-      transfer("trip-funded", "Cấp quỹ Du lịch", 900000, "enjoyment")
+      transfer("trip-funded", "Cấp quỹ Du lịch", 900000, "enjoyment"),
+      transfer("internet-old-funded", "Cấp quỹ Internet tháng 5", 50000, "essential", "2026-05-10")
     ],
     income: [],
     "other-income": [],
@@ -479,17 +481,17 @@ test("fund report carries only funded child balances from the two rollover sourc
   const model = await repository.getFundBudgetReport(true);
 
   assert.equal(model.openingPlan.sourceTotal, 3849710);
-  assert.equal(model.openingPlan.rolloverCarryover, 230000);
-  assert.equal(model.openingPlan.remainder, 1929710);
+  assert.equal(model.openingPlan.rolloverCarryover, 1450000);
+  assert.equal(model.openingPlan.remainder, 3149710);
   assert.deepEqual(model.openingPlan.allocations, [
-    { fund: "Tiết kiệm dài hạn", amount: 551346 },
-    { fund: "Đầu tư tài chính", amount: 551346 },
-    { fund: "Hưởng thụ", amount: 551345 },
-    { fund: "Cho đi", amount: 275673 }
+    { fund: "Tiết kiệm dài hạn", amount: 899917 },
+    { fund: "Đầu tư tài chính", amount: 899917 },
+    { fund: "Hưởng thụ", amount: 899917 },
+    { fund: "Cho đi", amount: 449959 }
   ]);
   assert.deepEqual(model.rolloverCarryover.groups, [
-    { name: "Nhu cầu thiết yếu", amount: 150000 },
-    { name: "Giáo dục phát triển", amount: 80000 }
+    { name: "Nhu cầu thiết yếu", amount: 970000 },
+    { name: "Giáo dục phát triển", amount: 480000 }
   ]);
 });
 

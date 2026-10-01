@@ -94,14 +94,21 @@ export function historyLookupRequired_(rows = []) {
   return rows.some((row) => /\b(?:tra no|tra lai|tra tien muon|nhan lai|hoan lai|hoan tien|cap bu|dao giao dich|dieu chinh|thang truoc|truoc do)\b/.test(row.normalizedText));
 }
 
+function previousMonthRows_(rows, t) {
+  const previous = new Date(Date.UTC(t.y, t.m - 2, 1));
+  const month = iso_(previous.getUTCFullYear(), previous.getUTCMonth() + 1, 1).slice(0, 7);
+  return rows.filter((row) => dateProperty(row, MONTH_DATE_PROPERTY).startsWith(month));
+}
+
 function rolloverCarryoverFromGroups_(fundGroups, sourceGroupNames) {
   const allowed = new Set((sourceGroupNames || []).map(normalizeSearchText_));
   const groups = (fundGroups || [])
     .filter((group) => allowed.has(normalizeSearchText_(group.name)))
+    .filter((group) => group.spent > 0 || group.allocated > 0)
     .map((group) => ({
       name: group.name,
       amount: (group.children || []).reduce(
-        (total, child) => total + Math.max(Number(child.fundRemaining) || 0, 0),
+        (total, child) => total + Math.max(child.budget - child.spent, 0),
         0
       )
     }))
@@ -277,10 +284,10 @@ export function createFinanceRepository({ notion, state, config, now = () => new
       const historicalFundModel = buildAccountSpendingData_(
         t,
         categoryRows,
-        rolloverExpenseRows,
+        previousMonthRows_(rolloverExpenseRows, t),
         accountRows,
         config.monthlyExpenseLimit,
-        rolloverTransferRows,
+        previousMonthRows_(rolloverTransferRows, t),
         fundGroupRows,
         {
           passThroughKeywords: config.passThroughKeywords,
