@@ -17,7 +17,7 @@ test("fund component forwards refresh and sends one report with home navigation"
   assert.match(sent[0][1], /Thiết Yếu/);
   assert.equal(sent[0][2].inline_keyboard[0][0].callback_data, "cash_home");
 });
-test("fund callback uses cached report and ignores unrelated callbacks", async () => {
+test("fund callback refreshes after Notion edits and ignores unrelated callbacks", async () => {
   const calls = [];
   const component = createFundBudgetComponent({
     repository: { async getFundBudgetReport(refresh) { calls.push(refresh); return fundFixture(); } },
@@ -26,7 +26,7 @@ test("fund callback uses cached report and ignores unrelated callbacks", async (
   await component.handleCallback(7, "cash_home");
   assert.deepEqual(calls, []);
   await component.handleCallback(7, "show_funds");
-  assert.deepEqual(calls, [false, "send"]);
+  assert.deepEqual(calls, [true, "send"]);
 });
 test("fund repository failures propagate without sending", async () => {
   const failure = new Error("offline");

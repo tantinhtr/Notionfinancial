@@ -10,7 +10,7 @@ export function createFundBudgetComponent({ repository, telegram }) {
   }
   const handlesCallback = data => data === "show_funds";
   async function handleCallback(chatId, data) {
-    if (handlesCallback(data)) return show(chatId);
+    if (handlesCallback(data)) return show(chatId, { refresh: true });
   }
   return { show, handlesCallback, handleCallback };
 }
