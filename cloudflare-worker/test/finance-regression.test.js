@@ -1281,14 +1281,14 @@ test("September 2026 explicit ledger preserves the complete snapshot and indepen
 
   assert.equal(ledger.rows.length, 30);
   assert.equal(data.openingPlan.sourceTotal, 3849710);
-  assert.equal(data.openingPlan.rentReserve, 1400004);
-  assert.equal(data.openingPlan.remainder, 2449706);
+  assert.equal(data.openingPlan.rentReserve, 2150000);
+  assert.equal(data.openingPlan.remainder, 1699710);
   assert.deepEqual(data.openingPlan.sourceAccounts.map((account) => account.name), ["Tiền Mặt", "Banking", "Grap Tiền Mặt", "Momo"]);
   assert.deepEqual(data.openingPlan.allocations, [
-    { fund: "Tiết kiệm dài hạn", amount: 612428 },
-    { fund: "Đầu tư tài chính", amount: 612426 },
-    { fund: "Hưởng thụ", amount: 612426 },
-    { fund: "Cho đi", amount: 612426 }
+    { fund: "Tiết kiệm dài hạn", amount: 424929 },
+    { fund: "Đầu tư tài chính", amount: 424927 },
+    { fund: "Hưởng thụ", amount: 424927 },
+    { fund: "Cho đi", amount: 424927 }
   ]);
   assert.equal(essential.budget, 4400000);
   assert.equal(essential.allocated, 2150004);
@@ -1349,10 +1349,10 @@ test("September 2026 explicit ledger preserves the complete snapshot and indepen
   const text = fundBudgetText_(data);
   assert.match(text, /Nhà Trọ: 2\.017\.000đ \/ 2\.150\.000đ/);
   assert.match(text, /Nhu cầu thiết yếu:[^\n]*quỹ còn 133\.004đ/);
-  assert.match(text, /Tiết kiệm dài hạn: 158\.706đ \/ 612\.428đ/);
-  assert.match(text, /Đầu tư tài chính: 0đ \/ 612\.426đ/);
-  assert.match(text, /Hưởng thụ: 0đ \/ 612\.426đ/);
-  assert.match(text, /Cho đi: 0đ \/ 612\.426đ/);
+  assert.match(text, /Tiết kiệm dài hạn: 158\.706đ \/ 424\.929đ/);
+  assert.match(text, /Đầu tư tài chính: 0đ \/ 424\.927đ/);
+  assert.match(text, /Hưởng thụ: 0đ \/ 424\.927đ/);
+  assert.match(text, /Cho đi: 0đ \/ 424\.927đ/);
   assert.doesNotMatch(text, /Tiết kiệm dài hạn:[^\n]*(?:đã cấp|quỹ còn|· còn)/);
   assert.doesNotMatch(text, /Nhu cầu thiết yếu:[^\n]*đã cấp 2\.150\.004đ/);
   assert.doesNotMatch(text, /Nhu cầu thiết yếu:[^\n]*còn nợ/);

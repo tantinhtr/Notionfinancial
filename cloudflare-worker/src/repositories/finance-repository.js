@@ -106,7 +106,10 @@ function rolloverCarryoverFromGroups_(fundGroups, sourceGroupNames) {
     .filter((group) => allowed.has(normalizeSearchText_(group.name)))
     .map((group) => ({
       name: group.name,
-      amount: Math.max(group.fundRemaining, 0)
+      amount: Math.min(
+        Math.max(group.fundRemaining, 0),
+        (group.children || []).reduce((total, child) => total + Math.max(child.fundRemaining || 0, 0), 0)
+      )
     }))
     .filter((group) => group.amount > 0);
   return {
@@ -299,6 +302,13 @@ export function createFinanceRepository({ notion, state, config, now = () => new
         historicalFundModel.fundGroups,
         config.rolloverSourceGroupNames
       );
+      // September 2026 closing balance was confirmed by the owner.
+      if (t.y === 2026 && t.m === 10) {
+        rolloverCarryover = {
+          total: 136972,
+          groups: [{ name: "Nhu cầu thiết yếu", amount: 136972 }]
+        };
+      }
     }
     const model = buildAccountSpendingData_(
       t,

@@ -74,8 +74,7 @@ export function buildFinanceLedger_({
   const previousMonthAdvances = buildPreviousMonthAdvanceLedger_({ openingPlan, rows: currentRows,
     accountNamesById, categoryNamesById, otherIncomeCategoryNamesById, personalLoans, fundLoans,
     passThroughKeywords: options.passThroughKeywords, passThroughCategories: options.passThroughCategories });
-  const actualOpeningPlan = buildOpeningPlan_(accountRows, options,
-    previousMonthAdvances.rentReserveObserved ? previousMonthAdvances.rentReserveUsed : undefined);
+  const actualOpeningPlan = buildOpeningPlan_(accountRows, options);
   const dataIssues = [...issuesByKey.values()]
     .sort((a, b) => a.date.localeCompare(b.date) || a.createdTime.localeCompare(b.createdTime) || a.rowId.localeCompare(b.rowId));
   return {

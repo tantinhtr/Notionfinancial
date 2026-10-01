@@ -1,7 +1,7 @@
 import { propertyText_, numericProperty_ } from "./rows.js";
 import { normalizeSearchText_ } from "../finance/shared.js";
 
-export function buildOpeningPlan_(accountRows = [], options = {}, rentReserveUsed) {
+export function buildOpeningPlan_(accountRows = [], options = {}) {
   const sourceAccountNames = options.sourceAccountNames || [];
   const sourceNameKeys = new Set(sourceAccountNames.map(normalizeSearchText_));
   const sourceAccounts = [];
@@ -21,14 +21,13 @@ export function buildOpeningPlan_(accountRows = [], options = {}, rentReserveUse
   const rentReserveAmount = Number.isFinite(options.rentReserveAmount)
     ? options.rentReserveAmount
     : 0;
-  const rentReserve = Number.isFinite(rentReserveUsed)
-    ? Math.min(sourceTotal, rentReserveAmount, Math.max(rentReserveUsed, 0))
-    : Math.min(sourceTotal, rentReserveAmount);
-  const rentShortfall = Math.max(rentReserveAmount - sourceTotal, 0);
   const rolloverCarryover = Number.isFinite(options.rolloverCarryoverAmount)
     ? Math.max(options.rolloverCarryoverAmount, 0)
     : 0;
-  const remainder = Math.max(sourceTotal - rentReserve, 0) + rolloverCarryover;
+  const available = sourceTotal + rolloverCarryover;
+  const rentReserve = Math.min(available, rentReserveAmount);
+  const rentShortfall = Math.max(rentReserveAmount - available, 0);
+  const remainder = available - rentReserve;
   const rolloverFundNames = options.rolloverFundNames || [];
   let allocations;
   const weights = options.rolloverFundWeights;

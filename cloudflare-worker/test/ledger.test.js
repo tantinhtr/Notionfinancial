@@ -982,6 +982,35 @@ test("builds the September opening plan once from four free sources", () => {
   assert.deepEqual(buildOpeningPlan_(accounts, OPENING_OPTIONS), expected);
 });
 
+test("October combines confirmed September remainder, reserves rent, and applies 10:10:10:5", () => {
+  const accounts = [
+    account("cash", "Tiền Mặt", 2397000, 0),
+    account("bank", "Banking", 50023, 0),
+    account("grab", "Grap Tiền Mặt", 0, 0),
+    account("momo", "Momo", 805000, 0)
+  ];
+  const options = {
+    sourceAccountNames: OPENING_OPTIONS.sourceAccountNames,
+    rentReserveAmount: 2150000,
+    rolloverCarryoverAmount: 136972,
+    rolloverFundNames: ["Tiết kiệm dài hạn", "Đầu tư tài chính", "Hưởng thụ", "Cho đi"],
+    rolloverFundWeights: [2, 2, 2, 1]
+  };
+  const plan = buildOpeningPlan_(accounts, options);
+  assert.equal(plan.sourceTotal, 3252023);
+  assert.equal(plan.rentReserve, 2150000);
+  assert.equal(plan.remainder, 1238995);
+  assert.deepEqual(plan.allocations, [
+    { fund: "Tiết kiệm dài hạn", amount: 353999 },
+    { fund: "Đầu tư tài chính", amount: 353999 },
+    { fund: "Hưởng thụ", amount: 353998 },
+    { fund: "Cho đi", amount: 176999 }
+  ]);
+  accounts[1].properties["Số Dư Ban Đầu"].number += 4;
+  assert.deepEqual(buildOpeningPlan_(accounts, options).allocations.map((row) => row.amount),
+    [354000, 354000, 353999, 177000]);
+});
+
 test("opening plan reads number formula and rollup opening balances", () => {
   const accounts = [
     account("cash", "Tiền Mặt", 10, 999),
@@ -1429,7 +1458,7 @@ test("debt chronology uses actual Momo funding instead of forcing previous-month
   assert.equal(withoutCurrentIncome.previousMonthAdvances.accounts[0].outstanding, 100000);
 });
 
-test("opening plan deducts only previous-month money actually transferred to rent", () => {
+test("opening plan reserves full rent even when only part was transferred", () => {
   const result = buildFinanceLedger_({
     accountRows: [
       account("cash", "Tiền Mặt", 2021000, 665000),
@@ -1449,13 +1478,14 @@ test("opening plan deducts only previous-month money actually transferred to ren
   });
 
   assert.equal(result.openingPlan.sourceTotal, 3849710);
-  assert.equal(result.openingPlan.rentReserve, 1400004);
-  assert.equal(result.openingPlan.remainder, 2449706);
+  assert.equal(result.previousMonthAdvances.rentReserveUsed, 1400004);
+  assert.equal(result.openingPlan.rentReserve, 2150000);
+  assert.equal(result.openingPlan.remainder, 1699710);
   assert.deepEqual(result.openingPlan.allocations, [
-    { fund: "Tiết kiệm dài hạn", amount: 612428 },
-    { fund: "Đầu tư tài chính", amount: 612426 },
-    { fund: "Hưởng thụ", amount: 612426 },
-    { fund: "Cho đi", amount: 612426 }
+    { fund: "Tiết kiệm dài hạn", amount: 424929 },
+    { fund: "Đầu tư tài chính", amount: 424927 },
+    { fund: "Hưởng thụ", amount: 424927 },
+    { fund: "Cho đi", amount: 424927 }
   ]);
 });
 

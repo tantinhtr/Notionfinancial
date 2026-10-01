@@ -399,6 +399,42 @@ test("fund report wires current and master Notion queries into the finance build
   ]);
 });
 
+test("October uses confirmed September remainder with 10:10:10:5 allocation", async () => {
+  const account = (id, name, opening) => row(id, {
+    "Phương Thức Thanh Toán": { title: [{ plain_text: name }] },
+    "Số Dư Ban Đầu": { number: opening }
+  });
+  const notion = createNotion({ accounts: [
+    account("cash", "Tiền Mặt", 2397000),
+    account("bank", "Banking", 50023),
+    account("grab", "Grap Tiền Mặt", 0),
+    account("momo", "Momo", 805000)
+  ] });
+  const repository = createFinanceRepository({
+    notion,
+    state: createState(),
+    config: {
+      ...config,
+      rolloverSourceGroupNames: ["Nhu cầu thiết yếu", "Giáo dục phát triển"],
+      rolloverFundNames: ["Tiết kiệm dài hạn", "Đầu tư tài chính", "Hưởng thụ", "Cho đi"],
+      rolloverFundWeights: [2, 2, 2, 1]
+    },
+    now: () => new Date("2026-10-01T06:00:00.000Z")
+  });
+  const model = await repository.getFundBudgetReport(true);
+  assert.deepEqual(model.rolloverCarryover, {
+    total: 136972,
+    groups: [{ name: "Nhu cầu thiết yếu", amount: 136972 }]
+  });
+  assert.equal(model.openingPlan.remainder, 1238995);
+  assert.deepEqual(model.openingPlan.allocations, [
+    { fund: "Tiết kiệm dài hạn", amount: 353999 },
+    { fund: "Đầu tư tài chính", amount: 353999 },
+    { fund: "Hưởng thụ", amount: 353998 },
+    { fund: "Cho đi", amount: 176999 }
+  ]);
+});
+
 test("fund report carries only funded money left from the previous month", async () => {
   const historicalFilter = {
     property: "Ngày",
@@ -435,6 +471,7 @@ test("fund report carries only funded money left from the previous month", async
       trackedCategory("internet", "Internet", 1000000, "essential"),
       trackedCategory("incidental", "Phát Sinh", 500000, "essential"),
       trackedCategory("course", "Khóa học", 500000, "education"),
+      trackedCategory("book", "Sách", 200000, "education"),
       trackedCategory("trip", "Du lịch", 900000, "enjoyment")
     ],
     accounts: openingAccountRows(),
@@ -451,7 +488,7 @@ test("fund report carries only funded money left from the previous month", async
     ],
     transfers: [
       transfer("internet-funded", "Cấp quỹ Internet", 1001372, "essential"),
-      transfer("course-funded", "Cấp quỹ Khóa học", 100000, "education"),
+      transfer("course-funded", "Cấp quỹ giáo dục", 100000, "education"),
       transfer("trip-funded", "Cấp quỹ Du lịch", 900000, "enjoyment"),
       transfer("internet-old-funded", "Cấp quỹ Internet tháng 5", 50000, "essential", "2026-05-10")
     ],
@@ -483,17 +520,16 @@ test("fund report carries only funded money left from the previous month", async
   const model = await repository.getFundBudgetReport(true);
 
   assert.equal(model.openingPlan.sourceTotal, 3849710);
-  assert.equal(model.openingPlan.rolloverCarryover, 216972);
-  assert.equal(model.openingPlan.remainder, 1916682);
+  assert.equal(model.openingPlan.rolloverCarryover, 136972);
+  assert.equal(model.openingPlan.remainder, 1836682);
   assert.deepEqual(model.openingPlan.allocations, [
-    { fund: "Tiết kiệm dài hạn", amount: 547624 },
-    { fund: "Đầu tư tài chính", amount: 547623 },
-    { fund: "Hưởng thụ", amount: 547623 },
-    { fund: "Cho đi", amount: 273812 }
+    { fund: "Tiết kiệm dài hạn", amount: 524767 },
+    { fund: "Đầu tư tài chính", amount: 524766 },
+    { fund: "Hưởng thụ", amount: 524766 },
+    { fund: "Cho đi", amount: 262383 }
   ]);
   assert.deepEqual(model.rolloverCarryover.groups, [
-    { name: "Nhu cầu thiết yếu", amount: 136972 },
-    { name: "Giáo dục phát triển", amount: 80000 }
+    { name: "Nhu cầu thiết yếu", amount: 136972 }
   ]);
 });
 
