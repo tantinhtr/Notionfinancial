@@ -298,38 +298,6 @@ function childLines_(group) {
   });
 }
 
-function appendPreviousMonthAdvances_(
-  lines,
-  previousMonthAdvances,
-  groups = [],
-) {
-  const shown = {};
-  for (const group of groups) {
-    for (const debt of group.explicitDebts || []) {
-      if (debt.kind !== 'account') continue;
-      shown[debt.lender] = (shown[debt.lender] || 0) + debt.outstanding;
-    }
-  }
-  const accounts = ((previousMonthAdvances || {}).accounts || [])
-    .map((account) => ({
-      ...account,
-      outstanding: Math.max(
-        (account.outstanding || 0) - (shown[account.accountName] || 0),
-        0,
-      ),
-    }))
-    .filter((account) => account.outstanding > 0);
-  if (!accounts.length) return false;
-
-  lines.push('', '♻️ CẦN CẤP BÙ TIỀN THÁNG TRƯỚC');
-  for (const account of accounts) {
-    lines.push(
-      account.accountName + ': cần cấp bù ' + money_(account.outstanding),
-    );
-  }
-  return true;
-}
-
 function appendDataIssues_(lines, dataIssues) {
   const byRowId = new Map();
   for (const issue of dataIssues || []) {
@@ -436,7 +404,6 @@ export function fundBudgetText_(data) {
   }
 
   const ledger = data.explicitLedger || {};
-  appendPreviousMonthAdvances_(lines, ledger.previousMonthAdvances, groups);
   appendDataIssues_(lines, ledger.dataIssues);
 
   if (!groups.length && !budget && lines.length === 1) {

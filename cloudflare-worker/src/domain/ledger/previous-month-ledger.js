@@ -69,11 +69,25 @@ function matchingSourceStates_(row, states) {
   const beneficiaries = [...text.matchAll(/\b(?:tra lai|hoan lai|cap bu)\s+(?:[\d.,]+\s*(?:d|dong)?\s*)?(?:tien\s+)?(?:cho\s+)?(.+?)(?=\s+(?:tu|bang|thanh toan)\s+|[|;]|$)/g)]
     .map((match) => match[1].trim().replace(/[.,]+$/, ""));
   const named = [...states.values()].filter((state) => beneficiaries.includes(normalizeSearchText_(state.account.accountName)));
-  if (named.length || row.kind !== "transfer") return named.map((state) => ({ state }));
+  if (named.length) return named
+    .filter((state) => row.kind !== "transfer" || state.account.accountId === row.toAccountId)
+    .map((state) => ({ state }));
+  if (row.kind !== "transfer") return [];
   const destination = states.get(row.toAccountId);
   if (!destination) return [];
   const account = normalizeSearchText_(destination.account.accountName).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  if (!new RegExp("\\bmuon(?:\\s+tien)?\\s+" + account + "\\b").test(text)) return [];
+  if (row.fromAccountId === row.toAccountId) return [];
+  const namesAnotherDebtAccount = [...states.values()].some((state) => {
+    if (state === destination) return false;
+    const name = normalizeSearchText_(state.account.accountName).replace(/[^a-z0-9 ]/g, "\\$&");
+    return new RegExp("\\b(?:no|muon)(?:\\s+tien)?\\s+" + name + "\\b").test(text);
+  });
+  if (namesAnotherDebtAccount) return [];
+  if (!new RegExp("\\bmuon(?:\\s+tien)?\\s+" + account + "\\b").test(text)) {
+    return destination.obligations.some((obligation) => obligation.principal > obligation.repaid)
+      ? [{ state: destination }] : [];
+  }
+
   const noise = new Set(["tra", "lai", "tien", "no", "muon", "hom", "truoc", "ung", "cho", "cap", "bu", "hoan"]);
   const accountWords = new Set(normalizeSearchText_(destination.account.accountName).match(/[a-z0-9]+/g) || []);
   const words = (value) => (normalizeSearchText_(value).match(/[a-z0-9]+/g) || [])
@@ -181,7 +195,10 @@ export function buildPreviousMonthAdvanceLedger_({
         else unmatchedSources.push({ ...row, ...application, unmatchedAmount: application.amount });
       }
     }
-    if (!personalRepayment && !fundRepaymentRowIds.has(row.id) && isExplicitReimbursement_(row)) {
+    const transferDebtRepayment = row.kind === "transfer"
+      && /\btra no\b/.test(row.normalizedText || normalizeSearchText_([row.title, row.note].filter(Boolean).join(" | ")));
+    if (!personalRepayment && !fundRepaymentRowIds.has(row.id)
+      && (isExplicitReimbursement_(row) || transferDebtRepayment)) {
       const matches = matchingSourceStates_(row, states);
       if (matches.length !== 1) {
         unmatchedSources.push({ ...row, unmatchedAmount: row.amount });

@@ -1362,14 +1362,12 @@ test("September 2026 explicit ledger preserves the complete snapshot and indepen
   );
   assert.doesNotMatch(text, /TIỀN DƯ THÁNG TRƯỚC|4 nguồn:|Ba lọ 10%:/);
   assert.doesNotMatch(text, /🤝 NỢ GHI RÕ|Nhu cầu thiết yếu mượn|Đã trả:|Nợ Em:/);
-  assert.match(text, /Tiền Mặt: cần cấp bù 1\.356\.000đ/);
-  assert.match(text, /Banking: cần cấp bù 170\.000đ/);
-  assert.match(text, /Momo: cần cấp bù 100\.000đ/);
+  assert.doesNotMatch(text, /CẦN CẤP BÙ TIỀN THÁNG TRƯỚC|cần cấp bù/);
   assert.doesNotMatch(text, /CHƯA ĐỦ DỮ KIỆN|Tố|26\.000đ/);
   assert.doesNotMatch(text, /616\.996đ|đã trả:? 109\.000đ|có nguồn để trả/i);
 });
 
-test("fund budget omits the repeated debt section while keeping advance warnings", () => {
+test("fund budget does not present inferred advances as payment demands", () => {
   const text = fundBudgetText_({
     t: { y: 2026, m: 9, d: 10 },
     fundGroups: [{
@@ -1438,9 +1436,7 @@ test("fund budget omits the repeated debt section while keeping advance warnings
   assert.match(text, /quỹ còn 133\.004đ/);
   assert.doesNotMatch(text, /TIỀN DƯ THÁNG TRƯỚC|4 nguồn:|Ba lọ 10%:/);
   assert.doesNotMatch(text, /🤝 NỢ GHI RÕ|Nhu cầu thiết yếu mượn|Đã trả:|Nợ Em:/);
-  assert.match(text, /Tiền Mặt: cần cấp bù 1\.356\.000đ/);
-  assert.match(text, /Banking: cần cấp bù 170\.000đ/);
-  assert.match(text, /Momo: cần cấp bù 100\.000đ/);
+  assert.doesNotMatch(text, /CẦN CẤP BÙ TIỀN THÁNG TRƯỚC|cần cấp bù/);
   assert.doesNotMatch(text, /616\.996đ/);
   assert.doesNotMatch(text, /đã trả 109\.000đ|có nguồn để trả/);
 });
@@ -2496,6 +2492,44 @@ test("an explicit transfer partially repays the matching Phát Sinh cash debt", 
   assert.match(fundBudgetText_(data), /Phát Sinh:[^\n]*còn nợ Tiền Mặt 350\.000đ/);
 });
 
+test("cash debt repayment uses intent and destination across varied wording", () => {
+  const cash = cashflowAccountRow("cash", "Tiền Mặt");
+  cash.properties["Số Dư Ban Đầu"] = { number: 50000 };
+  const advance = namedExpenseRow("cash-advance", "Chi đầu tháng", "other", "cash", 50000);
+  advance.properties["Ngày"] = { date: { start: "2026-10-01" } };
+  const momo = cashflowAccountRow("momo", "Momo");
+  momo.properties["Số Dư Ban Đầu"] = { number: 50000 };
+  const momoAdvance = namedExpenseRow("momo-advance", "Chi đầu tháng từ Momo", "other", "momo", 50000);
+  momoAdvance.properties["Ngày"] = { date: { start: "2026-10-01" } };
+  const build = (title, toAccountId) => {
+    const repayment = transferRow("repay-cash", title, 50000, "grab", toAccountId, "");
+    repayment.properties["Ngày"] = { date: { start: "2026-10-02" } };
+    return buildAccountSpendingData_(
+      { y: 2026, m: 10, d: 3 },
+      [trackedCategoryRow("other", "Khác", 70000, "essential")],
+      [advance],
+      [cash, cashflowAccountRow("grab", "Grap Tiền Mặt"), momo, cashflowAccountRow("fund", "Quỹ Momo")],
+      5500000, [repayment], [fundGroupRow("essential", "Nhu cầu thiết yếu", "fund", true)],
+      { sourceAccountNames: ["Tiền Mặt", "Grap Tiền Mặt", "Momo"], rentReserveAmount: 0 }
+    );
+  };
+  for (const title of ["Trả lại tiền nợ tiền mặt hôm trước", "Trả lại tiền nợ Tiền Mặt", "Trả lại khoản nợ hôm trước", "Trả nợ hôm trước", "Hoàn lại tiền đã ứng"]) {
+    const data = build(title, "cash");
+    const cashAdvance = data.explicitLedger.previousMonthAdvances.accounts.find((item) => item.accountId === "cash");
+    assert.equal(cashAdvance.principal, 50000);
+    assert.equal(cashAdvance.repaid, 50000);
+    assert.equal(cashAdvance.outstanding, 0);
+    assert.equal(data.explicitLedger.previousMonthAdvances.unmatchedSources.some((row) => row.id === "repay-cash"), false);
+  }
+  const contradictoryDestination = build("Trả lại tiền nợ Momo", "cash");
+  assert.equal(contradictoryDestination.explicitLedger.previousMonthAdvances.accounts.find((item) => item.accountId === "cash").repaid, 0);
+  const namedOtherAccount = build("Trả lại cho Momo", "cash");
+  assert.equal(namedOtherAccount.explicitLedger.previousMonthAdvances.accounts.find((item) => item.accountId === "momo").repaid, 0);
+  const ordinaryTransfer = build("Chuyển tiền sang Tiền Mặt", "cash");
+  assert.equal(ordinaryTransfer.explicitLedger.previousMonthAdvances.accounts.find((item) => item.accountId === "cash").repaid, 0);
+  const otherDestination = build("Trả lại tiền nợ tiền mặt hôm trước", "fund");
+  assert.equal(otherDestination.explicitLedger.previousMonthAdvances.accounts.find((item) => item.accountId === "cash").repaid, 0);
+});
 test("group quỹ còn sums funded child labels and keeps an evidenced debt on its child", () => {
   const data = buildAccountSpendingData_(
     { y: 2026, m: 9, d: 20 },
