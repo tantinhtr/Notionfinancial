@@ -220,24 +220,7 @@ function budgetLine_(group, allocationTarget) {
     money_(showsMonthlyAllocation ? allocationTarget : group.budget);
   if (over > 0) {
     row += ' · vượt ' + money_(over);
-  } else if (group.requiresAllocation && !showsMonthlyAllocation) {
-    // Nhóm có quỹ riêng thì "còn" phải là TIỀN THẬT đang nằm trong tài khoản giữ
-    // quỹ, không phải ngân sách trừ đã tiêu. Phần ngân sách chưa cấp vào quỹ thì
-    // chưa phải tiền của nhóm cho tới khi được cấp.
-    const hasChildFunding = children.some((child) =>
-      Object.hasOwn(child, 'allocated'),
-    );
-    const attributed = children.reduce(
-      (sum, child) => sum + (child.fundRemaining || 0), 0,
-    );
-    const held =
-      children.length > 1 && hasChildFunding
-        ? attributed || group.unassignedFundRemaining || 0
-        : group.fundRemaining || 0;
-    if (held > 0 && (hasChildFunding || legacyFundBalanceChildName_(group) === '')) {
-      row += ' · quỹ còn ' + money_(held);
-    }
-  } else if (!showsMonthlyAllocation) {
+  } else if (!group.requiresAllocation && !showsMonthlyAllocation) {
     row +=
       ' · còn ' + money_(Math.max((group.budget || 0) - (group.spent || 0), 0));
   }

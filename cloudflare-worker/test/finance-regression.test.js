@@ -1347,7 +1347,7 @@ test("September 2026 explicit ledger preserves the complete snapshot and indepen
   assert.deepEqual(withChangedBalances.explicitLedger, ledger);
   const text = fundBudgetText_(data);
   assert.match(text, /Nhà Trọ: 2\.017\.000đ \/ 2\.150\.000đ/);
-  assert.match(text, /Nhu cầu thiết yếu:[^\n]*quỹ còn 133\.004đ/);
+  assert.doesNotMatch(text, /Nhu cầu thiết yếu:[^\n]*quỹ còn/);
   assert.match(text, /Tiết kiệm dài hạn: 158\.706đ \/ 424\.929đ/);
   assert.match(text, /Đầu tư tài chính: 0đ \/ 424\.927đ/);
   assert.match(text, /Hưởng thụ: 0đ \/ 424\.927đ/);
@@ -1798,7 +1798,7 @@ test("a group only reports as spare the money actually sitting in its fund", () 
 
   const beforeText = fundBudgetText_(before);
   // Chua cap 70.000 thi khong duoc khoe "con 101.600" — trong quy chi co 31.600 that.
-  assert.match(beforeText, /✅ Thiết Yếu:[^\n]*quỹ còn 31\.600đ/);
+  assert.doesNotMatch(beforeText, /✅ Thiết Yếu:[^\n]*quỹ còn/);
   assert.match(beforeText, /Nhà Trọ:[^\n]*quỹ còn 28\.000đ/);
   assert.match(beforeText, /Internet:[^\n]*quỹ còn 3\.600đ/);
   assert.doesNotMatch(beforeText, /Nhà Trọ:[^\n]*đã cấp/);
@@ -2142,7 +2142,8 @@ test("a jar keeps its children visible and honours old names in notes", () => {
   ]);
 
   const text = fundBudgetText_(data);
-  assert.match(text, /✅ Nhu cầu thiết yếu: 2\.844\.000đ \/ 4\.150\.000đ · quỹ còn 70\.000đ/);
+  assert.match(text, /✅ Nhu cầu thiết yếu: 2\.844\.000đ \/ 4\.150\.000đ/);
+  assert.doesNotMatch(text, /Nhu cầu thiết yếu:[^\n]*quỹ còn/);
   assert.match(text, /   • Nhà Trọ: 2\.130\.000đ \/ 2\.150\.000đ/);
   assert.doesNotMatch(text, /Đi Chợ:[^\n]*đã chi từ/);
   assert.match(text, /   • Phát Sinh: 45\.000đ \/ 600\.000đ/);
@@ -2549,7 +2550,7 @@ test("group quỹ còn sums funded child labels and keeps an evidenced debt on i
   assert.equal(group.children.find((child) => child.name === "Internet").fundRemaining, 180000);
   assert.equal(group.children.reduce((sum, child) => sum + child.fundRemaining, 0), 313004);
   const report = fundBudgetText_(data);
-  assert.match(report, /Nhu cầu thiết yếu:[^\n]*quỹ còn 313\.004đ/);
+  assert.doesNotMatch(report, /Nhu cầu thiết yếu:[^\n]*quỹ còn/);
   assert.doesNotMatch(report, /Nhu cầu thiết yếu:[^\n]*còn nợ/);
   assert.match(report, /Nhà Trọ:[^\n]*còn nợ Quỹ Tiết kiệm dài hạn 750\.000đ/);
 });
@@ -2867,7 +2868,7 @@ test("fund budget text preserves approved fund statuses and heading", () => {
     "📦 QUỸ & NGÂN SÁCH — tháng 7/2026\n" +
       "\n" +
       "📊 NHÓM QUỸ — 3.657.844đ / 4.900.000đ\n" +
-      "✅ Thiết Yếu: 2.277.400đ / 2.400.000đ · quỹ còn 122.600đ · đã cấp 2.400.000đ\n\n" +
+      "✅ Thiết Yếu: 2.277.400đ / 2.400.000đ · đã cấp 2.400.000đ\n\n" +
       "✅ Đi Chợ: 801.000đ / 1.300.000đ · còn 499.000đ\n\n" +
       "✅ Phát Sinh: 0đ / 600.000đ · chưa cấp\n\n" +
       "⛔ Làm YouTube: 554.444đ / 500.000đ · vượt 54.444đ · đã cấp 555.000đ\n\n" +
@@ -3008,4 +3009,21 @@ test("fund report keeps the prior-month remainder out of the bot message", () =>
     }
   });
   assert.equal(text, "📦 QUỸ & NGÂN SÁCH — tháng 10/2026\n\nChưa có dữ liệu tháng này.");
+});
+
+test("fund remaining is shown only on the child label for the October rent report", () => {
+  const text = fundBudgetText_({
+    t: { y: 2026, m: 10, d: 3 },
+    fundGroups: [{
+      name: "Nhu cầu thiết yếu", spent: 1958000, budget: 4400000,
+      requiresAllocation: true, allocated: 2150000, fundRemaining: 192000,
+      children: [
+        { name: "Nhà Trọ", spent: 1958000, budget: 2150000, allocated: 2150000, fundRemaining: 192000 },
+        { name: "Đi Chợ", spent: 0, budget: 1400000, allocated: 0, fundRemaining: 0 }
+      ]
+    }]
+  });
+  assert.match(text, /✅ Nhu cầu thiết yếu: 1\.958\.000đ \/ 4\.400\.000đ\n/);
+  assert.doesNotMatch(text, /Nhu cầu thiết yếu:[^\n]*quỹ còn/);
+  assert.match(text, /Nhà Trọ: 1\.958\.000đ \/ 2\.150\.000đ · quỹ còn 192\.000đ/);
 });
