@@ -825,7 +825,7 @@ test("runtime wires routed goal and reminder to the same repository and Telegram
   const runtime = createRuntime(createEnv(), () => new Date("2026-07-29T03:15:00Z"));
   const sent = [];
   let reads = 0;
-  runtime.repository.getGoalStatus = async () => { reads++; return goalFixture(); };
+  runtime.repositories.incomeGoal.getGoalStatus = async () => { reads++; return goalFixture(); };
   runtime.telegram.sendMessage = async (...args) => { sent.push(args); };
   await runtime.bot.processUpdate({ update_id: 1, message: {
     text: "/muctieu", from: { id: 42 }, chat: { id: 9001 }

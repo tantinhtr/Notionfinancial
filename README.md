@@ -51,36 +51,16 @@ Cloudflare Worker ──► Notion API
 
 Mã nguồn chính nằm trong `cloudflare-worker/`:
 
-```text
-cloudflare-worker/
-├── src/
-│   ├── index.js                 # Export Worker và Durable Object
-│   ├── app/
-│   │   ├── runtime.js           # Tạo adapter, repository, component và router
-│   │   ├── webhook.js           # HTTP endpoints và cron
-│   │   ├── update-coordinator.js # Durable Object và tuần tự hóa
-│   │   └── coordinator-handler.js # Chống lặp và đối soát update
-│   ├── bot.js                   # Phân quyền, định tuyến lệnh và callback
-│   ├── features/
-│   │   ├── cashflow/            # Dòng tiền: component, model, presenter, callbacks
-│   │   ├── fund-budget/         # Quỹ: component, model, presenter
-│   │   └── income-goal/         # Mục tiêu, ghi thu nhập và nhắc hằng ngày
-│   ├── domain/
-│   │   ├── finance/             # Phân loại chi, định dạng dùng chung, dữ liệu thu nhập
-│   │   └── ledger/              # Vay quỹ, vay cá nhân, ứng tháng trước và phân bổ
-│   ├── repositories/           # Truy vấn, cache và lắp dữ liệu báo cáo
-│   ├── adapters/               # Notion, Telegram và KV
-│   └── config.js               # Cấu hình nghiệp vụ và Notion database IDs
-├── test/                       # Unit, component contract và regression test
-├── package.json
-└── wrangler.jsonc
-```
+The project uses a **Modular Monolith**: one Worker deployment, organized by feature.
 
-Mỗi tính năng có một `component.js` điều phối việc đọc dữ liệu và gửi kết quả. `model.js` tính toán trên dữ liệu thuần; `presenter.js` trả về `{ text, replyMarkup }`. Cashflow sở hữu điều hướng tài khoản → chiều tiền → loại giao dịch; fund-budget sở hữu báo cáo quỹ; income-goal sở hữu mục tiêu, ghi thu nhập, xác nhận sau đối soát và nhắc hằng ngày.
+- Each feature owns its component, repository, model and presenter, with an explicit index.js public API.
+- app/runtime.js wires modules and injected Notion, Telegram and cache adapters.
+- domain contains shared financial rules; adapters perform external I/O.
+- repositories/finance-repository.js composes repositories and coordinates cache invalidation.
+- jobs orchestrates scheduled work.
+- Legacy facades remain compatible. Automated tests guard module boundaries.
 
-`app/runtime.js` tạo các dependency rồi truyền vào component và router. Repository chỉ trả dữ liệu, dùng các model thuần của cashflow/fund-budget để lắp báo cáo; adapter thực hiện I/O. Domain chỉ phụ thuộc domain. Các feature không import nội bộ của nhau.
-
-Các file `finance.js`, `ledger.js`, `repository.js`, `notion.js`, `telegram.js`, `state.js` và `coordinator.js` ở đầu `src/` là facade giữ tương thích import cũ. Khi thêm logic, đặt vào component/domain/adapter tương ứng. `createBot` vẫn hỗ trợ cách khởi tạo cũ; runtime mới truyền trực tiếp ba component vào `createBotRouter`.
+See [module ownership and data flows](docs/architecture.md) and [contributor workflow](CONTRIBUTING.md).
 
 ## Yêu cầu
 

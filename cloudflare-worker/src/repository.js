@@ -1,1 +1,1 @@
-export { AmbiguousIncomeWriteError, historyLookupRequired_, createFinanceRepository } from "./repositories/finance-repository.js";
+export { AmbiguousIncomeWriteError, historyLookupRequired_, createFinanceRepository, createFinanceRepositories } from "./repositories/finance-repository.js";

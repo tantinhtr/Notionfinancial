@@ -22,13 +22,13 @@ export class UpdateCoordinator extends DurableObject {
     super(ctx, env);
     const now = () => new Date();
     const runExclusive = createPromiseTailMutex();
-    const { bot, config, repository, telegram } = createRuntime(env, now);
+    const { bot, config, repositories, telegram } = createRuntime(env, now);
     this.handler = createCoordinatorHandler({
       storage: ctx.storage,
       runExclusive,
       classifyUpdate: (update) => classifyUpdate(update, config.allowedUserId),
       executeUpdate: (update) => bot.processUpdate(update),
-      reconcileIncome: (updateId) => repository.findGrabIncomeByUpdateId(updateId),
+      reconcileIncome: (updateId) => repositories.incomeGoal.findGrabIncomeByUpdateId(updateId),
       completeReconciledIncome: (update) => bot.completeReconciledIncome(update),
       warnNeedsReconciliation: (update) => telegram.sendMessage(
         config.allowedUserId,

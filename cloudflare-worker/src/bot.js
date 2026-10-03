@@ -1,7 +1,7 @@
 import { parseAmount } from "./domain/finance/income-input.js";
-import { createCashflowComponent } from "./features/cashflow/component.js";
-import { createFundBudgetComponent } from "./features/fund-budget/component.js";
-import { createIncomeGoalComponent } from "./features/income-goal/component.js";
+import { createCashflowComponent } from "./features/cashflow/index.js";
+import { createFundBudgetComponent } from "./features/fund-budget/index.js";
+import { createIncomeGoalComponent } from "./features/income-goal/index.js";
 import { FALLBACK_TEXT, HOME_KEYBOARD, callbackErrorText } from "./app/bot-presenter.js";
 
 function messageFrom(update) {
