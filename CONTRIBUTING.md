@@ -50,3 +50,11 @@ CI runs npm run check and npm test, including boundary tests. Public repository 
 Before copying a helper, check the shared-policy ownership table in docs/architecture.md. Change cache prefixes and TTL only in services/report-cache.js. Use the shared calendar for income dates and reports. Use domain/ledger/transaction-language.js for shared repayment vocabulary; preserve the separate matching rules for each ledger.
 
 When changing a shared module, test its consumers as well as the helper. Keep financial calculations out of adapters and presenters. Different numeric coercion and fallback policies are not interchangeable just because their code looks similar.
+
+## Project-wide module ownership
+
+Use docs/module-map.md to locate the responsible module before editing. New production files must fit an explicit role in test/helpers/architecture-policy.js. Do not loosen dependency rules merely to make an import pass; place the behavior in the owning module or inject the required port.
+
+Nested models cannot import presenters or I/O. Presenters cannot import models. Module dependencies must remain acyclic. Root compatibility facades contain only exports; production modules use the real owner directly.
+
+For broad refactors, compare complete report results and input side effects against the prior revision, in addition to running the regression suite. npm run check parses all production files.

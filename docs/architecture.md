@@ -43,7 +43,7 @@ The old createFinanceRepository aggregate and top-level facades remain compatibl
 | Request | Owner |
 |---|---|
 | Account navigation and cashflow output | features/cashflow |
-| Parent or child budget text | features/fund-budget/presenter.js |
+| Parent or child budget text | features/fund-budget/presenters/group-lines.js |
 | Fund calculations | features/fund-budget/model.js and domain rules |
 | Historical queries and rollover inputs | features/fund-budget/repository.js |
 | Repayment matching | domain/ledger |
@@ -90,3 +90,11 @@ To add a repayment synonym, edit the appropriate vocabulary fragment, then test 
 Numeric readers are intentionally separate where semantics differ (strict finite numbers versus coercion or formula/rollup support). Fund text reading also retains its original fallback behavior. Do not merge merely similar functions without checking their contracts.
 
 Verification: baseline 305 tests; 310 tests after extraction. New coverage exercises cache hits/refresh/invalidation, cache failure fallback, month-boundary consistency and shared vocabulary. Existing adapter tests continue covering error handling. Financial amounts, allocation weights, report text and freshness behavior are unchanged by this refactor.
+
+## Project-wide modularity
+
+See [the complete module map](module-map.md) for all source ownership, fund calculation/presentation submodules, ledger validation and application entry points.
+
+All production files are covered by the dependency matrix and cycle checks in project-architecture.test.js. Pure nested models/presenters receive the same protection as their top-level entry points. The root bot.js is now a compatibility facade; app/bot-router.js owns routing, and app/legacy-bot.js preserves legacy initialization.
+
+npm run check now checks every production JavaScript file. Existing boundary checks remain in place alongside the full-project matrix.

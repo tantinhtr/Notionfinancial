@@ -60,7 +60,7 @@ The project uses a **Modular Monolith**: one Worker deployment, organized by fea
 - jobs orchestrates scheduled work.
 - Legacy facades remain compatible. Automated tests guard module boundaries.
 
-See [module ownership and data flows](docs/architecture.md) and [contributor workflow](CONTRIBUTING.md).
+See [module ownership and data flows](docs/architecture.md), the [complete source module map](docs/module-map.md), and [contributor workflow](CONTRIBUTING.md).
 
 ## Yêu cầu
 

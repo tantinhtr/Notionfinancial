@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import { classifyUpdate } from "../bot.js";
+import { classifyUpdate } from "./bot-router.js";
 import { createCoordinatorHandler } from "./coordinator-handler.js";
 import { createRuntime } from "./runtime.js";
 import { jsonResponse } from "./http-response.js";

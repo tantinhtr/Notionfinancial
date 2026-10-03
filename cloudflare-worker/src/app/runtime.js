@@ -1,5 +1,5 @@
 import { getConfig } from "../config.js";
-import { createBotRouter } from "../bot.js";
+import { createBotRouter } from "./bot-router.js";
 import { createNotionClient } from "../adapters/notion.js";
 import { createTelegramClient } from "../adapters/telegram.js";
 import { createStateStore } from "../adapters/state.js";
