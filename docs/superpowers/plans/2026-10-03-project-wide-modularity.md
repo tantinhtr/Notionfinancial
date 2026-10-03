@@ -11,7 +11,7 @@ Execution: inline in the authorized workspace; preserve existing user changes an
 - [x] Split ledger validation and advance state/evidence; move router and separate webhook/scheduled concerns.
 - [x] Enforce dependency rules and cycles across every source file, including negative examples.
 - [x] Document full ownership and run all tests, syntax, bundle and diff review.
-- [ ] Commit scoped work, deploy and verify health/version; report live Telegram access limitation if present.
+- [x] Commit scoped work, deploy and verify health/version; report live Telegram access limitation if present.
 
 ## Verification evidence
 - Baseline: 310/310 tests passed.
@@ -21,4 +21,6 @@ Execution: inline in the authorized workspace; preserve existing user changes an
 - Wrangler dry run: passed; bundle 174.42 KiB.
 - Independent review: no blocking code findings; architecture tests independently passed 3/3. Scope wording clarified.
 - Telegram UI attempt: failed to initialize browser kernel (Windows apply deny-read ACLs); not verified.
-- Deployment verification pending.
+- Source commit: 2637ac2. Deployed version 271aadb7-e149-450a-9ac5-35531b7368f7 verified at 100% traffic; health HTTP 200 on 2026-10-03 17:14 UTC (2026-10-04 local).
+- Previous version for rollback: bd15d145-09fe-42c8-9f55-410741296e02.
+- No public Git push; browser UI remains unverified as noted above.
