@@ -20,7 +20,7 @@ No financial, text, cache, query, retry or callback changes. No new runtime depe
 - [x] Document module ownership, ports, regression examples and contributor workflow in docs/architecture.md and CONTRIBUTING.md; link README.
 - [x] Run all tests, syntax check, boundary negative probe and Wrangler dry-run bundle.
 - [x] Review exact-output and write-idempotency tests; inspect diff for nonstructural changes.
-- [ ] Commit only scoped files; deploy verified bundle and check active version/health if authorized, clearly distinguish live UI verification.
+- [x] Commit only scoped files; deploy verified bundle and check active version/health if authorized, clearly distinguish live UI verification.
 
 ## Review focus
 - Income creation still invalidates both caches in order, and failed invalidation cannot turn a successful write into failure.
@@ -34,3 +34,6 @@ No financial, text, cache, query, retry or callback changes. No new runtime depe
 - Refactor: 305/305 tests passed; syntax check and Wrangler dry run passed.
 - Negative probe: forbidden feature import was detected; source restored and full suite passed.
 - Telegram UI: browser automation kernel failed to start; live button verification is unavailable.
+- Source commit: fe03316. Deployment: ff589289-14ab-4e0c-9f86-9ab8b4fd64fc, verified at 100% traffic; /health returned HTTP 200 on 2026-10-03 15:39 UTC.
+- Previous version for rollback: cdb18ba5-abca-4893-b2cc-453342bcb929.
+- No public Git push performed. Live Telegram button verification remains unverified due to the browser kernel failure.
