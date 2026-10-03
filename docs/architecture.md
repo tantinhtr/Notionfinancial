@@ -66,3 +66,27 @@ Keep one calculation for the report consumed by Telegram and Notion. Do not add 
 Run npm test and npm run check from cloudflare-worker. module-contracts.test.js checks isolation, invalidation and scheduled sync. module-boundaries.test.js guards import direction. Existing regression tests cover financial behavior and output.
 
 Passing local tests or a health endpoint does not prove a Telegram button works live. Record the deployed version and actual verification boundary.
+
+## Shared policies and SOLID responsibilities
+
+The October 3 shared-policy refactor keeps the existing feature boundaries and adds:
+
+| Concern | Single owner |
+|---|---|
+| Report cache keys, TTL, optional failures and invalidation | src/services/report-cache.js |
+| Date extraction and timezone formatter | src/domain/finance/calendar.js |
+| Notion text and first relation decoding | src/domain/finance/notion-properties.js |
+| Common repayment/reimbursement vocabulary and history hint | src/domain/ledger/transaction-language.js |
+| JSON response parsing and token redaction | src/adapters/http-response.js |
+
+SRP: repositories own report queries, the cache service owns caching policy, models own calculations, presenters own Telegram output, and adapters own transport. Domain recognition identifies an action; ledger modules retain responsibility for matching its accounts, parties and obligations.
+
+Dependency inversion: the cache service receives a state port and report-loader callback; it never creates a storage client. The existing repositories and components continue receiving their dependencies. Pure modules cannot import services or adapters, enforced by module-boundaries.test.js.
+
+Interface segregation: each feature still receives its own repository port. No class hierarchy or generic framework was introduced. Open/closed and substitution principles are supported by the existing injected ports and contract tests rather than speculative abstractions.
+
+To add a repayment synonym, edit the appropriate vocabulary fragment, then test both history eligibility and the applicable ledger interpretation. A recognized action alone never proves that a particular debt was repaid. Different debt types retain their own parsing and matching rules.
+
+Numeric readers are intentionally separate where semantics differ (strict finite numbers versus coercion or formula/rollup support). Fund text reading also retains its original fallback behavior. Do not merge merely similar functions without checking their contracts.
+
+Verification: baseline 305 tests; 310 tests after extraction. New coverage exercises cache hits/refresh/invalidation, cache failure fallback, month-boundary consistency and shared vocabulary. Existing adapter tests continue covering error handling. Financial amounts, allocation weights, report text and freshness behavior are unchanged by this refactor.

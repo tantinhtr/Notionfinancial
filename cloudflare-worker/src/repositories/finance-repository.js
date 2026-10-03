@@ -1,3 +1,4 @@
+import { invalidateReportCaches } from "../services/report-cache.js";
 import { createCashflowRepository } from "../features/cashflow/index.js";
 import { createFundBudgetRepository } from "../features/fund-budget/index.js";
 import { createIncomeGoalRepository } from "../features/income-goal/index.js";
@@ -48,10 +49,7 @@ export function createFinanceRepositories({ notion, state, config, now = () => n
     fundBudget: createFundBudgetRepository(dependencies),
     incomeGoal: createIncomeGoalRepository({
       notion, config, now,
-      async invalidateReports(dateISO) {
-        await state.deleteReportCache(`monthly-cashflow:${dateISO}`);
-        await state.deleteReportCache(`fund-budget:${dateISO}`);
-      }
+      invalidateReports: (dateISO) => invalidateReportCaches(state, dateISO)
     })
   };
 }

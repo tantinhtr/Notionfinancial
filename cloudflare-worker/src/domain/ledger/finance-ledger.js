@@ -1,3 +1,4 @@
+import { PERSONAL_LOAN_HINT, FUND_REPAYMENT, REIMBURSEMENT, REIMBURSEMENT_ACTIONS } from "./transaction-language.js";
 import { propertyText_, validTransactionDate_, readFinanceRows_, mergeDataIssue_, missingFields_ } from "./rows.js";
 import { chronologyOnly_, fundNameKey_, positiveEvidenceText_, resolveFund_, orderedFinanceRows_, isExplicitPreviousMonthUse_, isExplicitReimbursement_ } from "./evidence.js";
 import { buildFundLoanLedger_ } from "./fund-loan-ledger.js";
@@ -46,7 +47,7 @@ export function buildFinanceLedger_({
       // This is row-specific evidence, not a classification of every row with this category ID.
       loanCategoryIds.add(row.categoryId);
       personalRows.push(fallback);
-    } else if (row.amount > 0 && /\b(?:muon|tra no|tra lai|hoan lai)\b/.test(row.normalizedText)) {
+    } else if (row.amount > 0 && PERSONAL_LOAN_HINT.test(row.normalizedText)) {
       unresolvedPersonalRows.push({ ...row, unmatchedAmount: row.amount, reason: "unidentified-personal-income" });
     }
   }
@@ -116,7 +117,7 @@ function validateExplicitConflicts_(rows, accountNamesById, fundGroups, onIssue)
     for (const clause of text.split(/[|;]/)) {
       const opening = /\bmuon(?:\s+tien)?(?:\s+cua)?\s+(.+?)(?=\s+(?:chuyen|sang|cho|de)\b|$)/.exec(clause);
       if (opening) sourcePhrases.push(opening[1]);
-      const repayment = /\b(?:tra lai|hoan lai|tra no)\b/.exec(clause);
+      const repayment = FUND_REPAYMENT.exec(clause);
       if (!repayment) continue;
       const before = clause.slice(0, repayment.index).trim().replace(/^tu\s+/, "");
       if (before) sourcePhrases.push(before);
@@ -165,8 +166,8 @@ function validateReimbursements_(rows, accountNamesById, fundGroups, personalLoa
     }
     if (!isExplicitReimbursement_(row) || personalIds.has(row.id) || fundIds.has(row.id)) continue;
     const text = positiveEvidenceText_(row.normalizedText);
-    if (!/\b(?:tra lai|hoan lai|cap bu)\b/.test(text)) continue;
-    const phrases = [...text.matchAll(/\b(?:tra lai|hoan lai|cap bu)\s*(.*?)(?=\s+(?:tu|bang|thanh toan)\s+|[|;]|$)/g)]
+    if (!REIMBURSEMENT.test(text)) continue;
+    const phrases = [...text.matchAll(new RegExp("\\b(?:" + REIMBURSEMENT_ACTIONS + ")\\s*(.*?)(?=\\s+(?:tu|bang|thanh toan)\\s+|[|;]|$)", "g"))]
       .flatMap((match) => match[1].replace(/^(?:[\d.,]+(?![\d.,/-])\s*(?:d|dong)?\s*)?(?:tien\s*)?(?:cho\s*)?/, "").split(/\s+(?:va|hoac)\s+/))
       .map((phrase) => phrase.trim().replace(/[.,]+$/, "")).filter(Boolean);
     const matches = [...new Set(phrases.flatMap((phrase) => {

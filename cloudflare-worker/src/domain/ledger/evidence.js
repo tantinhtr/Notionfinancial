@@ -1,3 +1,4 @@
+import { REIMBURSEMENT } from "./transaction-language.js";
 import { normalizeSearchText_ } from "../finance/shared.js";
 
 export function chronologyOnly_(text) {
@@ -48,5 +49,5 @@ export function isExplicitPreviousMonthUse_(row) {
 
 export function isExplicitReimbursement_(row) {
   const text = row.normalizedText || normalizeSearchText_(row.text || [row.title, row.note].filter(Boolean).join(" | "));
-  return /\b(?:tra lai|hoan lai|cap bu)\b/.test(text);
+  return REIMBURSEMENT.test(text);
 }

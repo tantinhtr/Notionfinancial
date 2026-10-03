@@ -1,3 +1,4 @@
+import { PERSONAL_LOAN_HINT } from "./transaction-language.js";
 import { validTransactionDate_ } from "./rows.js";
 import { chronologyOnly_, accountName_ } from "./evidence.js";
 import { normalizeSearchText_ } from "../finance/shared.js";
@@ -39,7 +40,7 @@ export function personalIncomeFallback_(row) {
       .filter((match) => match && match[0].length === text.length
         && !/\b(?:va|hoac|cho|muon|tra|no)\b/.test(match[1]));
     if (matches.length === 1) return { ...row, title: value, note: "" };
-    if (/\b(?:muon|tra no|tra lai|hoan lai)\b/.test(text)) return null;
+    if (PERSONAL_LOAN_HINT.test(text)) return null;
   }
   return null;
 }

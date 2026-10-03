@@ -44,3 +44,9 @@ Deploy the reviewed revision with npm run deploy. Verify the active version with
 Report missing live access accurately. Local tests and HTTP 200 do not verify Telegram output. Keep the preceding deployment version available for rollback. Do not change webhook configuration for an ordinary code release.
 
 CI runs npm run check and npm test, including boundary tests. Public repository pushes require the appropriate authorization.
+
+## Shared-policy changes
+
+Before copying a helper, check the shared-policy ownership table in docs/architecture.md. Change cache prefixes and TTL only in services/report-cache.js. Use the shared calendar for income dates and reports. Use domain/ledger/transaction-language.js for shared repayment vocabulary; preserve the separate matching rules for each ledger.
+
+When changing a shared module, test its consumers as well as the helper. Keep financial calculations out of adapters and presenters. Different numeric coercion and fallback policies are not interchangeable just because their code looks similar.

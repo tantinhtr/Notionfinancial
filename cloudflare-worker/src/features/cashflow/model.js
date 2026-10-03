@@ -1,18 +1,5 @@
+import { propertyText_ as cashflowPropertyText_, relationId_ as cashflowFirstRelationId_ } from "../../domain/finance/notion-properties.js";
 import { normalizeSearchText_, notionIdToken_, num_ } from "../../domain/finance/shared.js";
-
-function cashflowPropertyText_(prop) {
-  const parts = (prop && (prop.title || prop.rich_text)) || [];
-  let text = '';
-  for (const part of parts) {
-    text += part.plain_text || (part.text && part.text.content) || '';
-  }
-  return text;
-}
-
-function cashflowFirstRelationId_(prop) {
-  const relation = (prop && prop.relation) || [];
-  return relation.length ? relation[0].id : '';
-}
 
 function cashflowDate_(prop) {
   return (prop && prop.date && prop.date.start) || '';

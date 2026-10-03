@@ -1,19 +1,11 @@
+import { calendarDateParts } from "../../domain/finance/calendar.js";
+export { createReportDateFormatter } from "../../domain/finance/calendar.js";
 import { iso_ } from "../../domain/finance/shared.js";
 
 export const MONTH_DATE_PROPERTY = "Ngày";
 
 export function createDateParts(now, dateFormatter) {
-  const date = now();
-  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
-    throw new TypeError("now must return a valid Date");
-  }
-  const parts = dateFormatter.formatToParts(date);
-  const values = Object.fromEntries(
-    parts
-      .filter((part) => part.type === "year" || part.type === "month" || part.type === "day")
-      .map((part) => [part.type, Number(part.value)])
-  );
-  return { y: values.year, m: values.month, d: values.day };
+  return calendarDateParts(now(), dateFormatter);
 }
 
 export function monthFilterFor(t) {
@@ -36,13 +28,4 @@ export function dateProperty(row, property) {
 
 export function daysInMonth(year, month) {
   return new Date(Date.UTC(year, month, 0)).getUTCDate();
-}
-
-export function createReportDateFormatter(timezone) {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  });
 }

@@ -37,7 +37,7 @@ test("production consumers use feature public entry points and features cannot i
         assert.equal(/^(adapters|app|repositories|jobs)\//.test(target), false, origin + " imports infrastructure");
       }
       if (origin.startsWith("adapters/")) {
-        assert.equal(/^(app|features|repositories|jobs)\//.test(target), false, origin + " imports application code");
+        assert.equal(/^(app|features|repositories|jobs|services)\//.test(target), false, origin + " imports application code");
       }
     }
   }
@@ -53,7 +53,7 @@ test("domain, shared helpers, models and presenters have no external I/O depende
     for (const specifier of imports(source)) {
       assert.equal(specifier.startsWith("."), true, origin + " imports a platform dependency");
       const target = relative(root, resolve(dirname(file), specifier)).replaceAll("\\", "/");
-      assert.equal(/^(app|adapters|repositories|jobs)\//.test(target)
+      assert.equal(/^(app|adapters|repositories|jobs|services)\//.test(target)
         || /\/(repository|component|six-jar-sync|index)\.js$/.test(target), false, origin + " imports I/O orchestration");
     }
   }

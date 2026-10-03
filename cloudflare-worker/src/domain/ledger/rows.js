@@ -1,14 +1,7 @@
 import { normalizeSearchText_ } from "../finance/shared.js";
 
-export function propertyText_(property) {
-  const parts = (property && (property.title || property.rich_text)) || [];
-  return parts.map((part) => part.plain_text || part.text?.content || "").join("");
-}
-
-export function relationId_(property) {
-  const relation = property?.relation || [];
-  return relation.length ? relation[0].id : "";
-}
+import { propertyText_, relationId_ } from "../finance/notion-properties.js";
+export { propertyText_, relationId_ } from "../finance/notion-properties.js";
 
 function amount_(property) {
   return Number(property?.number) || 0;

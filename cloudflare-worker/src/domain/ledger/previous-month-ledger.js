@@ -1,3 +1,4 @@
+import { REIMBURSEMENT_ACTIONS } from "./transaction-language.js";
 import { positiveEvidenceText_, accountName_, orderedFinanceRows_, isExplicitPreviousMonthUse_, isExplicitReimbursement_ } from "./evidence.js";
 import { normalizeSearchText_ } from "../finance/shared.js";
 
@@ -66,7 +67,7 @@ function isRentReserveTransfer_(row, categoryNamesById) {
 
 function matchingSourceStates_(row, states) {
   const text = row.normalizedText || normalizeSearchText_(row.text || [row.title, row.note].filter(Boolean).join(" | "));
-  const beneficiaries = [...text.matchAll(/\b(?:tra lai|hoan lai|cap bu)\s+(?:[\d.,]+\s*(?:d|dong)?\s*)?(?:tien\s+)?(?:cho\s+)?(.+?)(?=\s+(?:tu|bang|thanh toan)\s+|[|;]|$)/g)]
+  const beneficiaries = [...text.matchAll(new RegExp("\\b(?:" + REIMBURSEMENT_ACTIONS + ")\\s+(?:[\\d.,]+\\s*(?:d|dong)?\\s*)?(?:tien\\s+)?(?:cho\\s+)?(.+?)(?=\\s+(?:tu|bang|thanh toan)\\s+|[|;]|$)", "g"))]
     .map((match) => match[1].trim().replace(/[.,]+$/, ""));
   const named = [...states.values()].filter((state) => beneficiaries.includes(normalizeSearchText_(state.account.accountName)));
   if (named.length) return named

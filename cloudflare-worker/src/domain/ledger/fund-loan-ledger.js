@@ -1,3 +1,4 @@
+import { FUND_REPAYMENT } from "./transaction-language.js";
 import { propertyText_, relationId_, validTransactionDate_ } from "./rows.js";
 import { chronologyOnly_, fundNameKey_, positiveEvidenceText_, resolveFund_, accountName_ } from "./evidence.js";
 import { normalizeSearchText_ } from "../finance/shared.js";
@@ -31,7 +32,7 @@ export function buildFundLoanLedger_(rows = [], fundGroups = [], {
   for (const row of orderedRows) {
     if (row.kind !== "transfer" || row.amount <= 0) continue;
     const text = positiveEvidenceText_(row.normalizedText);
-    const repayment = /\b(tra lai|hoan lai|tra no)\b/.exec(text);
+    const repayment = FUND_REPAYMENT.exec(text);
     if (repayment) {
       // A relation on a repayment names its receiving lender, never its borrower.
       const before = text.slice(0, repayment.index).trim().replace(/^tu\s+/, "");

@@ -1,3 +1,5 @@
+import { parseJson, redactToken } from "./http-response.js";
+
 const TELEGRAM_TEXT_LIMIT = 3900;
 const TRUNCATION_SUFFIX = '\n\n... Tin nhắn quá dài nên đã rút gọn.';
 
@@ -10,21 +12,6 @@ function truncateMessage(text) {
     message.slice(0, TELEGRAM_TEXT_LIMIT - TRUNCATION_SUFFIX.length) +
     TRUNCATION_SUFFIX
   );
-}
-
-async function parseJson(response) {
-  try {
-    return await response.json();
-  } catch {
-    return null;
-  }
-}
-
-function redactToken(text, token) {
-  if (typeof text !== 'string' || typeof token !== 'string' || token === '') {
-    return text;
-  }
-  return text.split(token).join('[REDACTED]');
 }
 
 function telegramError(method, status, description, telegramToken) {
