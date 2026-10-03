@@ -344,7 +344,11 @@ test("webhook derives the exact Durable Object ID and waits for successful forwa
   assert.equal(JSON.stringify(body).includes("650000"), false);
 });
 
-test("webhook returns a redacted 500 when Durable Object processing fails", async () => {
+async function failureWebhookFetch(...args) {
+  return withGlobalFetch(async () => telegramResponse(), () => worker.fetch(...args));
+}
+
+test("webhook acknowledges a processing failure with a redacted 200 when Durable Object processing fails", async () => {
   const env = createEnv({
     UPDATE_COORDINATOR: {
       idFromName() {
@@ -368,7 +372,7 @@ test("webhook returns a redacted 500 when Durable Object processing fails", asyn
   console.error = (...args) => logs.push(structuredClone(args));
   let response;
   try {
-    response = await worker.fetch(
+    response = await failureWebhookFetch(
       webhookRequest(JSON.stringify(update(303))),
       env,
       {}
@@ -378,7 +382,7 @@ test("webhook returns a redacted 500 when Durable Object processing fails", asyn
   }
   const body = await responseJson(response);
 
-  assert.equal(response.status, 500);
+  assert.equal(response.status, 200);
   assert.deepEqual(body, { status: "processing_failed" });
   assert.deepEqual(logs, [[{
     event: "telegram_update_processing_failed",
@@ -451,13 +455,13 @@ test("Worker logs only structured bounded metadata for each processing failure s
         }
       });
 
-      const response = await worker.fetch(
+      const response = await failureWebhookFetch(
         webhookRequest(JSON.stringify(update(304))),
         env,
         {}
       );
 
-      assert.equal(response.status, 500, scenario.stage);
+      assert.equal(response.status, 200, scenario.stage);
       assert.deepEqual(logs, [[scenario.expectedLog]], scenario.stage);
       const serialized = JSON.stringify(logs);
       for (const forbidden of [
@@ -835,4 +839,46 @@ test("runtime wires routed goal and reminder to the same repository and Telegram
   assert.deepEqual(sent.map(args => args[0]), [9001, 42]);
   assert.match(sent[0][1], /Mục tiêu Thu Nhập Ròng Grab/);
   assert.match(sent[1][1], /^💪 Hôm nay kiếm/);
+});
+
+test("HTTP 200 after post-write failure preserves reconciliation and replay creates no duplicate income", async () => {
+  const context = createDoContext();
+  const env = createEnv();
+  let created = false, creates = 0, failReport = true;
+  const notices = [];
+  await withGlobalFetch(async (url, options) => {
+    if (isTelegramUrl(url)) {
+      notices.push(requestPayload(options));
+      return telegramResponse();
+    }
+    if (isNotionCreate(url)) {
+      creates++;
+      created = true;
+      return notionResponse([], 200, { id: "persisted-income" });
+    }
+    const filter = requestPayload(options).filter;
+    if (filter?.property === "Telegram Update ID") {
+      return notionResponse(created ? [{ id: "persisted-income" }] : []);
+    }
+    if (failReport) return notionResponse([], 503, { message: "report unavailable" });
+    return notionResponse();
+  }, async () => {
+  const coordinator = new UpdateCoordinator(context.ctx, env);
+  env.UPDATE_COORDINATOR = {
+    idFromName(id) { return id; },
+    get() { return coordinator; }
+  };
+    const first = await worker.fetch(webhookRequest(JSON.stringify(update(999))), env, {});
+    assert.equal(first.status, 200);
+    assert.deepEqual(await responseJson(first), { status: "processing_failed" });
+    assert.equal(context.record().status, "retryable");
+    assert.equal(creates, 1);
+    assert.ok(notices.some(value => value.text?.includes("Notion")));
+
+    failReport = false;
+    const replay = await worker.fetch(webhookRequest(JSON.stringify(update(999))), env, {});
+    assert.equal(replay.status, 200);
+    assert.equal(context.record().status, "committed");
+    assert.equal(creates, 1);
+  });
 });

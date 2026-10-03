@@ -29,7 +29,10 @@ test("architecture policy rejects forbidden dependencies and unknown ownership",
     ["app/runtime.js", "features/cashflow/model.js", /bypasses public API/],
     ["services/report-cache.js", "features/cashflow/index.js", /forbidden/],
     ["domain/finance/shared.js", "domain/ledger/evidence.js", /forbidden/],
-    ["adapters/notion.js", "app/runtime.js", /forbidden/]
+    ["adapters/notion.js", "app/runtime.js", /forbidden/],
+    ["domain/finance-rules.js", "adapters/notion-adapter.js", /forbidden/],
+    ["domain/budget/model.js", "repositories/finance-repository.js", /forbidden/],
+    ["domain/debt-resolver.js", "services/report-cache.js", /forbidden/]
   ]) {
     // Absolute-from-src relative path resolved by the same policy as production imports.
     const depth = origin.split("/").length - 1;

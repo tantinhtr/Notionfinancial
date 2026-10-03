@@ -1,9 +1,10 @@
+import { reportCachePort } from "../services/cache-port.js";
 import { invalidateReportCaches } from "../services/report-cache.js";
-import { createCashflowRepository } from "../features/cashflow/index.js";
-import { createFundBudgetRepository } from "../features/fund-budget/index.js";
-import { createIncomeGoalRepository } from "../features/income-goal/index.js";
-export { AmbiguousIncomeWriteError } from "../features/income-goal/index.js";
-export { historyLookupRequired_ } from "../features/fund-budget/index.js";
+import { createCashflowRepository } from "./cashflow-repository.js";
+import { createFundBudgetRepository } from "./fund-budget-repository.js";
+import { createGrabRepository } from "./grab-repository.js";
+export { AmbiguousIncomeWriteError } from "./grab-repository.js";
+export { historyLookupRequired_ } from "./fund-budget-repository.js";
 
 function validateFactoryDependencies({ notion, state, config, now }) {
   for (const method of ["queryDatabase", "createPage"]) {
@@ -41,15 +42,21 @@ function validateFactoryDependencies({ notion, state, config, now }) {
   }
 }
 
-export function createFinanceRepositories({ notion, state, config, now = () => new Date() }) {
-  validateFactoryDependencies({ notion, state, config, now });
-  const dependencies = { notion, state, config, now };
+export function createFinanceRepositories({ notion, notionAdapter = notion, state, kvCacheAdapter, config, now = () => new Date() }) {
+  notion = notionAdapter;
+  const cache = reportCachePort({ kvCacheAdapter, state });
+  validateFactoryDependencies({ notion, state: state ?? {
+    getReportCache: kvCacheAdapter?.get,
+    putReportCache: kvCacheAdapter?.set,
+    deleteReportCache: kvCacheAdapter?.delete
+  }, config, now });
+  const dependencies = { notionAdapter: notion, kvCacheAdapter: cache, config, now };
   return {
     cashflow: createCashflowRepository(dependencies),
     fundBudget: createFundBudgetRepository(dependencies),
-    incomeGoal: createIncomeGoalRepository({
+    incomeGoal: createGrabRepository({
       notion, config, now,
-      invalidateReports: (dateISO) => invalidateReportCaches(state, dateISO)
+      invalidateReports: (dateISO) => invalidateReportCaches(cache, dateISO)
     })
   };
 }

@@ -33,7 +33,10 @@ test("production consumers use feature public entry points and features cannot i
       if (toFeature && toFeature !== "shared" && fromFeature !== toFeature) {
         assert.equal(target, "features/" + toFeature + "/index.js", origin + " bypasses the public API");
       }
-      if (fromFeature) {
+      if (fromFeature && !(
+        /^features\/(cashflow|fund-budget|income-goal)\/(index|repository)\.js$/.test(origin)
+        && !/\bimport\s/.test(source) && target.startsWith("repositories/")
+      )) {
         assert.equal(/^(adapters|app|repositories|jobs)\//.test(target), false, origin + " imports infrastructure");
       }
       if (origin.startsWith("adapters/")) {

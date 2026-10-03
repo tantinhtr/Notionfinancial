@@ -148,3 +148,5 @@ Sau khi triển khai:
 - Không thử lại lệnh ghi Notion một cách mù quáng vì có thể tạo bản ghi trùng.
 - Không mở quyền bot cho user ngoài `ALLOWED_USER_ID`.
 - Chỉ đưa thông tin trạng thái binding, không trả giá trị secret qua `/health`.
+
+Webhook processing errors are acknowledged with HTTP 200 and a best-effort Telegram notification. This stops Telegram automatic retries; it does not confirm a successful Notion write. See the [failure contract and layer ownership](docs/architecture.md#webhook-failure-contract).

@@ -1,5 +1,6 @@
 import { iso_ } from "../../domain/finance/shared.js";
-import { parseAmount, dateParts } from "../../domain/finance/income-input.js";
+import { dateParts } from "../../domain/finance/income-input.js";
+import { parseAmount } from "../../domain/string-parser.js";
 import { presentIncomeGoal, presentIncomeConfirmation, presentDailyReminder } from "./presenter.js";
 export function createIncomeGoalComponent({ repository, telegram, config, now = () => new Date() }) {
   for (const method of ["getGoalStatus", "addGrabIncome"]) {

@@ -1,4 +1,4 @@
-import { parseAmount } from "../domain/finance/income-input.js";
+import { parseAmount } from "../domain/string-parser.js";
 import { FALLBACK_TEXT, HOME_KEYBOARD, callbackErrorText } from "./bot-presenter.js";
 
 function messageFrom(update) {

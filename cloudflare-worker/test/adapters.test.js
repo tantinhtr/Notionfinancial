@@ -1,3 +1,4 @@
+import { createTelegramPresenter } from "../src/app/telegram-presenter.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createNotionClient } from "../src/notion.js";
@@ -216,7 +217,7 @@ test("Telegram redacts a configured token echoed by an upstream description", as
   );
 });
 
-test("Telegram sendMessage truncates text above the safe cap", async () => {
+test("Telegram presentation wrapper truncates text above the safe cap", async () => {
   const calls = [];
   const telegram = createTelegramClient(config, async (url, options) => {
     calls.push({ url, options });
@@ -224,7 +225,7 @@ test("Telegram sendMessage truncates text above the safe cap", async () => {
   });
   const suffix = "\n\n... Tin nhắn quá dài nên đã rút gọn.";
 
-  await telegram.sendMessage("chat-id", "x".repeat(3901));
+  await createTelegramPresenter(telegram).sendMessage("chat-id", "x".repeat(3901));
 
   const payload = JSON.parse(calls[0].options.body);
   assert.equal(payload.text.length, 3900);

@@ -8,7 +8,7 @@ export function reportCacheKey(kind, dateISO) {
 export async function loadReport(state, key, forceRefresh, load) {
   if (!forceRefresh) {
     try {
-      const cached = await state.getReportCache(key);
+      const cached = await state.get(key);
       if (cached !== null && cached !== undefined) return cached;
     } catch {
       // Cache is optional; a read failure must not block a live report.
@@ -16,7 +16,7 @@ export async function loadReport(state, key, forceRefresh, load) {
   }
   const report = await load();
   try {
-    await state.putReportCache(key, report, REPORT_CACHE_TTL_SECONDS);
+    await state.set(key, report, REPORT_CACHE_TTL_SECONDS);
   } catch {
     // A live report remains valid when its optional cache write fails.
   }
@@ -25,6 +25,6 @@ export async function loadReport(state, key, forceRefresh, load) {
 
 export async function invalidateReportCaches(state, dateISO) {
   for (const kind of Object.keys(REPORT_PREFIXES)) {
-    await state.deleteReportCache(reportCacheKey(kind, dateISO));
+    await state.delete(reportCacheKey(kind, dateISO));
   }
 }

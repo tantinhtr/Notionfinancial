@@ -10,9 +10,9 @@ import { FUND_REPAYMENT, REIMBURSEMENT, PERSONAL_LOAN_HINT } from "../src/domain
 test("report cache retains hits, bypasses on refresh, and invalidates actual stored keys", async () => {
   const entries = new Map(), writes = [];
   const state = {
-    async getReportCache(key) { return entries.get(key); },
-    async putReportCache(key, value, ttl) { writes.push([key, ttl]); entries.set(key, value); },
-    async deleteReportCache(key) { entries.delete(key); }
+    async get(key) { return entries.get(key); },
+    async set(key, value, ttl) { writes.push([key, ttl]); entries.set(key, value); },
+    async delete(key) { entries.delete(key); }
   };
   let reads = 0;
   for (const kind of ["cashflow", "fundBudget"]) {
@@ -30,8 +30,8 @@ test("report cache retains hits, bypasses on refresh, and invalidates actual sto
 
 test("optional cache failures preserve live result but report loading failures propagate", async () => {
   const state = {
-    async getReportCache() { throw new Error("cache read"); },
-    async putReportCache() { throw new Error("cache write"); }
+    async get() { throw new Error("cache read"); },
+    async set() { throw new Error("cache write"); }
   };
   const result = { amount: 136972 };
   assert.equal(await loadReport(state, "key", false, async () => result), result);

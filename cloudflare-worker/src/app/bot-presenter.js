@@ -8,3 +8,7 @@ export function callbackErrorText(error) {
   const message = typeof error?.message === "string" ? error.message.trim() : "";
   return `Lỗi: ${message || "Không thể xử lý yêu cầu."}`;
 }
+
+
+export const PROCESSING_FAILURE_TEXT =
+  "⚠️ Bot chưa xác nhận được kết quả xử lý. Với khoản thu nhập, hãy kiểm tra Notion trước khi nhập lại để tránh ghi trùng.";

@@ -1,1 +1,1 @@
-export { createTelegramClient } from "./adapters/telegram.js";
+export { createTelegramClient } from "./adapters/telegram-adapter.js";
