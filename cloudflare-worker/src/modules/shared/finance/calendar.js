@@ -1,3 +1,7 @@
+/**
+ * Tạo bộ đọc ngày theo múi giờ được truyền vào.
+ * Giúp báo cáo và thu nhập dùng cùng cách xác định ngày, tránh lệch ngày UTC với giờ Việt Nam.
+ */
 export function calendarDateParts(date, dateFormatter) {
   if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
     throw new TypeError("now must return a valid Date");

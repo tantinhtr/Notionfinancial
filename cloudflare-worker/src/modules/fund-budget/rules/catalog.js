@@ -1,3 +1,7 @@
+/**
+ * Lập danh mục tài khoản, ngân sách cố định, tên nhóm và tên gọi khác của nhãn.
+ * Phân biệt tên nhóm lớn với nhãn con để không gán sai nơi chi tiêu.
+ */
 import { num_ } from "../../shared/finance/shared.js";
 import { plainText_, stripFundPrefix_ } from "./assignment.js";
 

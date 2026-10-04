@@ -1,3 +1,7 @@
+/**
+ * Lớp Cloudflare Durable Object: cấp kho trạng thái và khóa tuần tự cho bộ xử lý update.
+ * Giữ cùng update ID chỉ có một luồng xử lý/đối soát tại một thời điểm.
+ */
 import { DurableObject } from "cloudflare:workers";
 import { classifyUpdate } from "../modules/telegram-bot/index.js";
 import { createCoordinatorHandler } from "../modules/update-processing/index.js";

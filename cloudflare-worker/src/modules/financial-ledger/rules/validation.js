@@ -1,3 +1,7 @@
+/**
+ * Kiểm tra mâu thuẫn tài khoản và bằng chứng hoàn trả giữa các giao dịch.
+ * Chỉ tạo vấn đề dữ liệu theo bằng chứng đầu vào, không sửa dữ liệu Notion.
+ */
 import { FUND_REPAYMENT, REIMBURSEMENT, REIMBURSEMENT_ACTIONS } from "./transaction-language.js";
 import { propertyText_, validTransactionDate_ } from "../../shared/finance/transaction-rows.js";
 import { chronologyOnly_, fundNameKey_, positiveEvidenceText_, resolveFund_, orderedFinanceRows_, isExplicitPreviousMonthUse_, isExplicitReimbursement_ } from "./evidence.js";

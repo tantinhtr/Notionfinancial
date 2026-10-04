@@ -1,3 +1,7 @@
+/**
+ * Cung cấp ngày báo cáo, bộ lọc tháng và cách đọc số/ngày từ dòng dữ liệu.
+ * Giữ quy tắc giá trị mặc định hiện có để các báo cáo không hiểu khác nhau.
+ */
 import { calendarDateParts } from "./calendar.js";
 export { createReportDateFormatter } from "./calendar.js";
 import { iso_ } from "./shared.js";

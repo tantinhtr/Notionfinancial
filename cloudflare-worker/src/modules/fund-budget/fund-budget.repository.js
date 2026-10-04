@@ -1,3 +1,7 @@
+/**
+ * Đọc dữ liệu ngân sách hiện tại và lịch sử theo các loại được yêu cầu.
+ * Chỉ ánh xạ sang truy vấn Notion; không tự quyết định khoản dư hay kết quả đối soát.
+ */
 import { monthFilterFor } from "../shared/finance/report-data.js";
 import { historyBeforeMonthFilterFor } from "./rules/history.js";
 /** @returns {import('./fund-budget.contracts.js').BudgetDataRepository} */

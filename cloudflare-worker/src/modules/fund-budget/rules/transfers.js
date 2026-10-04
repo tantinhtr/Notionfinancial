@@ -1,3 +1,7 @@
+/**
+ * Thu thập tiền cấp vào/rút ra của từng nhóm quỹ và bằng chứng chuyển cho nhãn con.
+ * Dữ liệu đầu vào đã được đọc từ Notion; hàm chỉ tổng hợp trong bộ nhớ.
+ */
 import { num_ } from "../../shared/finance/shared.js";
 import { plainText_ } from "./assignment.js";
 

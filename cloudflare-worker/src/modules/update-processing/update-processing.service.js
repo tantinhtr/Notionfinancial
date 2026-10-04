@@ -1,3 +1,7 @@
+/**
+ * Quản lý trạng thái update: đang xử lý, đã hoàn tất, được thử lại hoặc cần đối soát.
+ * Dùng kho trạng thái/khóa/hàm xử lý được truyền vào để không ghi lại thu nhập khi kết quả lần trước chưa rõ.
+ */
 function validateDependencies({
   storage,
   runExclusive,
@@ -50,6 +54,7 @@ export function createCoordinatorHandler(dependencies) {
     });
   }
 
+  // Tìm khoản thu đã ghi bằng update ID; nếu đã có thì chỉ hoàn tất xác nhận, không tạo lại.
   async function reconcile(update, kind, warningError) {
     let row = null;
     try {
@@ -66,7 +71,7 @@ export function createCoordinatorHandler(dependencies) {
         try {
           await warnNeedsReconciliation(update, error);
         } catch {
-          // Completion failures remain retryable even if warning delivery fails.
+          // Lỗi xác nhận vẫn được giữ để xử lý lại, kể cả khi gửi cảnh báo thất bại.
         }
         throw error;
       }
@@ -78,7 +83,7 @@ export function createCoordinatorHandler(dependencies) {
     try {
       await warnNeedsReconciliation(update, warningError);
     } catch {
-      // Warning delivery must never reopen or recreate an ambiguous income write.
+      // Lỗi gửi cảnh báo không được khiến hệ thống ghi lại khoản thu chưa rõ kết quả.
     }
     return { status: "needs_reconciliation" };
   }

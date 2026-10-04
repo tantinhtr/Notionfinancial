@@ -1,3 +1,7 @@
+/**
+ * Theo dõi việc dùng tiền nguồn đầu tháng và hoàn trả các khoản ứng theo trình tự giao dịch.
+ * Phân biệt tiền tháng này, tiền giữ từ trước và dòng tiền đi qua.
+ */
 import { orderedFinanceRows_, isExplicitPreviousMonthUse_, isExplicitReimbursement_, accountName_ } from "./evidence.js";
 import { normalizeSearchText_ } from "../../shared/finance/shared.js";
 import { addCohort_, consumeNonOpening_, consumeOpening_, recordAdvance_, applyAdvanceRepayment_ } from "./advance-state.js";

@@ -1,3 +1,7 @@
+/**
+ * Ghép chuyển quỹ, chi tiêu nhãn con và kết quả ledger thành dữ liệu từng nhóm quỹ.
+ * Nhận kết quả đối soát có sẵn, không tự truy vấn lịch sử.
+ */
 import { buildGroupChildren } from "./children.js";
 import { collectGroupTransfers } from "./transfers.js";
 import { applyGroupFunding } from "./funding.js";

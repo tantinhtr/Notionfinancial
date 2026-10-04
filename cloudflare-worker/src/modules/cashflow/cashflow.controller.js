@@ -1,3 +1,7 @@
+/**
+ * Nhận thao tác xem tài khoản, chiều thu/chi và nhóm giao dịch; gọi dịch vụ báo cáo rồi gửi phần trình bày.
+ * Khi nút cũ không còn khớp dữ liệu, trả đường quay lại an toàn.
+ */
 import { presentCashflowHome, presentCashflowAccount, presentCashflowDirection, presentCashflowCategory, cashflowCategoryKeyboard_ } from "./presenter.js";
 import { parseCashflowCategoryCallback_, parseCashflowDirectionCallback_ } from "./callbacks.js";
 

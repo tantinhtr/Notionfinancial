@@ -1,3 +1,7 @@
+/**
+ * Nơi lắp ráp ứng dụng: tạo adapter, repository, dịch vụ rồi controller.
+ * Truyền các phụ thuộc cụ thể vào hợp đồng của module và nối các thao tác liên module.
+ */
 import { getConfig } from "../config.js";
 import { createNotionAdapter } from "../modules/shared/transport/notion-adapter.js";
 import { createTelegramAdapter } from "../modules/shared/transport/telegram-adapter.js";
@@ -16,8 +20,10 @@ export function createRuntime(env, now = () => new Date()) {
   const telegram = createTelegramPresenter(createTelegramAdapter(config));
   const notion = createNotionAdapter(config);
   const cache = createKvCacheAdapter(config.botState, { prefix: "report:" });
+  // Mỗi dịch vụ nhận repository riêng; chỉ runtime biết adapter Notion cụ thể.
   const cashflowService = createCashflowService({ repository: createCashflowDataRepository({ notion, config }), cache, config, now });
   const fundBudgetService = createFundBudgetService({ repository: createBudgetDataRepository({ notion, config }), cache, calculator: createBudgetCalculator(evaluateFinanceLedger), config, now });
+  // Ghi thu nhập xong mới xóa cache dòng tiền rồi ngân sách theo thứ tự cũ.
   const invalidateReports = async date => {
     await cashflowService.invalidate(date);
     await fundBudgetService.invalidate(date);
@@ -33,11 +39,12 @@ export function createRuntime(env, now = () => new Date()) {
     const view = presentDailyReminder(status);
     return telegram.sendMessage(config.allowedUserId, view.text, view.replyMarkup);
   } });
+  // Tên trả về này giữ tương thích; các giá trị là dịch vụ ứng dụng, không phải lớp truy vấn.
   const repositories = { cashflow: cashflowService, fundBudget: fundBudgetService, incomeGoal: incomeService };
   return { bot, config, repositories, telegram, syncLatestSixJar, sendDailyReminder };
 }
 
-// Error reporting requires only Telegram configuration, even when Notion/KV initialization fails.
+// Gửi thông báo lỗi chỉ cần cấu hình Telegram, kể cả khi khởi tạo Notion/KV thất bại.
 export function createWebhookNotifier(env, fetchImpl = fetch) {
   const telegram = createTelegramAdapter({
     telegramToken: env.TELEGRAM_TOKEN,

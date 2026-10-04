@@ -1,3 +1,7 @@
+/**
+ * Gửi HTTP tới Notion, đọc đủ các trang dữ liệu và xử lý giới hạn/lỗi tạm thời khi đọc.
+ * Không thử lại thao tác ghi tại đây để tránh tạo giao dịch trùng.
+ */
 import { parseJson, redactToken } from "./http-response.js";
 
 function notionError(operation, status, message, notionToken) {
@@ -20,7 +24,7 @@ export function createNotionAdapter(config, fetchImpl = fetch) {
   // dinh 429 la chuyen binh thuong — phai cho roi thu lai chu khong duoc bo cuoc.
   // Moi request phai co han gio: khong co thi mot request treo se
   // treo luon nut bam, nguoi dung khong nhan duoc gi ca.
-  // Read failures propagate to the application; writes are never replayed here.
+  // Lỗi đọc được chuyển lên dịch vụ xử lý; thao tác ghi không được tự gửi lại ở đây.
   const RETRY_STATUS = 429;
   // Tong thoi gian xau nhat phai nam gon trong han cho cua Telegram (~60 giay), khong
   // thi nguoi dung khong nhan duoc gi ca. 3 luot, 8 giay moi luot, backoff 0,4s va

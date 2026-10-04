@@ -1,3 +1,7 @@
+/**
+ * Điều phối kiểm tra trùng theo update ID, ghi thu nhập, xóa cache và tính mục tiêu.
+ * Repository, đồng hồ và thao tác xóa báo cáo được truyền vào nên dịch vụ không cần tự tạo kết nối Notion.
+ */
 import { createDateParts, createReportDateFormatter } from "../shared/finance/report-data.js";
 import { iso_ } from "../shared/finance/shared.js";
 import { buildGoalStatus_ } from "./income-goal.rules.js";
@@ -13,12 +17,14 @@ function updateIdText(updateId) {
 export function createIncomeGoalService({ repository, config, invalidateReports, now = () => new Date() }) {
   if (typeof invalidateReports !== "function") throw new TypeError("invalidateReports must be a function");
   const formatter = createReportDateFormatter(config.timezone);
+  // Đọc dữ liệu mục tiêu/thu nhập theo ngày được cấp, trả các mức cần kiếm đã tính.
   async function getGoalStatus() {
     const t = createDateParts(now, formatter);
     const { goalRows, incomeRows } = await repository.readGoalRows(t);
     return buildGoalStatus_(t, goalRows, incomeRows);
   }
   function findGrabIncomeByUpdateId(updateId) { return repository.findByUpdateId(updateIdText(updateId)); }
+  // Nhận update ID, ngày ISO và số tiền; kiểm tra trùng trước khi ghi. Chỉ lỗi ghi mới được đánh dấu cần đối soát, lỗi cache được xử lý riêng.
   async function addGrabIncome(updateId, dateISO, amount) {
     const normalizedUpdateId = updateIdText(updateId);
     if (typeof dateISO !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(dateISO)) {
@@ -41,10 +47,11 @@ export function createIncomeGoalService({ repository, config, invalidateReports,
     try {
       await invalidateReports(dateISO);
     } catch {
-      // A successful Notion write must not be reported as failed due to cache invalidation.
+      // Đã ghi Notion thành công thì lỗi xóa cache không được biến thành lỗi ghi thu nhập.
     }
     return { created: true, page };
   }
+  // Xác định ngày theo múi giờ cấu hình, ghi khoản thu rồi lấy trạng thái để xác nhận.
   async function recordRevenue(updateId, amount) {
     const t = createDateParts(now, formatter);
     await addGrabIncome(updateId, iso_(t.y, t.m, t.d), amount);

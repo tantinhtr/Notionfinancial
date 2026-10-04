@@ -1,3 +1,7 @@
+/**
+ * Điểm truy cập công khai của module thu nhập Grab và mục tiêu.
+ * Bên ngoài dùng các thành phần được công bố ở đây thay vì truy cập file nội bộ.
+ */
 export { createIncomeDataRepository } from "./income-goal.repository.js";
 export { createIncomeGoalService } from "./income-goal.service.js";
 export { AmbiguousIncomeWriteError } from "./income-goal.errors.js";

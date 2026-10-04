@@ -1,3 +1,7 @@
+/**
+ * Đưa dữ liệu thu, chi và chuyển khoản về dạng dòng giao dịch thống nhất.
+ * Kiểm tra trường bắt buộc và ghép thông báo vấn đề dữ liệu theo giao dịch.
+ */
 import { normalizeSearchText_ } from "./shared.js";
 
 import { propertyText_, relationId_ } from "./notion-properties.js";

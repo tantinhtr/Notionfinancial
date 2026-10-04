@@ -1,3 +1,7 @@
+/**
+ * Đọc tám tập dữ liệu Notion phục vụ báo cáo tháng.
+ * Chỉ trả các dòng dữ liệu cho dịch vụ, không tính số dư hoặc quyết định dùng cache.
+ */
 import { monthFilterFor } from "../shared/finance/report-data.js";
 /** @returns {import('./cashflow.contracts.js').CashflowDataRepository} */
 export function createCashflowDataRepository({ notion, config }) {

@@ -1,3 +1,7 @@
+/**
+ * Chuyển thao tác đọc schema/dòng tháng và ghi dòng thành lệnh Notion tương ứng.
+ * Không chọn tháng hay tính lại số tiền; mỗi lần ghi chỉ gửi một yêu cầu.
+ */
 /** @returns {import('./six-jar-sync.contracts.js').SixJarRepository} */
 export function createSixJarRepository({ notion, databaseId }) {
   return {

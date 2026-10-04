@@ -1,3 +1,7 @@
+/**
+ * Giới hạn độ dài nội dung trước khi chuyển cho adapter Telegram.
+ * Giữ việc cắt nội dung ở tầng trình bày, không đặt trong HTTP client.
+ */
 const TELEGRAM_TEXT_LIMIT = 3900;
 const TRUNCATION_SUFFIX = '\n\n... Tin nhắn quá dài nên đã rút gọn.';
 

@@ -1,3 +1,7 @@
+/**
+ * Nhóm và trình bày các giao dịch thiếu hoặc mâu thuẫn dữ kiện từ kết quả kiểm tra.
+ * Không tự kết luận giao dịch là nợ chỉ dựa vào một con số.
+ */
 import { money_ } from "../../shared/finance/shared.js";
 
 export function appendDataIssues_(lines, dataIssues) {

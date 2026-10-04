@@ -1,3 +1,7 @@
+/**
+ * Tính thu nhập tháng, thu nhập hôm nay và mức cần kiếm cho các ngày còn lại.
+ * Ngày và các dòng dữ liệu do bên gọi cung cấp, không lấy thời gian từ môi trường.
+ */
 import { iso_ } from "../shared/finance/shared.js";
 import { numericProperty, dateProperty, daysInMonth } from "../shared/finance/report-data.js";
 

@@ -1,3 +1,7 @@
+/**
+ * Tổng hợp ngân sách tháng, khoản bị loại khỏi chi tiêu và các dòng thu nhập.
+ * Giữ ý nghĩa khác nhau giữa thu nhập thực và dòng tiền đi qua.
+ */
 import { normalizeSearchText_, num_ } from "../../shared/finance/shared.js";
 import { plainText_ } from "./assignment.js";
 export function buildMonthlyBudget_(tiers, monthlyLimit) {

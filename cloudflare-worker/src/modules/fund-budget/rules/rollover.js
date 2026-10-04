@@ -1,3 +1,7 @@
+/**
+ * Tính tiền thực còn ở các nhãn thuộc nhóm được phép chuyển sang tháng mới.
+ * Tháng 10/2026 giữ mức dư 136.972đ đã xác nhận; không lấy hạn mức chưa chi làm tiền dư.
+ */
 import { iso_, normalizeSearchText_ } from "../../shared/finance/shared.js";
 import { MONTH_DATE_PROPERTY, dateProperty } from "../../shared/finance/report-data.js";
 
@@ -48,7 +52,7 @@ export function calculateRollover({ t, categoryRows, accountRows, fundGroupRows,
     historicalFundModel.fundGroups,
     config.rolloverSourceGroupNames
   );
-  // September 2026 closing balance was confirmed by the owner.
+  // Số dư cuối tháng 9/2026 đã được chủ tài khoản xác nhận.
   if (t.y === 2026 && t.m === 10) {
     rolloverCarryover = {
       total: 136972,

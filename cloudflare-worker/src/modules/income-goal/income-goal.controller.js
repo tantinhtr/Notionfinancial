@@ -1,3 +1,7 @@
+/**
+ * Kiểm tra tin nhắn thu nhập và người gửi, gọi dịch vụ nghiệp vụ rồi gửi xác nhận hoặc mục tiêu.
+ * Nhánh xác nhận sau đối soát chỉ hiển thị kết quả, không ghi thêm thu nhập.
+ */
 import { parseAmount } from "./income-input.js";
 import { presentIncomeGoal, presentIncomeConfirmation, presentDailyReminder } from "./presenter.js";
 export function createIncomeGoalController({ service, telegram, config }) {

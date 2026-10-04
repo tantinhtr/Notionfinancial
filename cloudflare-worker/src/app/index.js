@@ -1,3 +1,7 @@
+/**
+ * Điểm vào HTTP: kiểm tra đường dẫn, secret và update trước khi chuyển cho bộ xử lý.
+ * Lỗi xử lý hợp lệ được xác nhận HTTP 200 để Telegram không tự gửi lại, không có nghĩa giao dịch đã ghi thành công.
+ */
 import { createWebhookNotifier } from "./runtime.js";
 import { jsonResponse } from "./http-response.js";
 import { healthResponse, constantTimeEqual } from "./http-security.js";

@@ -1,3 +1,7 @@
+/**
+ * Giữ cách gọi controller cũ bằng cách chuyển repository cũ thành dịch vụ tương thích.
+ * Runtime mới dùng trực tiếp hợp đồng module; lớp này phục vụ điểm gọi/test cũ.
+ */
 import { createCashflowController } from "../modules/cashflow/index.js";
 import { createFundBudgetController, createBudgetDisplayService } from "../modules/fund-budget/index.js";
 import { createIncomeGoalController } from "../modules/income-goal/index.js";

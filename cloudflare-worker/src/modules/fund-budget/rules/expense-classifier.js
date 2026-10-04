@@ -1,3 +1,7 @@
+/**
+ * Phân loại chi tiêu cá nhân, tiền vay/trả và tiền đi hộ dựa trên nội dung/loại giao dịch.
+ * Tiền vốn vay hoặc tiền đi qua không tự trở thành chi tiêu cá nhân.
+ */
 import { normalizeSearchText_, num_ } from "../../shared/finance/shared.js";
 
 function isRoutineExpenseCategory_(normalizedCategory) {

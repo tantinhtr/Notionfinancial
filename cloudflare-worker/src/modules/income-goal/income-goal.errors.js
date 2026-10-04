@@ -1,3 +1,7 @@
+/**
+ * Đánh dấu lần ghi thu nhập có kết quả chưa chắc chắn.
+ * Bộ xử lý update dựa vào mã lỗi này để tìm lại giao dịch trước khi cho phép xử lý tiếp.
+ */
 export class AmbiguousIncomeWriteError extends Error {
   constructor(updateId, { cause } = {}) {
     super(

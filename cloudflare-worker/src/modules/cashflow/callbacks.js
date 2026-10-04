@@ -1,3 +1,7 @@
+/**
+ * Mã hóa và giải mã dữ liệu của nút điều hướng dòng tiền.
+ * Giữ giới hạn độ dài dữ liệu nút Telegram và các mã điều hướng đang dùng.
+ */
 export function cashflowCallbackData_(value) {
   value = String(value || '');
   if (!value) return null;

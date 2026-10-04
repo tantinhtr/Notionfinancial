@@ -1,3 +1,7 @@
+/**
+ * Lưu nội dung phản hồi chung, bàn phím quay về và thông báo lỗi xử lý.
+ * Chỉ cung cấp dữ liệu hiển thị cho router/webhook.
+ */
 export const FALLBACK_TEXT = "Nhắn số tiền kiếm hôm nay (vd 650000), hoặc /muctieu.";
 export const HOME_KEYBOARD = Object.freeze({
   inline_keyboard: Object.freeze([Object.freeze([

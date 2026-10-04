@@ -1,3 +1,7 @@
+/**
+ * Định tuyến tin nhắn và nút bấm đến controller đúng nghiệp vụ, kiểm tra người được phép dùng bot.
+ * Trả lời callback và ghi log nhánh xử lý để không bỏ qua thao tác một cách im lặng.
+ */
 import { parseAmount } from "../income-goal/index.js";
 import { FALLBACK_TEXT, HOME_KEYBOARD, callbackErrorText } from "./bot-presenter.js";
 
@@ -48,7 +52,7 @@ export function createBotRouter({ telegram, config, cashflow, fundBudget, income
     try {
       await telegram.answerCallbackQuery(callback.id);
     } catch {
-      // ignored on purpose
+      // Không để lỗi tắt trạng thái nút bấm chặn xử lý nghiệp vụ.
     }
     const chatId = callback.message?.chat?.id;
     // Ba nhanh thoat im lang duoi day tung lam nguoi dung bam nut ma khong nhan duoc

@@ -1,3 +1,7 @@
+/**
+ * Diễn giải nội dung chỉ định quỹ/nhãn và nguồn tiền trong ghi chú.
+ * Dùng các quy tắc nhận diện hiện có để xác định nơi khoản chi được tính vào.
+ */
 import { normalizeSearchText_ } from "../../shared/finance/shared.js";
 export function plainText_(property) {
   const parts = (property && (property.title || property.rich_text)) || [];

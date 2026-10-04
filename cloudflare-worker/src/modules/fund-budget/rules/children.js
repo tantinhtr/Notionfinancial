@@ -1,3 +1,7 @@
+/**
+ * Tổng hợp chi tiêu, tiền cấp và khoản thanh toán ngoài quỹ của từng nhãn con.
+ * Giữ riêng phần tiền đã bao phủ ngân sách và nghĩa vụ hoàn trả.
+ */
 import { stripFundPrefix_ } from "./assignment.js";
 import { debtTargetChildName_ } from "./child-matching.js";
 

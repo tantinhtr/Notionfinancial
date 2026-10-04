@@ -1,3 +1,7 @@
+/**
+ * Nhận yêu cầu xem quỹ, chuẩn bị nội dung rồi yêu cầu dịch vụ đồng bộ Notion.
+ * Nếu đồng bộ lỗi, vẫn gửi báo cáo kèm cảnh báo đã thống nhất.
+ */
 import { presentFundBudget } from "./presenter.js";
 
 export function createFundBudgetController({ service, telegram }) {

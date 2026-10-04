@@ -1,3 +1,7 @@
+/**
+ * Cộng số dư tài khoản nguồn và tiền dư chuyển sang, dành tiền trọ rồi chia phần còn lại theo trọng số.
+ * Phân phối phần lẻ theo thứ tự xác định để tổng phân bổ khớp từng đồng.
+ */
 import { propertyText_, numericProperty_ } from "../../shared/finance/transaction-rows.js";
 import { normalizeSearchText_ } from "../../shared/finance/shared.js";
 

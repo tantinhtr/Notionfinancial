@@ -1,3 +1,7 @@
+/**
+ * Theo dõi các phần tiền nguồn trong bộ nhớ, tiêu thụ nguồn và bù trừ khoản ứng.
+ * Chỉ cập nhật trạng thái tính toán do bên gọi tạo, không ghi cơ sở dữ liệu.
+ */
 import { normalizeSearchText_ } from "../../shared/finance/shared.js";
 
 export function addCohort_(state, cohort, amount) {

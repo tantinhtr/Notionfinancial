@@ -1,3 +1,7 @@
+/**
+ * Tính tiền đã cấp, khả năng chi, số dư và phần cần chuyển cho nhóm/nhãn quỹ.
+ * Khoản nợ có bằng chứng và ngân sách chưa cấp là hai đại lượng riêng.
+ */
 export function applyGroupFunding({
   group,
   childPaidFromFund,
@@ -37,18 +41,18 @@ export function applyGroupFunding({
 
   group.allocated = Math.max(netAllocated, 0);
   group.over = Math.max(group.spent - group.budget, 0);
-  // Gross allocation includes borrowed funding; spendable money records both loan sides.
+  // Tiền cấp gộp gồm cả nguồn mượn; tiền có thể chi phải phản ánh cả hai phía vay và cho vay.
   group.fundBalance =
     netAllocated -
     loanAllocation +
     (explicitLedger.fundLoans.balanceAdjustments[fundGroupRow.id] || 0) -
     group.paidFromFund;
   // Hai khoản này khác bản chất, không được cộng chung:
-  //   explicitDebts — only obligations with an explicitly identified lender.
+  //   explicitDebts — chỉ gồm nghĩa vụ đã xác định rõ bên cho mượn.
   //   transferNeeded— phần ngân sách CHƯA tiêu, phải CẤP vào quỹ trước khi chi.
   // Đã chi rồi không cần cấp lần hai; nợ ứng trước vẫn được giữ riêng.
   if (requiresAllocation) {
-    // Explicit internal movements explain balance changes, not unidentified spending.
+    // Chuyển nội bộ có bằng chứng giải thích biến động số dư, không phải chi tiêu chưa xác định.
     group.fundingShortfall = Math.max(group.paidFromFund - netAllocated, 0);
     const bucketToList = (bucket, key) =>
       Object.keys(bucket)

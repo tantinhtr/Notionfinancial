@@ -1,3 +1,7 @@
+/**
+ * Đối soát các dòng hiện tại/lịch sử thành nợ cá nhân, nợ giữa quỹ, khoản ứng và vấn đề dữ liệu.
+ * Nhận phương án đầu tháng từ bên gọi; không truy vấn Notion và không tự tính phân bổ ngân sách.
+ */
 import { validateExplicitConflicts_, validateReimbursements_ } from "./rules/validation.js";
 import { PERSONAL_LOAN_HINT } from "./rules/transaction-language.js";
 import { propertyText_, validTransactionDate_, readFinanceRows_, mergeDataIssue_, missingFields_ } from "../shared/finance/transaction-rows.js";
@@ -44,7 +48,7 @@ export function evaluateFinanceLedger({
     }
     const fallback = row.categoryId && row.amount > 0 ? personalIncomeFallback_(row) : null;
     if (fallback) {
-      // This is row-specific evidence, not a classification of every row with this category ID.
+      // Bằng chứng này chỉ áp dụng cho dòng đang xét, không áp đặt lên mọi dòng cùng loại.
       loanCategoryIds.add(row.categoryId);
       personalRows.push(fallback);
     } else if (row.amount > 0 && PERSONAL_LOAN_HINT.test(row.normalizedText)) {

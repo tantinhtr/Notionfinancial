@@ -1,3 +1,7 @@
+/**
+ * Điều phối kiểm tra kiểu cột, chọn dòng đúng tháng, dùng dòng trống hoặc tạo dòng mới.
+ * Từ chối tháng bị trùng và bỏ qua ghi nếu các giá trị đã giống báo cáo.
+ */
 import { projectSixJars } from "./six-jar-sync.rules.js";
 function titleOf(row) {
   return (row.properties?.["Tháng"]?.title ?? [])
@@ -8,6 +12,7 @@ function titleOf(row) {
 
 /** @param {{repository: import('./six-jar-sync.contracts.js').SixJarRepository}} dependencies */
 export function createSixJarSyncService({ repository }) {
+  // Nhận báo cáo đã tính; kiểm tra schema, tìm dòng tháng và chỉ ghi khi giá trị thay đổi.
   async function sync(report) {
     const { month, values, columns } = projectSixJars(report);
     const database = await repository.readSchema();

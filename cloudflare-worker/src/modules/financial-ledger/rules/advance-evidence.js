@@ -1,3 +1,7 @@
+/**
+ * Nhận diện bằng chứng tài khoản ứng tiền, nguồn hoàn trả và khoản thu thuộc tháng hiện tại.
+ * Dùng bằng chứng cấu trúc để tránh gán mọi khoản vào nợ cũ.
+ */
 import { REIMBURSEMENT_ACTIONS } from "./transaction-language.js";
 import { positiveEvidenceText_, accountName_ } from "./evidence.js";
 import { normalizeSearchText_ } from "../../shared/finance/shared.js";

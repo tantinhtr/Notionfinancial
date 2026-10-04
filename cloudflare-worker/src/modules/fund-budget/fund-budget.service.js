@@ -1,3 +1,7 @@
+/**
+ * Điều phối cache, dữ liệu hiện tại và những phần lịch sử cần đọc cho báo cáo.
+ * Tính rollover qua bộ tính được truyền vào rồi trả một báo cáo dùng chung cho Telegram và Notion.
+ */
 import { createDateParts, createReportDateFormatter } from "../shared/finance/report-data.js";
 import { iso_ } from "../shared/finance/shared.js";
 import { readFinanceRows_ } from "../shared/finance/transaction-rows.js";
@@ -7,6 +11,7 @@ const cacheKey = date => "fund-budget:" + date;
 /** @param {{repository: import('./fund-budget.contracts.js').BudgetDataRepository, cache: import('../shared/cache/cache.contracts.js').Cache, calculator: object, config: object, now?: () => Date}} dependencies */
 export function createFundBudgetService({ repository, cache, calculator, config, now = () => new Date() }) {
   const formatter = createReportDateFormatter(config.timezone);
+  // Trả cache nếu được phép; khi đọc mới chỉ lấy phần lịch sử cần cho nợ, rollover hoặc tên nhãn.
   async function getFundBudgetReport(forceRefresh = false) {
     const t = createDateParts(now, formatter);
     return loadReport(cache, cacheKey(iso_(t.y,t.m,t.d)), forceRefresh, async () => {

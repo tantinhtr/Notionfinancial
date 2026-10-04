@@ -1,3 +1,7 @@
+/**
+ * Các tiện ích nhỏ dùng chung: ngày ISO, định dạng tiền, chuẩn hóa tên và mã Notion.
+ * Không chứa quy trình đọc/ghi hoặc điều phối module.
+ */
 export function iso_(year, month, day) {
   return [
     String(year).padStart(4, '0'),

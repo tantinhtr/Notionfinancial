@@ -1,3 +1,7 @@
+/**
+ * Tổng hợp dữ liệu được truyền vào thành số dư và dòng thu/chi theo tài khoản, nhóm giao dịch.
+ * Đây là phép tính thuần, không gọi Notion hoặc Telegram.
+ */
 import { propertyText_ as cashflowPropertyText_, relationId_ as cashflowFirstRelationId_ } from "../shared/finance/notion-properties.js";
 import { normalizeSearchText_, notionIdToken_, num_ } from "../shared/finance/shared.js";
 

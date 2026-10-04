@@ -1,3 +1,7 @@
+/**
+ * Gán các khoản chi vào tài khoản, loại chi và nhóm/nhãn quỹ; tổng hợp phần chi thực tế.
+ * Áp dụng chỉ định trong ghi chú và giữ các loại tiền đi qua tách biệt.
+ */
 import { buildBudgetCatalog } from "./catalog.js";
 import { normalizeSearchText_ } from "../../shared/finance/shared.js";
 import { analyzeExpenseRows_ } from "./expense-classifier.js";

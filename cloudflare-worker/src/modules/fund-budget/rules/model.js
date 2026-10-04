@@ -1,3 +1,7 @@
+/**
+ * Lắp báo cáo ngân sách từ kết quả đối soát, tổng hợp chi và các nhóm quỹ.
+ * Phương án đầu tháng được tính rồi truyền cho ledger, tránh vòng phụ thuộc giữa hai module.
+ */
 import { buildOpeningPlan_ } from "./opening-plan.js";
 import { summarizeExpenses } from "./expenses.js";
 import { buildFundGroups } from "./groups.js";

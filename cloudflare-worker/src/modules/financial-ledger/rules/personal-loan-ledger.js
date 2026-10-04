@@ -1,3 +1,7 @@
+/**
+ * Đối chiếu vay, cho mượn và trả tiền theo người liên quan.
+ * Giao dịch không đủ thông tin ghép với khoản gốc được giữ lại để báo dữ liệu chưa rõ.
+ */
 import { PERSONAL_LOAN_HINT } from "./transaction-language.js";
 import { validTransactionDate_ } from "../../shared/finance/transaction-rows.js";
 import { chronologyOnly_, accountName_ } from "./evidence.js";

@@ -1,3 +1,7 @@
+/**
+ * Xác định khi nào báo cáo cần lịch sử nợ hoặc lịch sử tên nhãn, đồng thời tạo mốc trước tháng.
+ * Dịch vụ dùng kết quả để yêu cầu repository đọc đúng dữ liệu.
+ */
 import { HISTORY_ACTION } from "../../financial-ledger/index.js";
 import { iso_ } from "../../shared/finance/shared.js";
 import { MONTH_DATE_PROPERTY } from "../../shared/finance/report-data.js";

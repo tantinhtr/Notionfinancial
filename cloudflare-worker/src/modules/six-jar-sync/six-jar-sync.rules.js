@@ -1,3 +1,7 @@
+/**
+ * Chọn số ngân sách/phân bổ đã có trong báo cáo để ánh xạ sang sáu cột Notion.
+ * Kiểm tra số nguyên không âm, không thực hiện lại phép chia tiền.
+ */
 import { normalizeSearchText_ } from "../shared/finance/shared.js";
 
 const COLUMNS = [

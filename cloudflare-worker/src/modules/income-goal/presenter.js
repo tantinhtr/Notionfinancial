@@ -1,3 +1,7 @@
+/**
+ * Tạo nội dung mục tiêu, xác nhận thu nhập và nhắc nhở hằng ngày từ kết quả đã tính.
+ * Chỉ tạo phần hiển thị, không gửi mạng hoặc ghi tiền.
+ */
 import { money_ } from "../shared/finance/shared.js";
 
 export function progressText_(status) {

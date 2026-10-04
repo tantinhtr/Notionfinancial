@@ -1,3 +1,7 @@
+/**
+ * So khớp mô tả khoản nợ với tên nhãn con bằng bằng chứng văn bản.
+ * Chỉ chọn nhãn phù hợp theo quy tắc chấm điểm hiện có.
+ */
 import { normalizeSearchText_ } from "../../shared/finance/shared.js";
 const DEBT_TARGET_STOP_WORDS_ = new Set(['quy', 'tien', 'thang', 'nam']);
 

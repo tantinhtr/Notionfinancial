@@ -1,3 +1,7 @@
+/**
+ * Bọc Cloudflare KV bằng get/set/delete, thêm tiền tố và chuyển đổi JSON.
+ * Giá trị JSON hỏng được xóa và coi như chưa có cache.
+ */
 export function createKvCacheAdapter(kv, { prefix = "" } = {}) {
   for (const method of ["get", "put", "delete"]) {
     if (typeof kv?.[method] !== "function") throw new TypeError("KV binding must provide " + method + "()");

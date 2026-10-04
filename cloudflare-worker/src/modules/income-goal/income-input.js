@@ -1,3 +1,7 @@
+/**
+ * Đọc số tiền từ tin nhắn theo định dạng hiện có và chuyển ngày theo múi giờ.
+ * Chuỗi không hợp lệ hoặc số tiền không dương được trả về null để bên gọi từ chối.
+ */
 import { calendarDateParts, createReportDateFormatter } from "../shared/finance/calendar.js";
 
 export function parseAmount(text) {

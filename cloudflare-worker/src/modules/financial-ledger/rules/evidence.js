@@ -1,3 +1,7 @@
+/**
+ * Chuẩn hóa bằng chứng, tìm tài khoản/quỹ và sắp giao dịch theo trình tự.
+ * Phân biệt việc nhắc thời gian với bằng chứng sử dụng tiền tháng trước hoặc hoàn trả.
+ */
 import { REIMBURSEMENT } from "./transaction-language.js";
 import { normalizeSearchText_ } from "../../shared/finance/shared.js";
 

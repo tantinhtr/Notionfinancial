@@ -1,3 +1,7 @@
+/**
+ * Biến báo cáo dòng tiền thành nội dung và bàn phím Telegram theo từng cấp điều hướng.
+ * Không truy vấn dữ liệu hoặc ghi giao dịch.
+ */
 import { money_, normalizeSearchText_ } from "../shared/finance/shared.js";
 import { cashflowCallbackData_ } from "./callbacks.js";
 

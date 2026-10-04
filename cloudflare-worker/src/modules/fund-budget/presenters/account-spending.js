@@ -1,3 +1,7 @@
+/**
+ * Trình bày ngân sách và chi tiêu theo tài khoản, gồm các khoản chi bất thường.
+ * Các hàm chỉ đọc báo cáo đã tính và tạo nội dung/nút điều hướng.
+ */
 import { money_, notionIdToken_ } from "../../shared/finance/shared.js";
 
 function expenseBudgetOverviewLines_(data, monthlyLimit, heading) {

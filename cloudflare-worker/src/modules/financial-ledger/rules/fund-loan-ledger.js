@@ -1,3 +1,7 @@
+/**
+ * Đối chiếu khoản mượn và trả giữa các quỹ theo tên quỹ, tài khoản và giao dịch liên quan.
+ * Trả số dư nghĩa vụ và các khoản chưa ghép được, không tự suy ra đã trả.
+ */
 import { FUND_REPAYMENT } from "./transaction-language.js";
 import { propertyText_, relationId_, validTransactionDate_ } from "../../shared/finance/transaction-rows.js";
 import { chronologyOnly_, fundNameKey_, positiveEvidenceText_, resolveFund_, accountName_ } from "./evidence.js";

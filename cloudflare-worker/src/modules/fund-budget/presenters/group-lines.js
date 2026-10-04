@@ -1,3 +1,7 @@
+/**
+ * Tạo dòng hiển thị cho nhóm quỹ và từng nhãn con, gồm thông tin nợ đã có bằng chứng.
+ * Quy tắc hiển thị số dư nhãn con tập trung ở đây.
+ */
 import { money_ } from "../../shared/finance/shared.js";
 
 function legacyFundBalanceChildName_(group) {

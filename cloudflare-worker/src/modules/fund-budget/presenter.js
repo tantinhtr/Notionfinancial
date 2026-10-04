@@ -1,3 +1,7 @@
+/**
+ * Ghép tiêu đề, nhóm quỹ, nhãn con và các vấn đề dữ liệu thành báo cáo Telegram.
+ * Giữ phần tiền còn ở nhãn con theo quy tắc hiển thị, không tự tính lại phân bổ.
+ */
 import { money_, normalizeSearchText_ } from "../shared/finance/shared.js";
 import { budgetLine_, childLines_ } from "./presenters/group-lines.js";
 import { appendDataIssues_ } from "./presenters/data-issues.js";

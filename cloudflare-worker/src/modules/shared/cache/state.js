@@ -1,3 +1,7 @@
+/**
+ * Giữ hợp đồng KV cũ cho dấu update đã xử lý và cache báo cáo.
+ * Đây là lớp tương thích; chống trùng trong runtime hiện tại do Durable Object đảm nhiệm.
+ */
 const PROCESSED_UPDATE_TTL_SECONDS = 604800;
 const DEFAULT_REPORT_TTL_SECONDS = 60;
 

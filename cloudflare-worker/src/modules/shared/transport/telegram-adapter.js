@@ -1,3 +1,7 @@
+/**
+ * Gửi payload đã chuẩn bị tới Telegram Bot API và kiểm tra phản hồi.
+ * Không phân tích số tiền, tính ngân sách hay tự sửa nội dung tin nhắn.
+ */
 import { parseJson, redactToken } from "./http-response.js";
 
 function telegramError(method, status, description, telegramToken) {

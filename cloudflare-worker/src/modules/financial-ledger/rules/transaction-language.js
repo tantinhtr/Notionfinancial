@@ -1,3 +1,7 @@
+/**
+ * Tập trung các mẫu từ ngữ nhận diện vay, trả, hoàn ứng và tham chiếu lịch sử.
+ * Khớp từ chỉ xác định loại hành động; vẫn phải đối chiếu tài khoản/người/quỹ ở bước sau.
+ */
 // Normalized text only. Recognition is separate from account/fund matching.
 // Shared fragments keep history loading aware of the repayment vocabulary.
 export const RETURN_ACTIONS = "tra lai|hoan lai";

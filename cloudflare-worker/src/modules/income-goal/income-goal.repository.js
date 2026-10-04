@@ -1,3 +1,7 @@
+/**
+ * Ánh xạ yêu cầu đọc/ghi thu nhập sang bộ lọc và thuộc tính Notion.
+ * Mỗi thao tác tạo bản ghi chỉ gửi một lần; dịch vụ quyết định kiểm tra trùng và xử lý lỗi.
+ */
 import { iso_ } from "../shared/finance/shared.js";
 import { MONTH_DATE_PROPERTY } from "../shared/finance/report-data.js";
 const INCOME_CATEGORY_PROPERTY = "Loại Khoản Thu";
