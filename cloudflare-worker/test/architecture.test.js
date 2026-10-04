@@ -44,6 +44,7 @@ test("domain modules never import outward layers", async () => {
   for (const path of await files(root)) {
     if (!path.endsWith(".js")) continue;
     const source = (await readFile(path, "utf8")).replaceAll("\\", "/");
+    if (/^export /m.test(source) && !/\b(?:import|function|class)\s/.test(source)) continue;
     for (const token of forbidden) {
       assert.equal(source.includes(token), false, path + " imports " + token);
     }

@@ -1,1 +1,1 @@
-export { createNotionClient } from "./notion-adapter.js";
+export { createNotionClient } from "../modules/shared/transport/notion-adapter.js";

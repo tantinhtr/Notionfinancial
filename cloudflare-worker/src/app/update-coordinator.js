@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
-import { classifyUpdate } from "./bot-router.js";
-import { createCoordinatorHandler } from "./coordinator-handler.js";
+import { classifyUpdate } from "../modules/telegram-bot/index.js";
+import { createCoordinatorHandler } from "../modules/update-processing/index.js";
 import { createRuntime } from "./runtime.js";
 import { jsonResponse } from "./http-response.js";
 

@@ -1,1 +1,1 @@
-export { collectGroupTransfers } from "../../../domain/budget/transfers.js";
+export { collectGroupTransfers } from "../../../modules/fund-budget/rules/transfers.js";

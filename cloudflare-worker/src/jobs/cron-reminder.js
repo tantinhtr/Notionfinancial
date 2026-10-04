@@ -1,3 +1,3 @@
-export function createCronReminder({ incomeGoal }) {
-  return () => incomeGoal.sendDailyReminder();
+export function createCronReminder({ getGoalStatus, deliver }) {
+  return async () => deliver(await getGoalStatus());
 }

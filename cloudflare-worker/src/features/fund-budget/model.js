@@ -1,1 +1,1 @@
-export { buildAccountSpendingData_ } from "../../domain/budget/model.js";
+export { buildAccountSpendingData_ } from "../../app/finance-composition.js";

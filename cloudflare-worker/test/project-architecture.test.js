@@ -57,3 +57,25 @@ test("architecture policy detects cycles and I/O hidden inside pure modules", ()
     ["domain/finance/shared.js", "import(variablePath)"]
   ])), /computed import/);
 });
+
+test("feature layers reject concrete service dependencies and cross-module internals", () => {
+  for (const [origin,target] of [
+    ["modules/income-goal/income-goal.service.js","modules/income-goal/income-goal.repository.js"],
+    ["modules/fund-budget/rules/model.js","modules/fund-budget/fund-budget.repository.js"],
+    ["modules/cashflow/cashflow.service.js","modules/fund-budget/fund-budget.service.js"],
+    ["modules/cashflow/cashflow.controller.js","modules/cashflow/cashflow.repository.js"],
+    ["modules/financial-ledger/financial-ledger.service.js","app/runtime.js"]
+  ]) {
+    const specifier="../".repeat(origin.split("/").length-1)+target;
+    assert.throws(()=>checkArchitecture(new Map([[origin,'import "'+specifier+'";'],[target,""]])),/forbidden|bypasses|module imports/);
+  }
+});
+
+test("canonical runtime cannot import legacy composition and import-free services cannot call concrete IO", () => {
+  assert.throws(()=>checkArchitecture(new Map([
+    ["app/runtime.js",'import "../repositories/finance-repository.js";'],["repositories/finance-repository.js",""]
+  ])),/legacy/);
+  assert.throws(()=>checkArchitecture(new Map([
+    ["modules/income-goal/income-goal.service.js","export function write(repository) { return repository.queryDatabase(1); }"]
+  ])),/concrete I\/O/);
+});

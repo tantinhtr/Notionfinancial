@@ -1,1 +1,1 @@
-export { buildGroupChildren } from "../../../domain/budget/children.js";
+export { buildGroupChildren } from "../../../modules/fund-budget/rules/children.js";

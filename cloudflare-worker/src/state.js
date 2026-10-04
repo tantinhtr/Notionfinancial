@@ -1,1 +1,1 @@
-export { createStateStore } from "./adapters/state.js";
+export { createStateStore } from "./modules/shared/cache/state.js";

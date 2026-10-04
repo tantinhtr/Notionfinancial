@@ -1,3 +1,3 @@
-export { parseAmount } from "./finance/income-input.js";
-export { propertyText_, relationId_ } from "./finance/notion-properties.js";
-export { normalizeSearchText_ } from "./finance/shared.js";
+export { parseAmount } from "../modules/income-goal/income-input.js";
+export { propertyText_, relationId_ } from "../modules/shared/finance/notion-properties.js";
+export { normalizeSearchText_ } from "../modules/shared/finance/shared.js";

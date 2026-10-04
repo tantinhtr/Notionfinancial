@@ -53,12 +53,11 @@ Mã nguồn chính nằm trong `cloudflare-worker/`:
 
 The project uses a **Modular Monolith**: one Worker deployment, organized by feature.
 
-- Each feature owns its component, repository, model and presenter, with an explicit index.js public API.
-- app/runtime.js wires modules and injected Notion, Telegram and cache adapters.
-- domain contains shared financial rules; adapters perform external I/O.
-- repositories/finance-repository.js composes repositories and coordinates cache invalidation.
-- jobs orchestrates scheduled work.
-- Legacy facades remain compatible. Automated tests guard module boundaries.
+- modules/ owns each feature's contracts, controllers, services, rules and data repositories.
+- app/runtime.js injects concrete adapters and connects public module APIs.
+- modules/shared/ contains reusable transport, cache and finance primitives.
+- jobs/ calls application services for scheduled work.
+- Old paths remain compatibility delegates; architecture tests protect dependency direction.
 
 See [module ownership and data flows](docs/architecture.md), the [complete source module map](docs/module-map.md), and [contributor workflow](CONTRIBUTING.md).
 

@@ -17,7 +17,7 @@ Use npm run dev for local development. Configure secrets in the ignored .dev.var
 1. State the requested behavior and affected module. For refactors, identify behavior that must remain identical.
 2. Capture the test baseline.
 3. Add a failing regression test for a bug, or a contract test for a new boundary.
-4. Make the smallest change in the owning module. Import features through index.js.
+4. Make the smallest change in the owning module. Import modules through their public index.js.
 5. Run relevant tests, the full suite and syntax check. Review unrelated financial, UI and configuration changes.
 6. Explain the change, evidence and verification limitations.
 
@@ -47,7 +47,7 @@ CI runs npm run check and npm test, including boundary tests. Public repository 
 
 ## Shared-policy changes
 
-Before copying a helper, check the shared-policy ownership table in docs/architecture.md. Change report cache keys and TTL only in services/report-cache.js; runtime.js supplies the KV namespace. Use the shared calendar for income dates and reports. Use domain/ledger/transaction-language.js for shared repayment vocabulary; preserve the separate matching rules for each ledger.
+Before copying a helper, check the shared-policy ownership table in docs/architecture.md. Change report cache keys and TTL only in modules/shared/cache/report-cache.js; runtime.js supplies the KV namespace. Use the shared calendar for income dates and reports. Use modules/financial-ledger/rules/transaction-language.js for shared repayment vocabulary; preserve the separate matching rules for each ledger.
 
 When changing a shared module, test its consumers as well as the helper. Keep financial calculations out of adapters and presenters. Different numeric coercion and fallback policies are not interchangeable just because their code looks similar.
 
@@ -59,4 +59,4 @@ Nested models cannot import presenters or I/O. Presenters cannot import models. 
 
 For broad refactors, compare complete report results and input side effects against the prior revision, in addition to running the regression suite. npm run check parses all production files.
 
-New financial calculations belong in domain; inject data through arguments. New data access belongs in repositories, using adapters injected by runtime.js. For webhook changes test both HTTP acknowledgment and Notion write state: HTTP 200 alone does not establish success or deduplication.
+New financial calculations belong in the owning module rules; inject data through arguments. New data access belongs in that module repository, using adapters injected by runtime.js. For webhook changes test both HTTP acknowledgment and Notion write state: HTTP 200 alone does not establish success or deduplication.

@@ -1,1 +1,1 @@
-export { summarizeExpenses } from "../../../domain/budget/expenses.js";
+export { summarizeExpenses } from "../../../modules/fund-budget/rules/expenses.js";

@@ -1,4 +1,4 @@
-export { iso_, money_, normalizeSearchText_ } from "./domain/finance/shared.js";
+export { iso_, money_, normalizeSearchText_ } from "./modules/shared/finance/shared.js";
 
 export { cashflowCategoryToken_, buildMonthlyCashflowData_ } from "./features/cashflow/index.js";
 

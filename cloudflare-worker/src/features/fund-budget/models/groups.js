@@ -1,1 +1,1 @@
-export { buildFundGroups } from "../../../domain/budget/groups.js";
+export { buildFundGroups } from "../../../modules/fund-budget/rules/groups.js";

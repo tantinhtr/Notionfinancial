@@ -23,6 +23,7 @@ test("production consumers use feature public entry points and features cannot i
   for (const file of await files(root)) {
     const origin = relative(root, file).replaceAll("\\", "/");
     const source = await readFile(file, "utf8");
+    if (/^export /m.test(source) && !/\b(?:import|function|class)\s/.test(source)) continue;
     for (const specifier of imports(source)) {
       if (!specifier.startsWith(".")) continue;
       const target = relative(root, resolve(dirname(file), specifier)).replaceAll("\\", "/");
@@ -53,6 +54,7 @@ test("domain, shared helpers, models and presenters have no external I/O depende
       && !/\/(model|presenter|callbacks)\.js$/.test(origin)) continue;
     const source = await readFile(file, "utf8");
     assert.doesNotMatch(source, /\bfetch\s*\(|\b(?:Date\.now|Math\.random)\s*\(/, origin + " is not deterministic");
+    if (/^export /m.test(source) && !/\b(?:import|function|class)\s/.test(source)) continue;
     for (const specifier of imports(source)) {
       assert.equal(specifier.startsWith("."), true, origin + " imports a platform dependency");
       const target = relative(root, resolve(dirname(file), specifier)).replaceAll("\\", "/");

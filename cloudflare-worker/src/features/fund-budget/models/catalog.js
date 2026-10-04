@@ -1,1 +1,1 @@
-export { buildBudgetCatalog } from "../../../domain/budget/catalog.js";
+export { buildBudgetCatalog } from "../../../modules/fund-budget/rules/catalog.js";

@@ -1,1 +1,1 @@
-export { applyGroupFunding } from "../../../domain/budget/funding.js";
+export { applyGroupFunding } from "../../../modules/fund-budget/rules/funding.js";

@@ -1,1 +1,1 @@
-export { buildGoalStatus_ } from "../../domain/finance/goal-model.js";
+export { buildGoalStatus_ } from "../../modules/income-goal/income-goal.rules.js";

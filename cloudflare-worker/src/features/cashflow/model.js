@@ -1,1 +1,1 @@
-export { cashflowCategoryToken_, buildMonthlyCashflowData_ } from "../../domain/cashflow/model.js";
+export { cashflowCategoryToken_, buildMonthlyCashflowData_ } from "../../modules/cashflow/cashflow.rules.js";

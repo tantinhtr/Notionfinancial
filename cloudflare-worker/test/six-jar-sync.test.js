@@ -58,3 +58,27 @@ test("six-jar sync writes changed balances to the month row without changing sch
   assert.equal(calls[0][0], "oct");
   assert.equal(calls[0][1].properties["Hưởng thụ (10%)"].number, 353998);
 });
+import { createSixJarSyncService } from "../src/modules/six-jar-sync/index.js";
+import { projectSixJars } from "../src/modules/six-jar-sync/six-jar-sync.rules.js";
+
+test("sync service does not write an already synchronized month through its data port", async () => {
+  const { values } = projectSixJars(report);
+  const service = createSixJarSyncService({ repository: {
+    async readSchema() { return { properties: Object.fromEntries(Object.keys(properties).map(name => [name, {type: name === "Tháng" ? "title" : "number"}])) }; },
+    async readRows() { return [{ id:"oct",properties:{...values,"Tháng":{title:[{plain_text:"10/2026"}]}} }]; },
+    async updateSchema() { assert.fail("no schema write"); },
+    async createRow() { assert.fail("no create"); },
+    async updateRow() { assert.fail("no update"); }
+  }});
+  await service.sync(report);
+});
+
+test("sync service rejects duplicate month rows before any page write", async () => {
+  const service = createSixJarSyncService({ repository: {
+    async readSchema() { return { properties: Object.fromEntries(Object.keys(properties).map(name => [name, {type: name === "Tháng" ? "title" : "number"}])) }; },
+    async readRows() { return ["first","second"].map(id => ({id,properties:{"Tháng":{title:[{plain_text:"10/2026"}]}}})); },
+    async createRow() { assert.fail("no create"); },
+    async updateRow() { assert.fail("no update"); }
+  }});
+  await assert.rejects(service.sync(report),/Duplicate six-jar month/);
+});

@@ -1,4 +1,4 @@
-import { createBotRouter } from "./bot-router.js";
+import { createBotRouter } from "../modules/telegram-bot/index.js";
 import { createCashflowComponent } from "../features/cashflow/index.js";
 import { createFundBudgetComponent } from "../features/fund-budget/index.js";
 import { createIncomeGoalComponent } from "../features/income-goal/index.js";

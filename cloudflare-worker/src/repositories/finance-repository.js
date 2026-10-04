@@ -1,4 +1,4 @@
-import { reportCachePort } from "../services/cache-port.js";
+import { reportCachePort } from "../modules/shared/cache/cache-port.js";
 import { invalidateReportCaches } from "../services/report-cache.js";
 import { createCashflowRepository } from "./cashflow-repository.js";
 import { createFundBudgetRepository } from "./fund-budget-repository.js";

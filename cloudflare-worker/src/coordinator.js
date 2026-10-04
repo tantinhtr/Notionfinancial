@@ -1,1 +1,1 @@
-export { createCoordinatorHandler } from "./app/coordinator-handler.js";
+export { createCoordinatorHandler } from "./modules/update-processing/update-processing.service.js";

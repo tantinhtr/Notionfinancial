@@ -52,3 +52,16 @@ test("fund view syncs Notion from the same fresh report before sending", async (
   await component.show(7, { refresh: true });
   assert.deepEqual(calls, [["read", true], ["sync", data], ["send"]]);
 });
+
+test("failed Notion sync still sends the report with the original warning", async () => {
+  const sent = [];
+  const component = createFundBudgetComponent({
+    repository: { async getFundBudgetReport() { return fundFixture(); } },
+    syncSixJar: async () => { throw new Error("sync offline"); },
+    telegram: { async sendMessage(...args) { sent.push(args); } }
+  });
+  await component.show(7);
+  assert.equal(sent.length, 1);
+  assert.ok(sent[0][1].endsWith("\n⚠️ Bảng sáu lọ trên Notion chưa đồng bộ. Thử lại sau."));
+  assert.equal(sent[0][2].inline_keyboard[0][0].callback_data, "cash_home");
+});
